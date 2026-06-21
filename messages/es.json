@@ -1,0 +1,174 @@
+{
+  "common": {
+    "appName": "ClubLab",
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "back": "Volver",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "confirm": "Confirmar",
+    "close": "Cerrar",
+    "yes": "Sí",
+    "no": "No",
+    "noData": "Sin datos disponibles",
+    "error": "Error inesperado",
+    "success": "Operación completada",
+    "required": "Campo obligatorio"
+  },
+  "auth": {
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "register": "Registrarse",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "resetPassword": "Restablecer contraseña",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "fullName": "Nombre completo",
+    "welcomeBack": "Bienvenido de vuelta",
+    "loginSubtitle": "Accede a tu plataforma de gestión deportiva",
+    "noAccount": "¿No tienes cuenta?",
+    "hasAccount": "¿Ya tienes cuenta?",
+    "invalidCredentials": "Credenciales incorrectas",
+    "emailRequired": "El correo es obligatorio",
+    "passwordRequired": "La contraseña es obligatoria"
+  },
+  "nav": {
+    "overview": "Inicio",
+    "players": "Jugadores",
+    "teams": "Equipos",
+    "training": "Planificación",
+    "performance": "Rendimiento",
+    "injuries": "Lesiones",
+    "matches": "Partidos",
+    "academy": "Academia",
+    "settings": "Ajustes",
+    "admin": "Admin"
+  },
+  "roles": {
+    "super_admin": "Super Admin",
+    "club_admin": "Admin del Club",
+    "academy_director": "Director de Academia",
+    "academy_coordinator": "Coordinador de Academia",
+    "head_coach": "Primer Entrenador",
+    "coach": "Entrenador",
+    "physical_coach": "Preparador Físico",
+    "physio": "Fisioterapeuta",
+    "sporting_director": "Director Deportivo",
+    "player": "Jugador"
+  },
+  "players": {
+    "title": "Jugadores",
+    "squad": "Plantilla",
+    "addPlayer": "Añadir jugador",
+    "playerProfile": "Ficha del jugador",
+    "position": "Posición",
+    "status": "Estado",
+    "availability": "Disponibilidad",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "dateOfBirth": "Fecha de nacimiento",
+    "nationality": "Nacionalidad",
+    "dominantFoot": "Pie dominante",
+    "height": "Altura (cm)",
+    "weight": "Peso (kg)",
+    "jerseyNumber": "Dorsal",
+    "statuses": {
+      "green": "Óptimo",
+      "yellow": "Control",
+      "red": "Vigilar"
+    }
+  },
+  "training": {
+    "title": "Planificación",
+    "sessions": "Sesiones",
+    "newSession": "Nueva sesión",
+    "sessionType": "Tipo de sesión",
+    "date": "Fecha",
+    "duration": "Duración (min)",
+    "objectives": "Objetivos",
+    "notes": "Notas",
+    "microcycleDay": "Día de microciclo",
+    "plannedLoad": "Carga planificada",
+    "types": {
+      "training": "Entrenamiento",
+      "match": "Partido",
+      "recovery": "Recuperación",
+      "gym": "Gimnasio",
+      "physical_test": "Test Físico",
+      "rest": "Descanso"
+    }
+  },
+  "performance": {
+    "title": "Rendimiento",
+    "wellness": "Bienestar",
+    "loads": "Cargas",
+    "alerts": "Alertas",
+    "rpe": "RPE",
+    "fatigue": "Fatiga",
+    "sleep": "Sueño",
+    "mood": "Ánimo",
+    "acwr": "ACWR",
+    "weeklyLoad": "Carga semanal",
+    "checkin": "Check-in previo",
+    "checkout": "Check-out posterior"
+  },
+  "injuries": {
+    "title": "Lesiones",
+    "newInjury": "Nueva lesión",
+    "bodyPart": "Zona corporal",
+    "type": "Tipo",
+    "severity": "Gravedad",
+    "status": "Estado",
+    "startDate": "Fecha inicio",
+    "expectedReturn": "Retorno estimado",
+    "statuses": {
+      "active": "Activa",
+      "readaptation": "Readaptación",
+      "resolved": "Resuelta"
+    },
+    "severities": {
+      "low": "Leve",
+      "medium": "Moderada",
+      "high": "Grave"
+    }
+  },
+  "matches": {
+    "title": "Partidos",
+    "newMatch": "Nuevo partido",
+    "opponent": "Rival",
+    "date": "Fecha",
+    "result": "Resultado",
+    "competition": "Competición",
+    "home": "Local",
+    "away": "Visitante",
+    "stats": "Estadísticas"
+  },
+  "academy": {
+    "title": "Academia",
+    "overview": "Vista general",
+    "teams": "Equipos",
+    "methodology": "Metodología",
+    "library": "Biblioteca compartida"
+  },
+  "onboarding": {
+    "title": "Bienvenido a ClubLab",
+    "subtitle": "Configura tu organización para empezar",
+    "orgName": "Nombre de la organización",
+    "orgType": "Tipo de organización",
+    "orgTypes": {
+      "club": "Club de fútbol",
+      "academy": "Academia",
+      "independent_coach": "Entrenador independiente"
+    },
+    "continue": "Continuar",
+    "finish": "Finalizar configuración"
+  }
+}

@@ -1,26 +1,166 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================
+   ClubLab v2026.01.01 — Design System
+   Premium dark-mode SaaS theme
+   ============================================================ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Brand palette — ClubLab */
+    --brand-50: 236 253 245;
+    --brand-100: 209 250 229;
+    --brand-400: 52 211 153;
+    --brand-500: 16 185 129;
+    --brand-600: 5 150 105;
+    --brand-700: 4 120 87;
+    --brand-900: 6 78 59;
+
+    /* Accent — Electric indigo */
+    --accent-400: 129 140 248;
+    --accent-500: 99 102 241;
+    --accent-600: 79 70 229;
+
+    /* Neutral — Dark slate */
+    --surface-950: 6 8 20;
+    --surface-900: 10 13 28;
+    --surface-800: 15 19 40;
+    --surface-700: 20 26 52;
+    --surface-600: 30 38 74;
+
+    /* shadcn/ui CSS variables — dark mode */
+    --background: 6 8 20;
+    --foreground: 248 250 252;
+    --card: 10 13 28;
+    --card-foreground: 248 250 252;
+    --popover: 10 13 28;
+    --popover-foreground: 248 250 252;
+    --primary: 16 185 129;
+    --primary-foreground: 6 78 59;
+    --secondary: 20 26 52;
+    --secondary-foreground: 203 213 225;
+    --muted: 15 19 40;
+    --muted-foreground: 100 116 139;
+    --accent: 20 26 52;
+    --accent-foreground: 203 213 225;
+    --destructive: 239 68 68;
+    --destructive-foreground: 248 250 252;
+    --border: 30 38 74;
+    --input: 20 26 52;
+    --ring: 16 185 129;
+    --radius: 0.75rem;
+
+    /* Sidebar specific */
+    --sidebar-background: 10 13 28;
+    --sidebar-foreground: 203 213 225;
+    --sidebar-primary: 16 185 129;
+    --sidebar-primary-foreground: 6 78 59;
+    --sidebar-accent: 20 26 52;
+    --sidebar-accent-foreground: 248 250 252;
+    --sidebar-border: 20 26 52;
+    --sidebar-ring: 16 185 129;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background-color: rgb(var(--surface-950));
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Premium scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.3);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.5);
+  }
+}
+
+/* ============================================================
+   Utility animations
+   ============================================================ */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  50% { box-shadow: 0 0 12px 3px rgba(16, 185, 129, 0.2); }
+}
+
+.animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+.animate-slide-in-left { animation: slide-in-left 0.3s ease-out forwards; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ============================================================
+   Glass morphism utilities
+   ============================================================ */
+
+.glass {
+  background: rgba(10, 13, 28, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 38, 74, 0.8);
+}
+
+.glass-card {
+  background: rgba(15, 19, 40, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(30, 38, 74, 0.6);
+}
+
+/* ============================================================
+   Status colours
+   ============================================================ */
+
+.status-green { color: rgb(52 211 153); }
+.status-yellow { color: rgb(251 191 36); }
+.status-red { color: rgb(248 113 113); }
+
+.status-bg-green { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.3); }
+.status-bg-yellow { background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.3); }
+.status-bg-red { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.3); }
+
+/* ============================================================
+   Typography
+   ============================================================ */
+
+.text-gradient {
+  background: linear-gradient(135deg, rgb(52 211 153) 0%, rgb(99 102 241) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-brand {
+  background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(52 211 153) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
