@@ -19,7 +19,7 @@ const PROTECTED_PATHS = [
 
 const AUTH_PATHS = ["/login", "/register", "/forgot-password"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Strip locale prefix for path matching

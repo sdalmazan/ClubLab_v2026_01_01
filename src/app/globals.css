@@ -2,164 +2,171 @@
 
 /* ============================================================
    ClubLab v2026.01.01 — Design System
-   Premium dark-mode SaaS theme
+   Premium dark-mode SaaS theme (Tailwind v4 compatible)
    ============================================================ */
 
-@layer base {
-  :root {
-    /* Brand palette — ClubLab */
-    --brand-50: 236 253 245;
-    --brand-100: 209 250 229;
-    --brand-400: 52 211 153;
-    --brand-500: 16 185 129;
-    --brand-600: 5 150 105;
-    --brand-700: 4 120 87;
-    --brand-900: 6 78 59;
+@theme {
+  /* Brand palette — ClubLab emerald */
+  --color-brand-50: oklch(97% 0.05 162);
+  --color-brand-400: oklch(80% 0.16 162);
+  --color-brand-500: oklch(70% 0.18 162);
+  --color-brand-600: oklch(60% 0.18 162);
+  --color-brand-700: oklch(50% 0.16 162);
+  --color-brand-900: oklch(35% 0.12 162);
 
-    /* Accent — Electric indigo */
-    --accent-400: 129 140 248;
-    --accent-500: 99 102 241;
-    --accent-600: 79 70 229;
+  /* Accent — Electric indigo */
+  --color-accent-400: oklch(72% 0.15 265);
+  --color-accent-500: oklch(62% 0.17 265);
+  --color-accent-600: oklch(52% 0.18 265);
 
-    /* Neutral — Dark slate */
-    --surface-950: 6 8 20;
-    --surface-900: 10 13 28;
-    --surface-800: 15 19 40;
-    --surface-700: 20 26 52;
-    --surface-600: 30 38 74;
+  /* Surface — Dark navy */
+  --color-surface-950: oklch(10% 0.02 265);
+  --color-surface-900: oklch(13% 0.03 265);
+  --color-surface-800: oklch(17% 0.03 265);
+  --color-surface-700: oklch(21% 0.04 265);
+  --color-surface-600: oklch(26% 0.05 265);
 
-    /* shadcn/ui CSS variables — dark mode */
-    --background: 6 8 20;
-    --foreground: 248 250 252;
-    --card: 10 13 28;
-    --card-foreground: 248 250 252;
-    --popover: 10 13 28;
-    --popover-foreground: 248 250 252;
-    --primary: 16 185 129;
-    --primary-foreground: 6 78 59;
-    --secondary: 20 26 52;
-    --secondary-foreground: 203 213 225;
-    --muted: 15 19 40;
-    --muted-foreground: 100 116 139;
-    --accent: 20 26 52;
-    --accent-foreground: 203 213 225;
-    --destructive: 239 68 68;
-    --destructive-foreground: 248 250 252;
-    --border: 30 38 74;
-    --input: 20 26 52;
-    --ring: 16 185 129;
-    --radius: 0.75rem;
+  /* Fonts */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
-    /* Sidebar specific */
-    --sidebar-background: 10 13 28;
-    --sidebar-foreground: 203 213 225;
-    --sidebar-primary: 16 185 129;
-    --sidebar-primary-foreground: 6 78 59;
-    --sidebar-accent: 20 26 52;
-    --sidebar-accent-foreground: 248 250 252;
-    --sidebar-border: 20 26 52;
-    --sidebar-ring: 16 185 129;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  html {
-    @apply scroll-smooth;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    background-color: rgb(var(--surface-950));
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  }
-
-  /* Premium scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(100, 116, 139, 0.3);
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 116, 139, 0.5);
-  }
+  /* Border radius */
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
 }
 
 /* ============================================================
-   Utility animations
+   shadcn/ui compatibility — CSS variables
+   ============================================================ */
+
+:root {
+  --background: oklch(10% 0.02 265);
+  --foreground: oklch(97% 0.005 265);
+  --card: oklch(13% 0.03 265);
+  --card-foreground: oklch(97% 0.005 265);
+  --popover: oklch(13% 0.03 265);
+  --popover-foreground: oklch(97% 0.005 265);
+  --primary: oklch(70% 0.18 162);
+  --primary-foreground: oklch(35% 0.12 162);
+  --secondary: oklch(21% 0.04 265);
+  --secondary-foreground: oklch(82% 0.02 265);
+  --muted: oklch(17% 0.03 265);
+  --muted-foreground: oklch(57% 0.03 265);
+  --accent: oklch(21% 0.04 265);
+  --accent-foreground: oklch(82% 0.02 265);
+  --destructive: oklch(62% 0.22 27);
+  --destructive-foreground: oklch(97% 0.005 265);
+  --border: oklch(26% 0.05 265);
+  --input: oklch(21% 0.04 265);
+  --ring: oklch(70% 0.18 162);
+  --radius: 0.75rem;
+
+  /* Sidebar */
+  --sidebar-background: oklch(13% 0.03 265);
+  --sidebar-foreground: oklch(82% 0.02 265);
+  --sidebar-primary: oklch(70% 0.18 162);
+  --sidebar-primary-foreground: oklch(35% 0.12 162);
+  --sidebar-accent: oklch(21% 0.04 265);
+  --sidebar-accent-foreground: oklch(97% 0.005 265);
+  --sidebar-border: oklch(21% 0.04 265);
+  --sidebar-ring: oklch(70% 0.18 162);
+}
+
+/* ============================================================
+   Base styles
+   ============================================================ */
+
+@layer base {
+  * {
+    border-color: var(--border);
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    background-color: oklch(10% 0.02 265);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Premium scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: oklch(40% 0.03 265 / 0.5); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: oklch(50% 0.03 265 / 0.7); }
+}
+
+/* ============================================================
+   Animations
    ============================================================ */
 
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slide-in-left {
   from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-  50% { box-shadow: 0 0 12px 3px rgba(16, 185, 129, 0.2); }
+  0%, 100% { box-shadow: 0 0 0 0 oklch(70% 0.18 162 / 0); }
+  50%       { box-shadow: 0 0 12px 3px oklch(70% 0.18 162 / 0.2); }
 }
 
-.animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+.animate-fade-in      { animation: fade-in 0.3s ease-out forwards; }
 .animate-slide-in-left { animation: slide-in-left 0.3s ease-out forwards; }
-.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-pulse-glow   { animation: pulse-glow 2s ease-in-out infinite; }
 
 /* ============================================================
-   Glass morphism utilities
+   Glass morphism
    ============================================================ */
 
 .glass {
-  background: rgba(10, 13, 28, 0.7);
+  background: oklch(13% 0.03 265 / 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(30, 38, 74, 0.8);
+  border: 1px solid oklch(26% 0.05 265 / 0.8);
 }
 
 .glass-card {
-  background: rgba(15, 19, 40, 0.6);
+  background: oklch(17% 0.03 265 / 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(30, 38, 74, 0.6);
+  border: 1px solid oklch(26% 0.05 265 / 0.6);
 }
 
 /* ============================================================
    Status colours
    ============================================================ */
 
-.status-green { color: rgb(52 211 153); }
-.status-yellow { color: rgb(251 191 36); }
-.status-red { color: rgb(248 113 113); }
+.status-green  { color: oklch(80% 0.16 162); }
+.status-yellow { color: oklch(82% 0.17 87); }
+.status-red    { color: oklch(72% 0.20 27); }
 
-.status-bg-green { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.3); }
-.status-bg-yellow { background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.3); }
-.status-bg-red { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.3); }
+.status-bg-green  { background: oklch(80% 0.16 162 / 0.1); border-color: oklch(80% 0.16 162 / 0.3); }
+.status-bg-yellow { background: oklch(82% 0.17 87 / 0.1);  border-color: oklch(82% 0.17 87 / 0.3); }
+.status-bg-red    { background: oklch(72% 0.20 27 / 0.1);  border-color: oklch(72% 0.20 27 / 0.3); }
 
 /* ============================================================
-   Typography
+   Typography utilities
    ============================================================ */
 
 .text-gradient {
-  background: linear-gradient(135deg, rgb(52 211 153) 0%, rgb(99 102 241) 100%);
+  background: linear-gradient(135deg, oklch(80% 0.16 162) 0%, oklch(72% 0.15 265) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-gradient-brand {
-  background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(52 211 153) 100%);
+  background: linear-gradient(135deg, oklch(70% 0.18 162) 0%, oklch(80% 0.16 162) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

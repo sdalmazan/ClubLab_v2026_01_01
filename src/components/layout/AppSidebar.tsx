@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -35,6 +34,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import Link from "next/link";
 
 // ============================================================
 // NAV STRUCTURE
@@ -131,17 +131,13 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const advancedItems = filterItems(NAV_ADVANCED);
   const systemItems = filterItems(NAV_SYSTEM);
 
-  const initials = user.email
-    .split("@")[0]
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = user.email.split("@")[0].slice(0, 2).toUpperCase();
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">
       {/* ── HEADER ── */}
       <SidebarHeader className="px-4 py-5">
         <Link href="/dashboard" className="flex items-center gap-3 group">
-          {/* Logo mark */}
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-lg shadow-emerald-950/50 group-hover:shadow-emerald-900/60 transition-all">
             <Dumbbell className="h-4 w-4 text-white" />
           </div>
@@ -167,20 +163,23 @@ export function AppSidebar({ user }: AppSidebarProps) {
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
-                    asChild
                     isActive={isActive(item.href)}
                     tooltip={t(item.labelKey as any)}
-                  >
-                    <Link href={item.href} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span>{t(item.labelKey as any)}</span>
-                      {item.badge && (
-                        <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
+                    render={
+                      <Link href={item.href} className="flex items-center gap-3">
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span>{t(item.labelKey as any)}</span>
+                        {item.badge && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-[10px] px-1.5 py-0"
+                          >
+                            {item.badge}
+                          </Badge>
+                        )}
+                      </Link>
+                    }
+                  />
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
@@ -198,16 +197,16 @@ export function AppSidebar({ user }: AppSidebarProps) {
                 {advancedItems.map((item) => (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
-                      asChild
                       isActive={isActive(item.href)}
                       tooltip={t(item.labelKey as any)}
-                    >
-                      <Link href={item.href} className="flex items-center gap-3">
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span>{t(item.labelKey as any)}</span>
-                        <ChevronRight className="ml-auto h-3 w-3 text-slate-600" />
-                      </Link>
-                    </SidebarMenuButton>
+                      render={
+                        <Link href={item.href} className="flex items-center gap-3">
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          <span>{t(item.labelKey as any)}</span>
+                          <ChevronRight className="ml-auto h-3 w-3 text-slate-600" />
+                        </Link>
+                      }
+                    />
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -222,15 +221,15 @@ export function AppSidebar({ user }: AppSidebarProps) {
               {systemItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
-                    asChild
                     isActive={isActive(item.href)}
                     tooltip={t(item.labelKey as any)}
-                  >
-                    <Link href={item.href} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span>{t(item.labelKey as any)}</span>
-                    </Link>
-                  </SidebarMenuButton>
+                    render={
+                      <Link href={item.href} className="flex items-center gap-3">
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span>{t(item.labelKey as any)}</span>
+                      </Link>
+                    }
+                  />
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

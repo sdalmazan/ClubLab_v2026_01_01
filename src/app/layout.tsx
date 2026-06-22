@@ -35,7 +35,7 @@ export default async function RootLayout({
     <html lang={locale} className="dark" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <NextIntlClientProvider messages={messages}>
-          <TooltipProvider delayDuration={300}>
+          <TooltipProvider>
             {children}
           </TooltipProvider>
         </NextIntlClientProvider>
