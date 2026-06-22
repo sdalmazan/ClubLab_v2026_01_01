@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LanguageSelector } from "@/components/layout/LanguageSelector";
 
 export const metadata: Metadata = {
   title: "Acceso",
@@ -12,6 +13,10 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[oklch(10%_0.02_265)] relative overflow-hidden">
+      {/* Top right language selector */}
+      <div className="absolute top-4 right-4 z-50">
+        <LanguageSelector />
+      </div>
       {/* Ambient glow */}
       <div
         aria-hidden

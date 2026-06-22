@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Shield, GraduationCap, User, Check } from "lucide-react";
 
 type OrgType = "club" | "academy" | "independent_coach";
 type Step = 1 | 2 | 3;
 
-const ORG_TYPE_OPTIONS: { value: OrgType; label: string; desc: string; icon: string }[] = [
-  { value: "club", label: "Club de fútbol", desc: "Gestiona uno o varios equipos de un club", icon: "🏟️" },
-  { value: "academy", label: "Academia", desc: "Múltiples equipos, metodología compartida", icon: "🎓" },
-  { value: "independent_coach", label: "Entrenador independiente", desc: "Tú y tu equipo, sin estructura de club", icon: "🧑‍🏫" },
+const ORG_TYPE_OPTIONS: { value: OrgType; label: string; desc: string; icon: React.ElementType }[] = [
+  { value: "club", label: "Club de fútbol", desc: "Gestiona uno o varios equipos de un club", icon: Shield },
+  { value: "academy", label: "Academia", desc: "Múltiples equipos, metodología compartida", icon: GraduationCap },
+  { value: "independent_coach", label: "Entrenador independiente", desc: "Tú y tu equipo, sin estructura de club", icon: User },
 ];
 
 const POSITION_OPTIONS = [
@@ -40,6 +41,13 @@ export function OnboardingWizard() {
   const [step, setStep] = useState<Step>(1);
   const [role, setRole] = useState<string>("club_admin");
   const [fullName, setFullName] = useState("");
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   // Base state
   const [orgType, setOrgType] = useState<OrgType>("club");
@@ -234,10 +242,19 @@ export function OnboardingWizard() {
               <div>
                 <h2 className="text-lg font-bold text-white">¡Bienvenido Jugador!</h2>
                 <p className="text-sm text-slate-400 mt-1">Configuraremos tu perfil deportivo personal para realizar seguimiento de tu rendimiento.</p>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mt-4 text-xs text-slate-400 space-y-2">
-                  <p>⭐ Podrás reportar tu cuestionario diario de bienestar (Wellness).</p>
-                  <p>⭐ Podrás registrar la carga de tus entrenamientos (RPE).</p>
-                  <p>⭐ Visualizarás tus alertas y estadísticas individuales.</p>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mt-4 text-xs text-slate-400 space-y-3">
+                  <p className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>Podrás reportar tu cuestionario diario de bienestar (Wellness).</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>Podrás registrar la carga de tus entrenamientos (RPE).</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span>Visualizarás tus alertas y estadísticas individuales.</span>
+                  </p>
                 </div>
               </div>
             ) : role === "head_coach" ? (
@@ -284,8 +301,14 @@ export function OnboardingWizard() {
                           : "border-white/10 bg-white/3 hover:border-white/20"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{opt.icon}</span>
+                      <div className="flex items-center gap-4">
+                        <div className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center border transition-all ${
+                          orgType === opt.value
+                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            : "bg-white/5 border-white/10 text-slate-400"
+                        }`}>
+                          <opt.icon className="h-5 w-5" />
+                        </div>
                         <div>
                           <p className="font-semibold text-white text-sm">{opt.label}</p>
                           <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
@@ -538,6 +561,16 @@ export function OnboardingWizard() {
               }`}
             />
           ))}
+        </div>
+
+        {/* Already registered / Logout link */}
+        <div className="mt-8 pt-4 border-t border-white/[0.06] text-center">
+          <button
+            onClick={handleSignOut}
+            className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+          >
+            ¿Ya tienes tu cuenta configurada? <span className="text-emerald-500 font-semibold hover:text-emerald-400">Inicia sesión</span>
+          </button>
         </div>
       </div>
     </div>

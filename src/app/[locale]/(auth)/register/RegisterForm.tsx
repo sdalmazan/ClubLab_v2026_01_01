@@ -20,7 +20,7 @@ export function RegisterForm() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${location.origin}/api/auth/callback?next=/onboarding`,
+        redirectTo: `${location.origin}/api/auth/callback?next=/onboarding&role=${role}`,
       },
     });
   }

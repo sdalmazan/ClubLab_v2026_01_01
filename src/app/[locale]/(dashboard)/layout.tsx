@@ -1,5 +1,6 @@
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
+import { LanguageSelector } from "@/components/layout/LanguageSelector";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { AuthUser } from "@/types";
@@ -70,7 +71,7 @@ export default async function DashboardLayout({
           <SidebarTrigger className="text-slate-400 hover:text-white transition-colors" />
           <div className="h-4 w-px bg-white/10" />
           <div className="flex-1" />
-          {/* Future: notifications, user menu, season selector */}
+          <LanguageSelector />
         </header>
         {/* Page content */}
         <main className="flex flex-1 flex-col gap-0 p-6 min-h-[calc(100vh-3.5rem)]">

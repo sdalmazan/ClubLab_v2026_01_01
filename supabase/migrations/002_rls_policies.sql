@@ -34,11 +34,29 @@ ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own organization"
   ON organizations FOR SELECT
-  USING (id = auth_org_id());
+  TO authenticated
+  USING (
+    id IN (
+      SELECT organization_id 
+      FROM user_organization_roles 
+      WHERE user_id = auth.uid()
+    )
+    OR
+    NOT EXISTS (
+      SELECT 1 
+      FROM user_organization_roles 
+      WHERE user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "Club admins can update their organization"
   ON organizations FOR UPDATE
   USING (id = auth_org_id() AND auth_user_role() IN ('club_admin', 'super_admin'));
+
+CREATE POLICY "Authenticated users can create organizations"
+  ON organizations FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
 
 -- ─────────────────────────────────────────────────────────────
 -- clubs, seasons, teams
@@ -72,6 +90,11 @@ CREATE POLICY "Admins can manage roles"
     organization_id = auth_org_id()
     AND auth_user_role() IN ('club_admin', 'academy_director', 'super_admin')
   );
+
+CREATE POLICY "Authenticated users can assign their own initial role"
+  ON user_organization_roles FOR INSERT
+  TO authenticated
+  WITH CHECK (user_id = auth.uid());
 
 -- ─────────────────────────────────────────────────────────────
 -- players
@@ -219,3 +242,8 @@ ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Orgs can read their subscription"
   ON subscriptions FOR SELECT
   USING (organization_id = auth_org_id());
+
+CREATE POLICY "Authenticated users can create subscriptions"
+  ON subscriptions FOR INSERT
+  TO authenticated
+  WITH CHECK (true);

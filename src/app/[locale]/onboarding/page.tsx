@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { OnboardingWizard } from "./OnboardingWizard";
+import { LanguageSelector } from "@/components/layout/LanguageSelector";
 
 export const metadata: Metadata = {
   title: "Configura tu organización — ClubLab",
@@ -9,6 +10,10 @@ export const metadata: Metadata = {
 export default function OnboardingPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[oklch(10%_0.02_265)] relative overflow-hidden px-4 py-12">
+      {/* Top right language selector */}
+      <div className="absolute top-4 right-4 z-50">
+        <LanguageSelector />
+      </div>
       {/* Ambient glow */}
       <div
         aria-hidden

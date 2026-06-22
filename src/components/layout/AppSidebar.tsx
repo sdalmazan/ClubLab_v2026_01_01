@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
@@ -14,7 +14,9 @@ import {
   ShieldCheck,
   ChevronRight,
   Dumbbell,
+  LogOut,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { AuthUser } from "@/types";
 import { can } from "@/lib/permissions/can";
@@ -113,7 +115,15 @@ interface AppSidebarProps {
 
 export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const t = useTranslations("nav");
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
@@ -241,21 +251,38 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
       {/* ── FOOTER — User info ── */}
       <SidebarFooter className="px-4 py-4">
-        <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-          <Avatar className="h-8 w-8 shrink-0 ring-2 ring-emerald-500/20">
-            <AvatarFallback className="bg-emerald-950 text-emerald-400 text-xs font-bold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-            <span className="text-xs font-semibold text-white truncate">
-              {user.email}
-            </span>
-            <span className="text-[10px] text-slate-500 truncate">
-              {user.organization_slug}
-            </span>
+        <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <Avatar className="h-8 w-8 shrink-0 ring-2 ring-emerald-500/20">
+              <AvatarFallback className="bg-emerald-950 text-emerald-400 text-xs font-bold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
+              <span className="text-xs font-semibold text-white truncate">
+                {user.email}
+              </span>
+              <span className="text-[10px] text-slate-500 truncate">
+                {user.organization_slug}
+              </span>
+            </div>
           </div>
+          <button
+            onClick={handleSignOut}
+            className="text-slate-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors group-data-[collapsible=icon]:hidden"
+            title="Cerrar sesión"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
+        {/* Collapsed logout icon */}
+        <button
+          onClick={handleSignOut}
+          className="hidden group-data-[collapsible=icon]:flex h-8 w-8 mt-2 items-center justify-center text-slate-400 hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
+          title="Cerrar sesión"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </SidebarFooter>
     </Sidebar>
   );

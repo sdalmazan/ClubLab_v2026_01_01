@@ -73,6 +73,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(dashboardUrl);
   }
 
+  // Bypass i18n routing for API endpoints
+  if (pathname.startsWith("/api")) {
+    return supabaseResponse;
+  }
+
   // Apply i18n routing
   return intlMiddleware(request);
 }
