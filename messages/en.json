@@ -84,6 +84,19 @@
       "green": "Optimal",
       "yellow": "Monitor",
       "red": "Alert"
+    },
+    "physicalTests": "Physical Tests",
+    "assignedTasks": "Assigned Tasks",
+    "physicalTestsHistory": "Physical Tests History",
+    "viewPhysicalTestsHistory": "View physical tests history →",
+    "registerNewPhysicalTest": "+ Register new physical test",
+    "assignOrRemoveExercises": "Assign or remove exercises →",
+    "availabilityNotes": "Availability notes",
+    "availabilityStatus": "Status and Availability",
+    "availabilityOptions": {
+      "available": "Available",
+      "control": "Control",
+      "not_available": "Unavailable"
     }
   },
   "training": {
@@ -97,13 +110,39 @@
     "notes": "Notes",
     "microcycleDay": "Microcycle day",
     "plannedLoad": "Planned load",
+    "plannedIntensity": "Planned intensity",
+    "saveSession": "Save session",
+    "deleteSession": "Delete session",
+    "editSession": "Edit session",
+    "exportPdf": "Export PDF",
+    "importTemplate": "Import template",
+    "sessionTemplates": "Session Templates",
+    "newTemplate": "New template",
+    "saveTemplate": "Save template",
+    "deleteTemplate": "Delete template",
+    "noSessions": "No sessions planned",
+    "noTemplates": "No templates registered",
+    "attendance": "Attendance Checklist",
+    "pitchZones": "Pitch zones",
+    "equipment": "Required equipment",
+    "durationMin": "Duration: {min} min",
+    "recoveryMin": "Recovery: {min} min",
+    "groups": "Team distribution",
     "types": {
-      "training": "Training",
+      "training": "Group Training",
+      "individual": "Individual Training",
       "match": "Match",
       "recovery": "Recovery",
       "gym": "Gym",
       "physical_test": "Physical Test",
       "rest": "Rest"
+    },
+    "attendanceStatus": {
+      "present": "Present",
+      "absent": "Absent",
+      "injured": "Injured",
+      "rest": "Rest",
+      "other": "Other"
     }
   },
   "performance": {

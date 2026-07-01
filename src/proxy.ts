@@ -22,8 +22,11 @@ const AUTH_PATHS = ["/login", "/register", "/forgot-password"];
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Strip locale prefix for path matching
-  const pathnameWithoutLocale = pathname.replace(/^\/(es|en|pt|fr|it|de|nl)/, "");
+  // Strip locale prefix for path matching, ensuring a leading slash remains
+  let pathnameWithoutLocale = pathname.replace(/^\/(es|en|pt|fr|it|de|nl)(?:\/|$)/, "/");
+  if (pathnameWithoutLocale.endsWith("/") && pathnameWithoutLocale !== "/") {
+    pathnameWithoutLocale = pathnameWithoutLocale.slice(0, -1);
+  }
 
   let supabaseResponse = NextResponse.next({ request });
 
@@ -79,11 +82,24 @@ export async function proxy(request: NextRequest) {
   }
 
   // Apply i18n routing
-  return intlMiddleware(request);
+  const response = intlMiddleware(request);
+
+  // Copy Supabase cookies to next-intl response so session updates are persisted
+  const supabaseCookies = supabaseResponse.headers.getSetCookie();
+  if (supabaseCookies.length > 0) {
+    supabaseCookies.forEach((cookie) => {
+      response.headers.append("set-cookie", cookie);
+    });
+  }
+
+  return response;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/",
+    "/(es|en|pt|fr|it|de|nl)/:path*",
+    "/((?!api|_next|_vercel|.*\\..*).*)",
   ],
 };
+

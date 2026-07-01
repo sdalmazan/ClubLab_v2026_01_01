@@ -83,9 +83,6 @@ const NAV_MAIN: NavItem[] = [
     icon: Trophy,
     requiredPermission: "view_matches",
   },
-];
-
-const NAV_ADVANCED: NavItem[] = [
   {
     href: "/academy",
     labelKey: "academy",
@@ -94,6 +91,8 @@ const NAV_ADVANCED: NavItem[] = [
     requiredFeature: "academy_dashboard",
   },
 ];
+
+const NAV_ADVANCED: NavItem[] = [];
 
 const NAV_SYSTEM: NavItem[] = [
   { href: "/settings", labelKey: "settings", icon: Settings },
@@ -130,6 +129,18 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   const filterItems = (items: NavItem[]) =>
     items.filter((item) => {
+      if (item.href === "/admin" && (user.email === "diecilo7@gmail.com" || user.role === "super_admin")) {
+        return true;
+      }
+      if (item.href === "/academy" && (
+        user.role === "academy_coordinator" ||
+        user.role === "academy_director" ||
+        user.role === "club_admin" ||
+        user.role === "sporting_director" ||
+        user.role === "super_admin"
+      )) {
+        return true;
+      }
       if (item.requiredPermission && !can(user, item.requiredPermission))
         return false;
       if (item.requiredFeature && !checkFeature(user, item.requiredFeature))
@@ -148,15 +159,27 @@ export function AppSidebar({ user }: AppSidebarProps) {
       {/* ── HEADER ── */}
       <SidebarHeader className="px-4 py-5">
         <Link href="/dashboard" className="flex items-center gap-3 group">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-lg shadow-emerald-950/50 group-hover:shadow-emerald-900/60 transition-all">
-            <Dumbbell className="h-4 w-4 text-white" />
-          </div>
+          {user.club_logo_url ? (
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white border border-white/10 p-1 shadow-lg shadow-black/40 overflow-hidden transition-all">
+              <img src={user.club_logo_url} className="h-full w-full object-contain animate-fade-in" alt="Escudo" />
+            </div>
+          ) : (
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-lg transition-all group-hover:scale-105"
+              style={{
+                background: `linear-gradient(135deg, var(--primary, #10b981) 0%, var(--color-accent-500, #3b82f6) 100%)`,
+                boxShadow: `0 4px 10px -2px rgba(0, 0, 0, 0.4), 0 0 8px var(--primary)`
+              }}
+            >
+              <Dumbbell className="h-4 w-4 text-white" />
+            </div>
+          )}
           <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-extrabold tracking-tight text-white leading-none">
-              ClubLab
+            <span className="text-sm font-extrabold tracking-tight text-white leading-none truncate max-w-[130px]" title={user.club_name ?? "ClubLab"}>
+              {user.club_name ?? "ClubLab"}
             </span>
-            <span className="text-[10px] text-slate-500 font-medium tracking-widest uppercase">
-              v2026
+            <span className="text-[9px] text-slate-500 font-semibold tracking-widest uppercase mt-0.5">
+              {user.club_name ? "ClubLab" : "v2026"}
             </span>
           </div>
         </Link>
@@ -264,6 +287,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
               </span>
               <span className="text-[10px] text-slate-500 truncate">
                 {user.organization_slug}
+              </span>
+              <span className="text-[9px] text-slate-600 truncate mt-0.5">
+                v2026.01.01
               </span>
             </div>
           </div>

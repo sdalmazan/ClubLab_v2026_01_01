@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PositionSelector } from "@/components/players/FieldMap";
-import type { PositionKey } from "@/types";
+import type { PositionKey, PlayerStatus, AvailabilityStatus } from "@/types";
 import type { PlayerWithMembership } from "@/services/players";
 
 interface EditPlayerFormProps {
@@ -27,6 +27,20 @@ export function EditPlayerForm({ player, teams }: EditPlayerFormProps) {
   const [jerseyNumber, setJerseyNumber] = useState(
     player.membership?.jersey_number?.toString() ?? ""
   );
+  const [kickerRoles, setKickerRoles] = useState<string[]>(
+    (player.membership?.kicker_roles as string[]) ?? []
+  );
+
+  // Physical status & availability
+  const [physicalStatus, setPhysicalStatus] = useState<PlayerStatus>(
+    player.physical_status ?? "green"
+  );
+  const [availabilityStatus, setAvailabilityStatus] = useState<AvailabilityStatus>(
+    player.availability_status ?? "available"
+  );
+  const [availabilityNotes, setAvailabilityNotes] = useState(
+    player.availability_notes ?? ""
+  );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +63,10 @@ export function EditPlayerForm({ player, teams }: EditPlayerFormProps) {
         weightKg: weightKg ? Number(weightKg) : null,
         positions,
         jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
+        kickerRoles,
+        physicalStatus,
+        availabilityStatus,
+        availabilityNotes: availabilityNotes.trim() || null,
       }),
     });
 
@@ -116,6 +134,49 @@ export function EditPlayerForm({ player, teams }: EditPlayerFormProps) {
       </section>
 
       <section>
+        <h2 className="text-sm font-bold text-white mb-4 pb-2 border-b border-white/5">Estado físico y disponibilidad</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label htmlFor="edit-physical-status" className={labelClass}>Semáforo</label>
+            <select
+              id="edit-physical-status"
+              value={physicalStatus}
+              onChange={(e) => setPhysicalStatus(e.target.value as PlayerStatus)}
+              className={inputClass}
+            >
+              <option value="green">🟢 Óptimo</option>
+              <option value="yellow">🟡 Control</option>
+              <option value="red">🔴 Vigilar</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="edit-availability-status" className={labelClass}>Disponibilidad</label>
+            <select
+              id="edit-availability-status"
+              value={availabilityStatus}
+              onChange={(e) => setAvailabilityStatus(e.target.value as AvailabilityStatus)}
+              className={inputClass}
+            >
+              <option value="available">Disponible</option>
+              <option value="control">Con control</option>
+              <option value="not_available">No disponible</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="edit-availability-notes" className={labelClass}>Notas de disponibilidad (Fisios / Staff)</label>
+          <textarea
+            id="edit-availability-notes"
+            value={availabilityNotes}
+            onChange={(e) => setAvailabilityNotes(e.target.value)}
+            placeholder="Observaciones internas sobre su estado, dolor o plazos..."
+            rows={3}
+            className={inputClass}
+          />
+        </div>
+      </section>
+
+      <section>
         <h2 className="text-sm font-bold text-white mb-4 pb-2 border-b border-white/5">Posiciones y dorsal</h2>
         <div className="mb-4">
           <label htmlFor="edit-jersey" className={labelClass}>Dorsal</label>
@@ -124,6 +185,51 @@ export function EditPlayerForm({ player, teams }: EditPlayerFormProps) {
         <div>
           <label className={labelClass}>Posiciones</label>
           <PositionSelector selected={positions} onChange={setPositions} />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-bold text-white mb-4 pb-2 border-b border-white/5">Roles de Lanzamiento</h2>
+        <p className="text-xs text-slate-500 mb-3">Selecciona los roles de balón parado asignados a este jugador en el equipo/temporada actual.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {([
+            { key: "far_free_kick_left",   label: "Falta Lejana (Izq)" },
+            { key: "far_free_kick_right",  label: "Falta Lejana (Der)" },
+            { key: "close_free_kick_left", label: "Falta Cercana (Izq)" },
+            { key: "close_free_kick_right",label: "Falta Cercana (Der)" },
+            { key: "corner_left",          label: "Córner (Izq)" },
+            { key: "corner_right",         label: "Córner (Der)" },
+            { key: "penalty",              label: "Penalti" },
+            { key: "throw_in_left",        label: "Saque de Banda (Izq)" },
+            { key: "throw_in_right",       label: "Saque de Banda (Der)" },
+            { key: "area_rival",           label: "Zona de Área Rival" },
+          ] as const).map(({ key, label }) => {
+            const checked = kickerRoles.includes(key);
+            return (
+              <label
+                key={key}
+                htmlFor={`kicker-${key}`}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 cursor-pointer border transition-all ${
+                  checked
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                    : "bg-white/[0.03] border-white/8 text-slate-400 hover:border-white/15 hover:text-slate-200"
+                }`}
+              >
+                <input
+                  id={`kicker-${key}`}
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() =>
+                    setKickerRoles((prev) =>
+                      prev.includes(key) ? prev.filter((r) => r !== key) : [...prev, key]
+                    )
+                  }
+                  className="h-4 w-4 rounded accent-amber-500 cursor-pointer shrink-0"
+                />
+                <span className="text-sm font-medium">{label}</span>
+              </label>
+            );
+          })}
         </div>
       </section>
 
@@ -142,3 +248,4 @@ export function EditPlayerForm({ player, teams }: EditPlayerFormProps) {
     </form>
   );
 }
+

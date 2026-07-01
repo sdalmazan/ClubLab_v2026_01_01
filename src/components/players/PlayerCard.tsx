@@ -18,10 +18,34 @@ export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
   const injury = player.active_injury;
   const primaryPosition = membership?.positions?.[0];
 
+  const isInactive = membership?.status === "inactive";
+  const playerType = membership?.player_type ?? "main";
+  const customLabel = membership?.player_type_label || (playerType === "reserve" ? "Filial" : playerType === "youth" ? "Juvenil" : playerType === "other" ? "Otros" : "");
+
+  let borderStyle = "border-white/5 bg-white/2 hover:border-white/20";
+  let labelColor = "";
+
+  if (playerType === "reserve") {
+    borderStyle = "border-sky-500/20 bg-sky-500/5 hover:border-sky-500/45";
+    labelColor = "bg-sky-500/10 text-sky-400 border-sky-500/20";
+  } else if (playerType === "youth") {
+    borderStyle = "border-purple-500/20 bg-purple-500/5 hover:border-purple-500/45";
+    labelColor = "bg-purple-500/10 text-purple-400 border-purple-500/20";
+  } else if (playerType === "other") {
+    borderStyle = "border-indigo-500/20 bg-indigo-500/5 hover:border-indigo-500/45";
+    labelColor = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+  }
+
+  const cardClass = cn(
+    "group block glass rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 border",
+    borderStyle,
+    isInactive && "opacity-45 grayscale"
+  );
+
   return (
     <Link
       href={`/players/${player.id}`}
-      className="group block glass-card rounded-2xl p-4 hover:border-white/20 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+      className={cardClass}
       id={`player-card-${player.id}`}
     >
       <div className="flex items-start gap-3">
@@ -54,8 +78,13 @@ export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
                 {name}
               </p>
               {primaryPosition && (
-                <p className="text-[10px] text-slate-500 mt-0.5 truncate">
-                  {POSITION_LABELS[primaryPosition]}
+                <p className="text-[11.5px] text-slate-400 mt-0.5 truncate font-medium flex items-center gap-1.5">
+                  <span>{POSITION_LABELS[primaryPosition]}</span>
+                  {player.date_of_birth && (
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      ({new Date(player.date_of_birth).getFullYear()})
+                    </span>
+                  )}
                 </p>
               )}
             </div>
@@ -63,12 +92,26 @@ export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
           </div>
 
           {/* Badges */}
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex flex-wrap gap-1.5 items-center">
             {injury && <InjuryBadge status={injury.status as any} />}
-            {!injury && membership?.teams?.name && (
-              <span className="text-[10px] text-slate-600 flex items-center gap-1">
-                <Shirt className="h-2.5 w-2.5" />
-                {membership.teams.name}
+            {player.date_of_birth && new Date().getFullYear() - new Date(player.date_of_birth).getFullYear() <= 22 && (
+              <span className="text-[9px] font-extrabold bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 uppercase tracking-wider">
+                Sub-23
+              </span>
+            )}
+            {isInactive && membership?.left_date && (
+              <span className="text-[9px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded px-1.5 py-0.5">
+                Baja: {new Date(membership.left_date).toLocaleDateString()}
+              </span>
+            )}
+            {!isInactive && membership?.joined_date && (
+              <span className="text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded px-1.5 py-0.5">
+                Alta: {new Date(membership.joined_date).toLocaleDateString()}
+              </span>
+            )}
+            {playerType !== "main" && customLabel && (
+              <span className={cn("text-[9px] font-extrabold border rounded px-1.5 py-0.5 uppercase tracking-wider", labelColor)}>
+                {customLabel}
               </span>
             )}
           </div>

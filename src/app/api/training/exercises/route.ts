@@ -1,0 +1,184 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient();
+    
+    // Check auth session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    // Load user role & organization
+    const { data: orgRole } = await supabase
+      .from("user_organization_roles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!orgRole?.organization_id) {
+      return NextResponse.json({ error: "Usuario sin organización activa" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const {
+      title,
+      description,
+      category,
+      difficulty,
+      is_shared,
+      tags,
+      library_scope,
+      tactical_concepts,
+      muscle_groups,
+      space_dimensions,
+      needs_groups,
+      num_groups,
+      players_per_group,
+      image_url,
+      video_url,
+      whiteboard_data,
+      whiteboard_zone,
+    } = body;
+
+    if (!title?.trim()) {
+      return NextResponse.json({ error: "El título es obligatorio" }, { status: 400 });
+    }
+
+    const { data: exercise, error } = await supabase
+      .from("exercises")
+      .insert({
+        organization_id: orgRole.organization_id,
+        created_by: user.id,
+        title: title.trim(),
+        description: description?.trim() || null,
+        category: category?.trim() || "General",
+        difficulty: difficulty || "intermediate",
+        is_shared: !!is_shared,
+        tags: tags || [],
+        library_scope: library_scope || "coach",
+        tactical_concepts: tactical_concepts || [],
+        muscle_groups: muscle_groups || [],
+        space_dimensions: space_dimensions || null,
+        needs_groups: !!needs_groups,
+        num_groups: num_groups !== undefined ? Number(num_groups) : 2,
+        players_per_group: players_per_group || null,
+        image_url: image_url || null,
+        video_url: video_url || null,
+        whiteboard_data: whiteboard_data || null,
+        whiteboard_zone: whiteboard_zone || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(exercise);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const supabase = await createClient();
+    
+    // Check auth session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      id,
+      title,
+      description,
+      category,
+      difficulty,
+      is_shared,
+      tags,
+      library_scope,
+      tactical_concepts,
+      muscle_groups,
+      space_dimensions,
+      needs_groups,
+      num_groups,
+      players_per_group,
+      image_url,
+      video_url,
+      whiteboard_data,
+      whiteboard_zone,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "El ID es obligatorio para actualizar" }, { status: 400 });
+    }
+
+    if (!title?.trim()) {
+      return NextResponse.json({ error: "El título es obligatorio" }, { status: 400 });
+    }
+
+    const { data: exercise, error } = await supabase
+      .from("exercises")
+      .update({
+        title: title.trim(),
+        description: description?.trim() || null,
+        category: category?.trim() || "General",
+        difficulty: difficulty || "intermediate",
+        is_shared: !!is_shared,
+        tags: tags || [],
+        library_scope: library_scope || "coach",
+        tactical_concepts: tactical_concepts || [],
+        muscle_groups: muscle_groups || [],
+        space_dimensions: space_dimensions || null,
+        needs_groups: !!needs_groups,
+        num_groups: num_groups !== undefined ? Number(num_groups) : 2,
+        players_per_group: players_per_group || null,
+        image_url: image_url || null,
+        video_url: video_url || null,
+        whiteboard_data: whiteboard_data || null,
+        whiteboard_zone: whiteboard_zone || null,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(exercise);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const supabase = await createClient();
+    
+    // Check auth session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const { data, error } = await supabase
+      .from("exercises")
+      .select("*")
+      .order("title", { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data ?? []);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

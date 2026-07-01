@@ -23,8 +23,10 @@ export default async function SettingsPage() {
     .from("user_organization_roles")
     .select(`
       role,
+      organization_id,
       organizations (
-        name
+        name,
+        settings
       )
     `)
     .eq("user_id", user.id)
@@ -34,6 +36,8 @@ export default async function SettingsPage() {
 
   const role = orgRole?.role ?? "No asignado";
   const orgName = (orgRole as any)?.organizations?.name ?? "Sin organización";
+  const orgSettings = (orgRole as any)?.organizations?.settings ?? {};
+  const orgId = orgRole?.organization_id ?? "";
   const fullName = user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "Usuario";
 
   return (
@@ -53,6 +57,8 @@ export default async function SettingsPage() {
         initialName={fullName}
         role={role}
         organizationName={orgName}
+        organizationId={orgId}
+        organizationSettings={orgSettings}
       />
     </div>
   );

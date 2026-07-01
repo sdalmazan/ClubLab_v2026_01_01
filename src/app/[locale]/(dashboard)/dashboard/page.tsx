@@ -15,7 +15,7 @@ export default function DashboardPage() {
           <span className="text-gradient-brand">ClubLab</span>
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Plataforma de gestión deportiva — v2026.01.01
+          Plataforma de gestión deportiva
         </p>
       </div>
 

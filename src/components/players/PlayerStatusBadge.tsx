@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { PlayerStatus, AvailabilityStatus } from "@/types";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 // ============================================================
 // STATUS BADGE
@@ -97,13 +98,18 @@ export function InjuryBadge({ status }: InjuryBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
         isActive
           ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
           : "bg-amber-500/10 border-amber-500/30 text-amber-400"
       )}
     >
-      {isActive ? "🤕 Lesionado" : "🔄 Readaptación"}
+      {isActive ? (
+        <AlertCircle className="h-3 w-3 text-rose-400 shrink-0" />
+      ) : (
+        <RefreshCw className="h-3 w-3 text-amber-400 shrink-0" />
+      )}
+      {isActive ? "Lesionado" : "Readaptación"}
     </span>
   );
 }

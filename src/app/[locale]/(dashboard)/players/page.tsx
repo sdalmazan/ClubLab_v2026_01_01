@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getSquadPlayers, getOrgTeams } from "@/services/players";
 import { PlayerCard, PlayerCardSkeleton } from "@/components/players/PlayerCard";
-import { FieldMap } from "@/components/players/FieldMap";
+import { InteractiveFieldMap } from "@/components/players/InteractiveFieldMap";
 import { Users, UserPlus, Filter } from "lucide-react";
 import Link from "next/link";
 import type { PositionKey } from "@/types";
 import type { PlayerWithMembership } from "@/services/players";
+import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 export const metadata: Metadata = {
   title: "Plantilla — ClubLab",
@@ -42,26 +44,69 @@ export default async function PlayersPage({
   searchParams: Promise<{ teamId?: string; view?: string }>;
 }) {
   const params = await searchParams;
-  const teamId = params.teamId;
   const view = params.view ?? "list";
 
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Load organization type and user role
+  const { data: orgRole } = await supabase
+    .from("user_organization_roles")
+    .select(`
+      team_id,
+      organizations ( type )
+    `)
+    .eq("user_id", user?.id)
+    .single();
+
+  const orgType = (orgRole as any)?.organizations?.type ?? "club";
+  
+  const cookieStore = await cookies();
+  const globalTeamId = cookieStore.get("cl_active_team_id")?.value;
+  
+  // Resolve active team context: if academy, allow searchParams filtering, otherwise lock to active team or role team
+  const resolvedTeamId = orgType === "academy" 
+    ? params.teamId 
+    : (globalTeamId || orgRole?.team_id || "");
+
   const [players, teams] = await Promise.all([
-    getSquadPlayers(teamId),
+    getSquadPlayers(resolvedTeamId || undefined),
     getOrgTeams(),
   ]);
 
-  const fieldAssignments = buildFieldAssignments(players);
+  const activeTeam = resolvedTeamId ? teams.find((t: any) => t.id === resolvedTeamId) : null;
+  const titleSuffix = activeTeam ? `: ${activeTeam.name}` : "";
 
   const injuredCount = players.filter((p) => p.active_injury?.status === "active").length;
   const readaptCount = players.filter((p) => p.active_injury?.status === "readaptation").length;
   const availableCount = players.length - injuredCount - readaptCount;
+
+  // Group players by team if no specific team filter is active (only in academy mode)
+  const playersByTeam: Record<string, { name: string; players: PlayerWithMembership[] }> = {};
+  const unassignedPlayers: PlayerWithMembership[] = [];
+
+  const shouldGroup = orgType === "academy" && !resolvedTeamId;
+  if (shouldGroup) {
+    players.forEach((p) => {
+      const tName = p.membership?.teams?.name;
+      const tId = p.membership?.teams?.id;
+      if (tName && tId) {
+        if (!playersByTeam[tId]) {
+          playersByTeam[tId] = { name: tName, players: [] };
+        }
+        playersByTeam[tId].players.push(p);
+      } else {
+        unassignedPlayers.push(p);
+      }
+    });
+  }
 
   return (
     <div className="flex flex-col gap-6">
       {/* ── HEADER ── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Plantilla</h1>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">Plantilla{titleSuffix}</h1>
           <p className="text-slate-400 text-sm mt-0.5">
             {players.length} jugadores registrados
           </p>
@@ -92,14 +137,14 @@ export default async function PlayersPage({
 
       {/* ── FILTERS ── */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Filter className="h-4 w-4 text-slate-500 shrink-0" />
-        {teams.length > 1 && (
+        {orgType === "academy" && <Filter className="h-4 w-4 text-slate-500 shrink-0" />}
+        {orgType === "academy" && teams.length > 1 && (
           <div className="flex gap-2 flex-wrap">
             <Link
               href="/players"
               id="filter-all-teams"
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
-                !teamId
+                !resolvedTeamId
                   ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400"
                   : "border-white/10 text-slate-400 hover:border-white/20"
               }`}
@@ -112,7 +157,7 @@ export default async function PlayersPage({
                 href={`/players?teamId=${t.id}`}
                 id={`filter-team-${t.id}`}
                 className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
-                  teamId === t.id
+                  resolvedTeamId === t.id
                     ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400"
                     : "border-white/10 text-slate-400 hover:border-white/20"
                 }`}
@@ -124,16 +169,16 @@ export default async function PlayersPage({
         )}
 
         {/* View toggle */}
-        <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex bg-white/5 border border-white/10 rounded-xl p-1 gap-1">
           {(["list", "field"] as const).map((v) => (
             <Link
               key={v}
-              href={`/players?${teamId ? `teamId=${teamId}&` : ""}view=${v}`}
+              href={`/players?${resolvedTeamId ? `teamId=${resolvedTeamId}&` : ""}view=${v}`}
               id={`view-${v}`}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                 view === v
-                  ? "bg-white/10 text-white"
-                  : "text-slate-500 hover:text-slate-300"
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-950/40"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
               {v === "list" ? "Lista" : "Campograma"}
@@ -146,16 +191,7 @@ export default async function PlayersPage({
       {players.length === 0 ? (
         <EmptyState />
       ) : view === "field" ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="max-w-xs mx-auto w-full">
-            <FieldMap assignments={fieldAssignments} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
-            {players.map((p) => (
-              <PlayerCard key={p.id} player={p} />
-            ))}
-          </div>
-        </div>
+        <InteractiveFieldMap players={players} />
       ) : (
         <Suspense
           fallback={
@@ -166,11 +202,42 @@ export default async function PlayersPage({
             </div>
           }
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {players.map((p) => (
-              <PlayerCard key={p.id} player={p} />
-            ))}
-          </div>
+          {!resolvedTeamId && orgType === "academy" ? (
+            <div className="space-y-8">
+              {Object.entries(playersByTeam).map(([tId, group]) => (
+                <div key={tId} className="space-y-3">
+                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/5 pb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-3 bg-emerald-500 rounded-full" />
+                    {group.name} ({group.players.length})
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {group.players.map((p) => (
+                      <PlayerCard key={p.id} player={p} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {unassignedPlayers.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/5 pb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-3 bg-slate-500 rounded-full" />
+                    Otros / Sin Equipo ({unassignedPlayers.length})
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {unassignedPlayers.map((p) => (
+                      <PlayerCard key={p.id} player={p} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {players.map((p) => (
+                <PlayerCard key={p.id} player={p} />
+              ))}
+            </div>
+          )}
         </Suspense>
       )}
     </div>

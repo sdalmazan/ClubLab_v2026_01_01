@@ -84,6 +84,19 @@
       "green": "Óptimo",
       "yellow": "Control",
       "red": "Vigilar"
+    },
+    "physicalTests": "Tests Físicos",
+    "assignedTasks": "Tareas Asignadas",
+    "physicalTestsHistory": "Historial de Tests Físicos",
+    "viewPhysicalTestsHistory": "Ver historial de tests físicos →",
+    "registerNewPhysicalTest": "+ Registrar nuevo test físico",
+    "assignOrRemoveExercises": "Asignar o quitar ejercicios →",
+    "availabilityNotes": "Notas de disponibilidad",
+    "availabilityStatus": "Semáforo y Disponibilidad",
+    "availabilityOptions": {
+      "available": "Disponible",
+      "control": "Con control",
+      "not_available": "No disponible"
     }
   },
   "training": {
@@ -97,13 +110,39 @@
     "notes": "Notas",
     "microcycleDay": "Día de microciclo",
     "plannedLoad": "Carga planificada",
+    "plannedIntensity": "Intensidad planificada",
+    "saveSession": "Guardar sesión",
+    "deleteSession": "Eliminar sesión",
+    "editSession": "Editar sesión",
+    "exportPdf": "Exportar PDF",
+    "importTemplate": "Importar plantilla",
+    "sessionTemplates": "Plantillas de sesión",
+    "newTemplate": "Nueva plantilla",
+    "saveTemplate": "Guardar plantilla",
+    "deleteTemplate": "Eliminar plantilla",
+    "noSessions": "No hay sesiones planificadas",
+    "noTemplates": "No hay plantillas registradas",
+    "attendance": "Control de Asistencia",
+    "pitchZones": "Zonas del campo",
+    "equipment": "Material necesario",
+    "durationMin": "Duración: {min} min",
+    "recoveryMin": "Recuperación: {min} min",
+    "groups": "Distribución de equipos",
     "types": {
-      "training": "Entrenamiento",
+      "training": "Entrenamiento Grupal",
+      "individual": "Entrenamiento Individual",
       "match": "Partido",
       "recovery": "Recuperación",
       "gym": "Gimnasio",
       "physical_test": "Test Físico",
       "rest": "Descanso"
+    },
+    "attendanceStatus": {
+      "present": "Presente",
+      "absent": "Ausente",
+      "injured": "Lesionado",
+      "rest": "Descanso",
+      "other": "Otro"
     }
   },
   "performance": {

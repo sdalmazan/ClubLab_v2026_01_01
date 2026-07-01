@@ -5,7 +5,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import type { Player, PlayerTeamMembership, PositionKey } from "@/types";
+import type { Player, PlayerTeamMembership, PositionKey, PlayerStatus, AvailabilityStatus } from "@/types";
 
 // ============================================================
 // TYPES
@@ -54,6 +54,9 @@ export interface UpdatePlayerInput {
   height_cm?: number | null;
   weight_kg?: number | null;
   avatar_url?: string | null;
+  physical_status?: PlayerStatus;
+  availability_status?: AvailabilityStatus;
+  availability_notes?: string | null;
 }
 
 // ============================================================
@@ -72,7 +75,7 @@ export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMember
     .select(`
       *,
       membership:player_team_memberships(
-        id, jersey_number, positions, status, joined_date,
+        id, jersey_number, positions, kicker_roles, status, joined_date, left_date,
         team_id, season_id,
         teams:teams(id, name)
       ),
@@ -80,7 +83,7 @@ export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMember
         id, status, body_part, severity
       )
     `)
-    .eq("player_team_memberships.status", "active")
+    .in("player_team_memberships.status", ["active", "inactive"])
     .in("injuries.status", ["active", "readaptation"])
     .order("last_name", { ascending: true });
 
@@ -113,7 +116,7 @@ export async function getPlayerById(id: string): Promise<PlayerWithMembership | 
     .select(`
       *,
       membership:player_team_memberships(
-        id, jersey_number, positions, status, joined_date,
+        id, jersey_number, positions, kicker_roles, status, joined_date,
         team_id, season_id,
         teams:teams(id, name)
       ),

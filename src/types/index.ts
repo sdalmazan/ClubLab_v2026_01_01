@@ -111,6 +111,10 @@ export interface Player {
   anonymized_id: string | null;
   data_sharing_consent: boolean;
   consent_date: string | null;
+  physical_status: PlayerStatus;
+  availability_status: AvailabilityStatus;
+  availability_notes: string | null;
+  adjective: string | null;
   created_at: string;
 }
 
@@ -124,6 +128,9 @@ export interface PlayerTeamMembership {
   status: "active" | "loaned" | "transferred" | "inactive";
   joined_date: string;
   left_date: string | null;
+  player_type?: "main" | "reserve" | "youth" | "other";
+  player_type_label?: string | null;
+  kicker_roles?: string[];
 }
 
 // ============================================================
@@ -230,21 +237,12 @@ export interface RPEEntry {
 // SESSIONS & TRAINING
 // ============================================================
 
-export type SessionType =
-  | "training"
-  | "match"
-  | "recovery"
-  | "gym"
-  | "physical_test"
-  | "rest";
+export type SessionType = "training" | "individual" | "match";
 
 export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
-  training: "Entrenamiento",
+  training: "Entrenamiento Grupal",
+  individual: "Entrenamiento Individual",
   match: "Partido",
-  recovery: "Recuperación",
-  gym: "Gimnasio",
-  physical_test: "Test Físico",
-  rest: "Descanso",
 };
 
 export type MicrocycleDay =
@@ -273,6 +271,76 @@ export interface TrainingSession {
   notes: string | null;
   template_id: string | null;
   status: "planned" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionAttendance {
+  id: string;
+  organization_id: string;
+  session_id: string;
+  player_id: string;
+  status: "present" | "absent" | "injured" | "rest" | "other";
+  notes: string | null;
+  created_at: string;
+}
+
+export interface SessionExercise {
+  id: string;
+  organization_id: string;
+  session_id: string;
+  exercise_id: string;
+  order_index: number;
+  duration_min: number;
+  recovery_min: number;
+  pitch_zones: string[];
+  equipment: Array<{ name: string; quantity: number }>;
+  group_setup: {
+    groups?: Array<{ name: string; players: string[] }>;
+  };
+  created_at: string;
+  exercise?: {
+    id: string;
+    title: string;
+    description: string | null;
+    category: string | null;
+    difficulty: string | null;
+  };
+}
+
+export interface TemplateExercise {
+  id: string;
+  organization_id: string;
+  template_id: string;
+  exercise_id: string;
+  order_index: number;
+  duration_min: number;
+  recovery_min: number;
+  pitch_zones: string[];
+  equipment: Array<{ name: string; quantity: number }>;
+  group_setup: {
+    groups?: Array<{ name: string }>;
+  };
+  created_at: string;
+  exercise?: {
+    id: string;
+    title: string;
+    description: string | null;
+    category: string | null;
+    difficulty: string | null;
+  };
+}
+
+export interface SessionTemplate {
+  id: string;
+  organization_id: string;
+  created_by: string | null;
+  title: string;
+  description: string | null;
+  duration_min: number | null;
+  session_type: SessionType;
+  objectives: string[];
+  is_shared: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -355,4 +423,58 @@ export interface AuthUser {
   role: UserRole;
   team_id: string | null; // null = access to all teams in org
   plan_slug: PlanSlug;
+  club_name?: string;
+  club_logo_url?: string;
+  club_primary_color?: string;
+  club_secondary_color?: string;
 }
+
+// ============================================================
+// PHYSICAL TESTS & TASKS
+// ============================================================
+
+export interface PhysicalTest {
+  id: string;
+  organization_id: string;
+  name: string;
+  description: string | null;
+  unit: string;
+  category: string | null;
+  higher_is_better: boolean;
+  reference_values: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PhysicalTestResult {
+  id: string;
+  organization_id: string;
+  player_id: string;
+  test_id: string;
+  team_id: string | null;
+  date: string;
+  value: number;
+  percentile: number | null;
+  notes: string | null;
+  conducted_by: string | null;
+  created_at: string;
+  physical_tests?: PhysicalTest;
+}
+
+export interface PlayerTask {
+  id: string;
+  organization_id: string;
+  player_id: string;
+  exercise_id: string;
+  status: "assigned" | "completed" | "skipped" | "cancelled";
+  staff_comment: string | null;
+  created_at: string;
+  exercises?: {
+    id: string;
+    title: string;
+    description: string | null;
+    category: string | null;
+    difficulty: string | null;
+  };
+}
+
