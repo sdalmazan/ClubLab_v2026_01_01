@@ -235,9 +235,8 @@ export async function GET(request: Request) {
 
       const { data: seasonsList } = await seasonQuery.limit(500);
       if (seasonsList && seasonsList.length > 0) {
-        const uniqueSeasons = Array.from(new Set(seasonsList.map((s: any) => s.season))).sort((a: any, b: any) =>
-          b.localeCompare(a)
-        );
+        const uniqueSeasons = Array.from(new Set(seasonsList.map((s: any) => s.season))) as string[];
+        uniqueSeasons.sort((a, b) => b.localeCompare(a));
         if (uniqueSeasons[0]) {
           targetSeason = uniqueSeasons[0];
         }
