@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
     const cleanRivalName = rivalName.toLowerCase().trim();
     const rivalMatches = allMatches.filter(
-      (m) =>
+      (m: any) =>
         m.home_team.toLowerCase().trim() === cleanRivalName ||
         m.away_team.toLowerCase().trim() === cleanRivalName
     );
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const matchIds = rivalMatches.map((m) => m.id);
+    const matchIds = rivalMatches.map((m: any) => m.id);
 
     // 5. Obtener alineaciones
     const { data: lineups, error: lineupsErr } = await statsAdmin
