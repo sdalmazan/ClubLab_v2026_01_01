@@ -35,7 +35,6 @@ export interface RivalAnalysisResult {
       assistant: string | null;
       physio: string | null;
       fitness_coach: string | null;
-      delegate: string | null;
     } | null;
   };
 
@@ -332,7 +331,6 @@ export function calculateRivalAnalysis(
           assistant: parsedStaff.assistant || null,
           physio: parsedStaff.physio || null,
           fitness_coach: parsedStaff.fitness_coach || null,
-          delegate: parsedStaff.delegate || null,
         };
       }
     }

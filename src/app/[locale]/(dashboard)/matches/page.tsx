@@ -70,14 +70,12 @@ export default function MatchesPage() {
     assistant: "",
     physio: "",
     fitness_coach: "",
-    delegate: "",
   });
   const [overrideVisitorStaff, setOverrideVisitorStaff] = useState({
     coach: "",
     assistant: "",
     physio: "",
     fitness_coach: "",
-    delegate: "",
   });
   const [overrideAssists, setOverrideAssists] = useState<Record<string, string>>({});
   const [overrideCards, setOverrideCards] = useState<Record<string, "protesta" | "violencia" | "lance">>({});
@@ -215,14 +213,12 @@ export default function MatchesPage() {
         assistant: sc.local_staff?.assistant || "",
         physio: sc.local_staff?.physio || "",
         fitness_coach: sc.local_staff?.fitness_coach || "",
-        delegate: sc.local_staff?.delegate || "",
       });
       setOverrideVisitorStaff({
         coach: sc.visitor_staff?.coach || "",
         assistant: sc.visitor_staff?.assistant || "",
         physio: sc.visitor_staff?.physio || "",
         fitness_coach: sc.visitor_staff?.fitness_coach || "",
-        delegate: sc.visitor_staff?.delegate || "",
       });
       setOverrideAssists(sc.overrides?.assistances || {});
       setOverrideCards(sc.overrides?.card_classifications || {});
@@ -651,12 +647,7 @@ export default function MatchesPage() {
                                 <span className="text-slate-500">2º Entrenador:</span>
                                 <span className="text-white">{rivalAnalysis.coach.staff.assistant || "—"}</span>
                               </div>
-                              <div className="flex justify-between border-b border-white/5 pb-1">
-                                <span className="text-slate-500">Delegado:</span>
-                                <span className="text-white truncate max-w-[150px]" title={rivalAnalysis.coach.staff.delegate || ""}>
-                                  {rivalAnalysis.coach.staff.delegate || "—"}
-                                </span>
-                              </div>
+
                               <div className="flex justify-between border-b border-white/5 pb-1">
                                 <span className="text-slate-500">P. Físico:</span>
                                 <span className="text-white">{rivalAnalysis.coach.staff.fitness_coach || "—"}</span>
@@ -1361,17 +1352,7 @@ export default function MatchesPage() {
                                   className="w-full bg-slate-900 border border-white/5 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                                 />
                               </div>
-                              <div>
-                                <label className="text-slate-500 uppercase tracking-wider block mb-1">Delegado:</label>
-                                <input
-                                  type="text"
-                                  value={overrideLocalStaff.delegate}
-                                  onChange={(e) =>
-                                    setOverrideLocalStaff({ ...overrideLocalStaff, delegate: e.target.value })
-                                  }
-                                  className="w-full bg-slate-900 border border-white/5 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                                />
-                              </div>
+
                               <div>
                                 <label className="text-slate-500 uppercase tracking-wider block mb-1">Preparador Físico:</label>
                                 <input
@@ -1425,17 +1406,7 @@ export default function MatchesPage() {
                                   className="w-full bg-slate-900 border border-white/5 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                                 />
                               </div>
-                              <div>
-                                <label className="text-slate-500 uppercase tracking-wider block mb-1">Delegado:</label>
-                                <input
-                                  type="text"
-                                  value={overrideVisitorStaff.delegate}
-                                  onChange={(e) =>
-                                    setOverrideVisitorStaff({ ...overrideVisitorStaff, delegate: e.target.value })
-                                  }
-                                  className="w-full bg-slate-900 border border-white/5 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                                />
-                              </div>
+
                               <div>
                                 <label className="text-slate-500 uppercase tracking-wider block mb-1">Preparador Físico:</label>
                                 <input
