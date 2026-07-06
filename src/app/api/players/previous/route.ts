@@ -235,7 +235,7 @@ export async function GET(request: Request) {
 
       const { data: seasonsList } = await seasonQuery.limit(500);
       if (seasonsList && seasonsList.length > 0) {
-        const uniqueSeasons = Array.from(new Set(seasonsList.map((s) => s.season))).sort((a, b) =>
+        const uniqueSeasons = Array.from(new Set(seasonsList.map((s: any) => s.season))).sort((a: any, b: any) =>
           b.localeCompare(a)
         );
         if (uniqueSeasons[0]) {
@@ -258,7 +258,7 @@ export async function GET(request: Request) {
     }
 
     const { data: finalMatches } = await finalMatchesQuery;
-    const matchIds = finalMatches?.map((m) => m.id) || [];
+    const matchIds = finalMatches?.map((m: any) => m.id) || [];
 
     if (matchIds.length > 0) {
       // Query stat_lineups for players
