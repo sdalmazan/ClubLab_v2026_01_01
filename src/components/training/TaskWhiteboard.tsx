@@ -5,6 +5,7 @@ import {
   Paintbrush,
   TrendingUp,
   RotateCcw,
+  RotateCw,
   Trash2,
   Type,
   Maximize2,
@@ -142,6 +143,51 @@ export function TaskWhiteboard({
   const currentPointsRef = useRef<StrokePoint[]>([]);
   const drawingIdRef = useRef<string | null>(null);
 
+  // Undo/Redo History
+  const [history, setHistory] = useState<{ strokes: WhiteboardStroke[]; markers: MarkerElement[]; texts: TextElement[] }[]>([]);
+  const [redoStack, setRedoStack] = useState<{ strokes: WhiteboardStroke[]; markers: MarkerElement[]; texts: TextElement[] }[]>([]);
+
+  // Dragging state refs
+  const draggedMarkerIdRef = useRef<string | null>(null);
+  const dragStartMarkersRef = useRef<MarkerElement[] | null>(null);
+
+  // Helper to push state to history
+  const pushState = (
+    newStrokes: WhiteboardStroke[],
+    newMarkers: MarkerElement[],
+    newTexts: TextElement[]
+  ) => {
+    setHistory((prev) => [...prev, { strokes, markers, texts }]);
+    setRedoStack([]);
+    setStrokes(newStrokes);
+    setMarkers(newMarkers);
+    setTexts(newTexts);
+  };
+
+  // Keyboard listener for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!interactive) return;
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [history, redoStack, strokes, markers, texts, interactive]);
+
   // Initialize or re-draw when data changes
   useEffect(() => {
     drawAll();
@@ -231,7 +277,7 @@ export function TaskWhiteboard({
       ctx.arc(margin + 36, h / 2, 2, 0, 2 * Math.PI);
       ctx.fill();
       ctx.beginPath(); // arc
-      ctx.arc(margin + 36, h / 2, 30, -Math.PI / 3, Math.PI / 3);
+      ctx.arc(margin + 36, h / 2, 30, -1.085, 1.085);
       ctx.stroke();
 
       // Right Penalty Area
@@ -241,7 +287,7 @@ export function TaskWhiteboard({
       ctx.arc(w - margin - 36, h / 2, 2, 0, 2 * Math.PI);
       ctx.fill();
       ctx.beginPath(); // arc
-      ctx.arc(w - margin - 36, h / 2, 30, Math.PI - Math.PI / 3, Math.PI + Math.PI / 3);
+      ctx.arc(w - margin - 36, h / 2, 30, Math.PI - 1.085, Math.PI + 1.085);
       ctx.stroke();
 
       // Corner arcs
@@ -284,9 +330,9 @@ export function TaskWhiteboard({
       ctx.fillStyle = "#ffffff";
       ctx.fill();
 
-      // Penalty Arc
+      // Penalty Arc (touches frontal line exactly at endpoints)
       ctx.beginPath();
-      ctx.arc(w - margin - 75, h / 2, 50, Math.PI - 0.7, Math.PI + 0.7);
+      ctx.arc(w - margin - 75, h / 2, 50, Math.PI - Math.PI / 3, Math.PI + Math.PI / 3);
       ctx.stroke();
 
       // Goalposts
@@ -298,14 +344,14 @@ export function TaskWhiteboard({
       ctx.strokeRect(margin, margin, w - 2 * margin, h - 2 * margin);
 
       const center = w / 2;
-      const boxWidth = w * 0.75;
-      const boxHeight = h * 0.75;
+      const boxWidth = 580;
+      const boxHeight = 240;
 
       // Penalty Box
       ctx.strokeRect(center - boxWidth / 2, h - boxHeight - margin, boxWidth, boxHeight);
 
       // Goal Area
-      ctx.strokeRect(center - boxWidth / 3.5, h - boxHeight / 3 - margin, (boxWidth / 3.5) * 2, boxHeight / 3);
+      ctx.strokeRect(center - 130, h - 80 - margin, 260, 80);
 
       // Goal posts on the bottom line
       ctx.fillStyle = "#ffffff";
@@ -313,12 +359,12 @@ export function TaskWhiteboard({
 
       // Penalty spot
       ctx.beginPath();
-      ctx.arc(center, h - boxHeight / 1.7 - margin, 3, 0, 2 * Math.PI);
+      ctx.arc(center, h - 160 - margin, 3, 0, 2 * Math.PI);
       ctx.fill();
 
-      // Penalty Arc
+      // Penalty Arc (touches frontal line exactly at endpoints)
       ctx.beginPath();
-      ctx.arc(center, h - boxHeight / 1.7 - margin, 55, Math.PI + 0.5, Math.PI * 2 - 0.5);
+      ctx.arc(center, h - 160 - margin, 133, Math.PI * 1.5 - 0.925, Math.PI * 1.5 + 0.925);
       ctx.stroke();
     }
   };
@@ -458,13 +504,23 @@ export function TaskWhiteboard({
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
+    // UX Enhancement: Prioritize selecting/dragging existing players/markers
+    const markerHit = markers.find(
+      (m) => Math.sqrt((m.x - x) ** 2 + (m.y - y) ** 2) < 18
+    );
+
+    if (markerHit && activeTool !== "eraser") {
+      // Start dragging marker
+      dragStartMarkersRef.current = [...markers];
+      draggedMarkerIdRef.current = markerHit.id;
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     if (activeTool === "eraser") {
       // Remove clicked markers
-      const markerHit = markers.find(
-        (m) => Math.sqrt((m.x - x) ** 2 + (m.y - y) ** 2) < 18
-      );
       if (markerHit) {
-        setMarkers(markers.filter((m) => m.id !== markerHit.id));
+        pushState(strokes, markers.filter((m) => m.id !== markerHit.id), texts);
         return;
       }
 
@@ -473,7 +529,7 @@ export function TaskWhiteboard({
         (t) => Math.sqrt((t.x - x) ** 2 + (t.y - y) ** 2) < 25
       );
       if (textHit) {
-        setTexts(texts.filter((t) => t.id !== textHit.id));
+        pushState(strokes, markers, texts.filter((t) => t.id !== textHit.id));
         return;
       }
 
@@ -484,7 +540,7 @@ export function TaskWhiteboard({
         );
       });
       if (strokeHit) {
-        setStrokes(strokes.filter((s) => s.id !== strokeHit.id));
+        pushState(strokes.filter((s) => s.id !== strokeHit.id), markers, texts);
         return;
       }
       return;
@@ -503,7 +559,7 @@ export function TaskWhiteboard({
         type: activeTool,
         number: activeTool === "player" || activeTool === "rival" ? playerNumber : undefined,
       };
-      setMarkers([...markers, newMarker]);
+      pushState(strokes, [...markers, newMarker], texts);
 
       // increment player number for convenience
       if (activeTool === "player" || activeTool === "rival") {
@@ -532,13 +588,25 @@ export function TaskWhiteboard({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!interactive || !isDrawingRef.current) return;
+    if (!interactive) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    // If dragging a marker, update its coordinate
+    if (draggedMarkerIdRef.current) {
+      setMarkers((prev) =>
+        prev.map((m) =>
+          m.id === draggedMarkerIdRef.current ? { ...m, x, y } : m
+        )
+      );
+      return;
+    }
+
+    if (!isDrawingRef.current) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -577,13 +645,31 @@ export function TaskWhiteboard({
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!interactive || !isDrawingRef.current) return;
-    isDrawingRef.current = false;
+    if (!interactive) return;
 
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.releasePointerCapture(e.pointerId);
     }
+
+    // End marker dragging and commit to history
+    if (draggedMarkerIdRef.current) {
+      const startMarkers = dragStartMarkersRef.current || [];
+      const currentMarker = markers.find(m => m.id === draggedMarkerIdRef.current);
+      const originalMarker = startMarkers.find(m => m.id === draggedMarkerIdRef.current);
+
+      if (currentMarker && originalMarker && (currentMarker.x !== originalMarker.x || currentMarker.y !== originalMarker.y)) {
+        // Committing to history using startMarkers as previous state
+        setHistory((prev) => [...prev, { strokes, markers: startMarkers, texts }]);
+        setRedoStack([]);
+      }
+      draggedMarkerIdRef.current = null;
+      dragStartMarkersRef.current = null;
+      return;
+    }
+
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
 
     if (currentPointsRef.current.length >= 2) {
       const newStroke: WhiteboardStroke = {
@@ -592,7 +678,7 @@ export function TaskWhiteboard({
         color: activeColor,
         type: activeTool === "arrow" ? "arrow" : activeTool === "dashed_arrow" ? "dashed_arrow" : "pencil",
       };
-      setStrokes([...strokes, newStroke]);
+      pushState([...strokes, newStroke], markers, texts);
     }
 
     currentPointsRef.current = [];
@@ -608,27 +694,35 @@ export function TaskWhiteboard({
         text: textInput.trim(),
         color: activeColor,
       };
-      setTexts([...texts, newText]);
+      pushState(strokes, markers, [...texts, newText]);
     }
     setShowTextInput(false);
     setTextCoords(null);
   };
 
   const handleUndo = () => {
-    if (strokes.length > 0) {
-      setStrokes(strokes.slice(0, -1));
-    } else if (markers.length > 0) {
-      setMarkers(markers.slice(0, -1));
-    } else if (texts.length > 0) {
-      setTexts(texts.slice(0, -1));
-    }
+    if (history.length === 0) return;
+    const previousState = history[history.length - 1];
+    setHistory((prev) => prev.slice(0, -1));
+    setRedoStack((prev) => [...prev, { strokes, markers, texts }]);
+    setStrokes(previousState.strokes);
+    setMarkers(previousState.markers);
+    setTexts(previousState.texts);
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const nextState = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, -1));
+    setHistory((prev) => [...prev, { strokes, markers, texts }]);
+    setStrokes(nextState.strokes);
+    setMarkers(nextState.markers);
+    setTexts(nextState.texts);
   };
 
   const handleClear = () => {
     if (window.confirm("¿Seguro que deseas borrar todo el dibujo?")) {
-      setStrokes([]);
-      setMarkers([]);
-      setTexts([]);
+      pushState([], [], []);
     }
   };
 
@@ -849,6 +943,15 @@ export function TaskWhiteboard({
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Deshacer
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/5 rounded-lg border border-white/5 transition-all cursor-pointer"
+                disabled={redoStack.length === 0}
+              >
+                <RotateCw className="h-3.5 w-3.5" />
+                Rehacer
               </button>
               <button
                 type="button"

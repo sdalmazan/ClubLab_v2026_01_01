@@ -9,6 +9,7 @@ import type { PositionKey } from "@/types";
 import type { PlayerWithMembership } from "@/services/players";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { ImportPreviousModal } from "@/components/players/ImportPreviousModal";
 
 export const metadata: Metadata = {
   title: "Plantilla — ClubLab",
@@ -101,6 +102,9 @@ export default async function PlayersPage({
     });
   }
 
+  const targetTeamId = resolvedTeamId || teams[0]?.id || "";
+  const targetSeasonId = activeTeam?.season_id || teams[0]?.season_id || "";
+
   return (
     <div className="flex flex-col gap-6">
       {/* ── HEADER ── */}
@@ -111,14 +115,22 @@ export default async function PlayersPage({
             {players.length} jugadores registrados
           </p>
         </div>
-        <Link
-          href="/players/new"
-          id="add-player-btn"
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg shadow-emerald-950/40"
-        >
-          <UserPlus className="h-4 w-4" />
-          Añadir jugador
-        </Link>
+        <div className="flex items-center gap-2.5">
+          {targetTeamId && targetSeasonId && (
+            <ImportPreviousModal
+              teamId={targetTeamId}
+              seasonId={targetSeasonId}
+            />
+          )}
+          <Link
+            href="/players/new"
+            id="add-player-btn"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg shadow-emerald-950/40"
+          >
+            <UserPlus className="h-4 w-4" />
+            Añadir jugador
+          </Link>
+        </div>
       </div>
 
       {/* ── STATS ── */}
@@ -189,7 +201,7 @@ export default async function PlayersPage({
 
       {/* ── CONTENT ── */}
       {players.length === 0 ? (
-        <EmptyState />
+        <EmptyState teamId={targetTeamId} seasonId={targetSeasonId} />
       ) : view === "field" ? (
         <InteractiveFieldMap players={players} />
       ) : (
@@ -244,22 +256,32 @@ export default async function PlayersPage({
   );
 }
 
-function EmptyState() {
+function EmptyState({ teamId, seasonId }: { teamId: string; seasonId: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 glass-card rounded-2xl">
       <div className="h-16 w-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4">
         <Users className="h-8 w-8 text-slate-600" />
       </div>
       <p className="text-slate-300 font-semibold">No hay jugadores registrados</p>
-      <p className="text-slate-500 text-sm mt-1">Añade el primer jugador a tu plantilla</p>
-      <Link
-        href="/players/new"
-        id="empty-add-player-btn"
-        className="mt-6 flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm font-semibold px-5 py-2.5 transition-all"
-      >
-        <UserPlus className="h-4 w-4" />
-        Añadir primer jugador
-      </Link>
+      <p className="text-slate-500 text-sm mt-1">Añade el primer jugador a tu plantilla o importa jugadores de la temporada anterior</p>
+      <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+        <Link
+          href="/players/new"
+          id="empty-add-player-btn"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm font-semibold px-5 py-2.5 transition-all shadow-lg cursor-pointer"
+        >
+          <UserPlus className="h-4 w-4" />
+          Añadir primer jugador
+        </Link>
+        {teamId && seasonId && (
+          <ImportPreviousModal
+            teamId={teamId}
+            seasonId={seasonId}
+            buttonClassName="flex items-center gap-2 rounded-xl bg-slate-900 border border-white/10 hover:bg-white/5 text-slate-300 hover:text-white text-sm font-semibold px-5 py-2.5 transition-all cursor-pointer"
+            label="Importar jugadores"
+          />
+        )}
+      </div>
     </div>
   );
 }

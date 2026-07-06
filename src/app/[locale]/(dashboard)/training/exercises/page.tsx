@@ -16,6 +16,7 @@ import {
   Users,
   Grid,
   Sparkles,
+  Copy,
 } from "lucide-react";
 import Link from "next/link";
 import { TacticalConceptsSelector } from "@/components/training/TacticalConceptsSelector";
@@ -74,9 +75,30 @@ export default function ExercisesLibraryPage() {
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [userRole, setUserRole] = useState<string | null>(null);
+
   useEffect(() => {
     loadExercises();
+    fetchUserRole();
   }, []);
+
+  async function fetchUserRole() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: roleData } = await supabase
+          .from("user_organization_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+        if (roleData) {
+          setUserRole(roleData.role);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching user role:", err);
+    }
+  }
 
   async function loadExercises() {
     try {
@@ -118,12 +140,52 @@ export default function ExercisesLibraryPage() {
 
   // Open modal for editing an existing exercise
   function openEditModal(ex: Exercise) {
-    setEditingId(ex.id);
+    const isAcademiaAdmin = userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach";
+    
+    if (ex.library_scope === "global" && userRole !== "super_admin") {
+      setEditingId(null);
+      setScope(isAcademiaAdmin ? "academy" : "coach");
+    } else if (ex.library_scope === "academy" && !isAcademiaAdmin) {
+      setEditingId(null);
+      setScope("coach");
+    } else {
+      setEditingId(ex.id);
+      setScope(ex.library_scope || "coach");
+    }
     setTitle(ex.title);
     setDescription(ex.description || "");
     setCategory(ex.category || "Táctica");
     setDifficulty(ex.difficulty || "intermediate");
-    setScope(ex.library_scope || "coach");
+    setSelectedConcepts(ex.tactical_concepts || []);
+    setSelectedMuscles(ex.muscle_groups || []);
+    setSpaceDimensions(ex.space_dimensions || "");
+    setNeedsGroups(!!ex.needs_groups);
+    setNumGroups(ex.num_groups ?? 2);
+    setPlayersPerGroup(ex.players_per_group || "");
+    setImageUrl(ex.image_url || "");
+    setVideoUrl(ex.video_url || "");
+    setWhiteboardData(ex.whiteboard_data || null);
+    setIsModalOpen(true);
+  }
+
+  // Clone an existing exercise to use as starting point
+  function handleClone(ex: Exercise) {
+    const isAcademiaAdmin = userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach";
+    
+    setEditingId(null);
+    setTitle(`${ex.title} (Copia)`);
+    setDescription(ex.description || "");
+    setCategory(ex.category || "Táctica");
+    setDifficulty(ex.difficulty || "intermediate");
+    
+    let newScope = ex.library_scope || "coach";
+    if (ex.library_scope === "global" && userRole !== "super_admin") {
+      newScope = isAcademiaAdmin ? "academy" : "coach";
+    } else if (ex.library_scope === "academy" && !isAcademiaAdmin) {
+      newScope = "coach";
+    }
+    setScope(newScope);
+
     setSelectedConcepts(ex.tactical_concepts || []);
     setSelectedMuscles(ex.muscle_groups || []);
     setSpaceDimensions(ex.space_dimensions || "");
@@ -311,9 +373,9 @@ export default function ExercisesLibraryPage() {
             className="rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
           >
             <option value="all">Todos los Niveles</option>
-            <option value="global">Estándar / Global</option>
-            <option value="academy">Academia / Club</option>
-            <option value="coach">Personal / Coach</option>
+            <option value="global">ClubLab</option>
+            <option value="academy">Academia</option>
+            <option value="coach">Personal</option>
           </select>
         </div>
       </div>
@@ -343,7 +405,7 @@ export default function ExercisesLibraryPage() {
                   </h3>
                   <span className="text-[8px] font-black uppercase tracking-wider text-slate-400 bg-white/5 border border-white/5 rounded px-2 py-0.5 shrink-0">
                     {ex.library_scope === "global"
-                      ? "Global"
+                      ? "ClubLab"
                       : ex.library_scope === "academy"
                       ? "Academia"
                       : "Personal"}
@@ -404,23 +466,27 @@ export default function ExercisesLibraryPage() {
                 {(ex.image_url || ex.video_url) && (
                   <div className="flex gap-2 text-[10px] pt-1">
                     {ex.image_url && (
-                      <span
-                        className="flex items-center gap-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-lg font-semibold cursor-pointer hover:bg-sky-500/15"
-                        onClick={() => window.open(ex.image_url!, "_blank")}
-                        title={ex.image_url}
-                      >
-                        <ImageIcon className="h-3 w-3" />
-                        Imagen física
+                      <span className="tooltip-container shrink-0">
+                        <span
+                          className="flex items-center gap-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-lg font-semibold cursor-pointer hover:bg-sky-500/15"
+                          onClick={() => window.open(ex.image_url!, "_blank")}
+                        >
+                          <ImageIcon className="h-3 w-3" />
+                          Imagen física
+                        </span>
+                        <span className="tooltip-text">Abrir enlace de imagen</span>
                       </span>
                     )}
                     {ex.video_url && (
-                      <span
-                        className="flex items-center gap-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-lg font-semibold cursor-pointer hover:bg-amber-500/15"
-                        onClick={() => window.open(ex.video_url!, "_blank")}
-                        title={ex.video_url}
-                      >
-                        <Video className="h-3 w-3" />
-                        Ver Vídeo
+                      <span className="tooltip-container shrink-0">
+                        <span
+                          className="flex items-center gap-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-lg font-semibold cursor-pointer hover:bg-amber-500/15"
+                          onClick={() => window.open(ex.video_url!, "_blank")}
+                        >
+                          <Video className="h-3 w-3" />
+                          Ver Vídeo
+                        </span>
+                        <span className="tooltip-text">Ver video tutorial</span>
                       </span>
                     )}
                   </div>
@@ -460,20 +526,41 @@ export default function ExercisesLibraryPage() {
                   ID: #{ex.id.slice(0, 6)}
                 </span>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => openEditModal(ex)}
-                    className="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                    title="Editar Tarea"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(ex.id, ex.title)}
-                    className="p-1.5 rounded hover:bg-rose-500/10 text-slate-500 hover:text-rose-450 transition-colors cursor-pointer"
-                    title="Eliminar de biblioteca"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <span className="tooltip-container">
+                    <button
+                      onClick={() => handleClone(ex)}
+                      className="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <span className="tooltip-text">Clonar tarea</span>
+                  </span>
+                  
+                  <span className="tooltip-container">
+                    <button
+                      onClick={() => openEditModal(ex)}
+                      className="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <span className="tooltip-text">
+                      {ex.library_scope === "global" && userRole !== "super_admin"
+                        ? "Editar y Personalizar"
+                        : ex.library_scope === "academy" && !(userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach")
+                        ? "Editar y Personalizar"
+                        : "Editar Tarea"}
+                    </span>
+                  </span>
+
+                  <span className="tooltip-container">
+                    <button
+                      onClick={() => handleDelete(ex.id, ex.title)}
+                      className="p-1.5 rounded hover:bg-rose-500/10 text-slate-500 hover:text-rose-450 transition-colors cursor-pointer flex items-center justify-center"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <span className="tooltip-text">Eliminar de biblioteca</span>
+                  </span>
                 </div>
               </div>
             </div>
@@ -544,9 +631,13 @@ export default function ExercisesLibraryPage() {
                     onChange={(e) => setScope(e.target.value)}
                     className={selectClass}
                   >
-                    <option value="coach" className="bg-slate-950">Personal (Solo tú)</option>
-                    <option value="academy" className="bg-slate-950">Academia / Club</option>
-                    <option value="global" className="bg-slate-950">Estándar / Global</option>
+                    <option value="coach" className="bg-slate-950">Personal</option>
+                    {(userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach") && (
+                      <option value="academy" className="bg-slate-950">Academia</option>
+                    )}
+                    {userRole === "super_admin" && (
+                      <option value="global" className="bg-slate-950">ClubLab</option>
+                    )}
                   </select>
                 </div>
               </div>

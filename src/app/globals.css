@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================
-   ClubLab v2026.01.01 — Design System
+   ClubLab v2026.01.02 — Design System
    Premium dark-mode SaaS theme (Tailwind v4 compatible)
    ============================================================ */
 
@@ -164,4 +164,65 @@
 
 .text-gradient-brand {
   color: var(--primary, oklch(70% 0.18 162));
+}
+
+/* ============================================================
+   Custom Premium Tooltips
+   ============================================================ */
+.tooltip-container {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-text {
+  visibility: hidden;
+  position: absolute;
+  bottom: 135%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: oklch(13% 0.03 265 / 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid oklch(26% 0.05 265 / 0.8);
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 50;
+  box-shadow: 0 4px 14px oklch(10% 0.02 265 / 0.6);
+  pointer-events: none;
+}
+
+.tooltip-text::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: oklch(26% 0.05 265 / 0.8) transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ============================================================
+   Mobile safe area (iOS notch / home indicator)
+   ============================================================ */
+
+.bottom-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }

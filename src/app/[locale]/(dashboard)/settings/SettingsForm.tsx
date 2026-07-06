@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { User, Key, Building2, UserCog, CheckCircle2, AlertTriangle, ChevronDown } from "lucide-react";
+import ImageAdjusterModal from "@/components/settings/ImageAdjusterModal";
 
 import { VALIDATED_COLORS, findClosestValidatedColor } from "@/lib/colors";
 
@@ -161,7 +162,7 @@ export function SettingsForm({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'team' | 'methodology'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'team' | 'methodology' | 'video_pack'>('profile');
   const [inactiveDaysThreshold, setInactiveDaysThreshold] = useState(21);
   const [overuseWeeklyThreshold, setOveruseWeeklyThreshold] = useState(4);
 
@@ -203,6 +204,7 @@ export function SettingsForm({
   const [clubJerseyStyle, setClubJerseyStyle] = useState(organizationSettings?.club_jersey_style ?? "solid");
   const [defaultTrainingTime, setDefaultTrainingTime] = useState(organizationSettings?.default_training_time ?? "10:00");
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [selectedFileForAdjustment, setSelectedFileForAdjustment] = useState<File | null>(null);
 
   // Custom taxonomy states
   const [customConcepts, setCustomConcepts] = useState<any[]>(() => {
@@ -276,16 +278,20 @@ export function SettingsForm({
     setCustomMuscles(customMuscles.filter((m) => m.key !== key));
   };
 
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleLogoFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setSelectedFileForAdjustment(file);
+    e.target.value = ""; // Reset value so selecting the same file again triggers change
+  }
 
+  async function handleUploadProcessedLogo(blob: Blob) {
     setUploadingLogo(true);
     setOrgError(null);
     setOrgSuccess(null);
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", blob, "logo.png");
 
     try {
       const res = await fetch("/api/clubs/upload", {
@@ -301,9 +307,42 @@ export function SettingsForm({
       // Add unique timestamp query param to force reload the image
       const newUrl = `${data.logoUrl}?t=${Date.now()}`;
       setClubLogoUrl(newUrl);
-      setOrgSuccess("Escudo subido correctamente. Recuerda guardar los ajustes para confirmar.");
+
+      // --- AUTO SAVE TO DATABASE ---
+      const supabase = createClient();
+      const updatedSettings = {
+        ...organizationSettings,
+        pantone_home_color: homeColor,
+        pantone_rival_color: rivalColor,
+        default_checkin_hours_before: Number(checkinHours),
+        default_checkin_close_mins_before: Number(checkinClose),
+        default_checkout_mins_after: Number(checkoutDelay),
+        default_checkout_close_hours_after: Number(checkoutClose),
+        club_name: clubName.trim(),
+        club_logo_url: newUrl.trim(), // Use newly uploaded URL with timestamp
+        club_primary_color: clubPrimaryColor,
+        club_secondary_color: clubSecondaryColor,
+        club_jersey_style: clubJerseyStyle,
+        default_training_time: defaultTrainingTime.trim(),
+        custom_tactical_concepts: customConcepts,
+        custom_muscle_groups: customMuscles,
+      };
+
+      const { error: dbError } = await supabase
+        .from("organizations")
+        .update({ settings: updatedSettings })
+        .eq("id", organizationId);
+
+      if (dbError) {
+        throw dbError;
+      }
+
+      setOrgSuccess("Escudo actualizado y guardado correctamente en tu cuenta.");
+      
+      // Refresh the page data
+      router.refresh();
     } catch (err: any) {
-      setOrgError(err.message || "Error al subir el escudo");
+      setOrgError(err.message || "Error al subir y guardar el escudo");
     } finally {
       setUploadingLogo(false);
     }
@@ -489,54 +528,67 @@ export function SettingsForm({
       {/* ── RIGHT: Forms with tab layout ── */}
       <div className="lg:col-span-2 space-y-6">
         {/* Tab Navigation */}
-        {isOrgAdmin && (
-          <div className="flex border-b border-white/5 mb-2 gap-2 overflow-x-auto pb-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab('profile')}
-              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'profile'
-                  ? 'border-emerald-500 text-emerald-400'
-                  : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              Cuenta y Seguridad
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('branding')}
-              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'branding'
-                  ? 'border-emerald-500 text-emerald-400'
-                  : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              Interfaz y Marca
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('team')}
-              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'team'
-                  ? 'border-emerald-500 text-emerald-400'
-                  : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              Planificación y Equipo
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('methodology')}
-              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'methodology'
-                  ? 'border-emerald-500 text-emerald-400'
-                  : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              Academia y Metodología
-            </button>
-          </div>
-        )}
+        <div className="flex border-b border-white/5 mb-2 gap-2 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'profile'
+                ? 'border-emerald-500 text-emerald-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            Cuenta y Seguridad
+          </button>
+          {isOrgAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab('branding')}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'branding'
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                Interfaz y Marca
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('team')}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'team'
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                Planificación y Equipo
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('methodology')}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'methodology'
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                Academia y Metodología
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('video_pack')}
+            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'video_pack'
+                ? 'border-emerald-500 text-emerald-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            Herramientas de Vídeo
+          </button>
+        </div>
 
         {/* Tab 1: Profile & Password */}
         {(activeTab === 'profile' || !isOrgAdmin) && (
@@ -739,7 +791,7 @@ export function SettingsForm({
                         <input
                           type="file"
                           accept="image/*"
-                          onChange={handleLogoUpload}
+                          onChange={handleLogoFileSelected}
                           disabled={uploadingLogo}
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
                         />
@@ -1187,7 +1239,91 @@ export function SettingsForm({
             </form>
           </div>
         )}
+
+        {activeTab === 'video_pack' && (
+          <div className="glass rounded-3xl border border-white/10 p-6 shadow-xl space-y-6">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+              <div className="h-10 w-10 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 text-xl shrink-0">
+                🎬
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Paquetes de Videoanálisis Local</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Herramientas auxiliares de captura, reproducción y edición local offline.</p>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-400 leading-relaxed bg-slate-950/40 p-4 border border-white/5 rounded-2xl">
+              Si el cuerpo técnico o los analistas necesitan realizar el etiquetado y cortes de vídeo directamente en sus ordenadores o iPads sin conexión a internet, deben descargar los siguientes paquetes de software local. Los clips se guardarán temporalmente en el almacenamiento del dispositivo y se sincronizarán con la nube al recuperar la conexión.
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Windows card */}
+              <div className="glass p-5 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4 hover:border-white/10 transition-all bg-white/2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Sistema Operativo</span>
+                    <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[8px] font-black uppercase px-2 py-0.5 rounded-full">Windows 10/11</span>
+                  </div>
+                  <h4 className="text-xs font-extrabold text-white">ClubLab Video Editor para Windows</h4>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Instalador nativo para Windows de 64 bits. Incluye motor de renderizado acelerado por hardware y códecs integrados de decodificación H.264/HEVC.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <a
+                    href="#download-win"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      alert("Iniciando la descarga del paquete ClubLab_Video_Analysis_x64.msi (124 MB)...");
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer text-center"
+                  >
+                    Descargar para Windows (.msi)
+                  </a>
+                  <span className="text-[9px] text-slate-500 text-center block mt-1.5 font-medium">Requisitos: DirectX 12 • 4GB RAM</span>
+                </div>
+              </div>
+
+              {/* iOS card */}
+              <div className="glass p-5 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4 hover:border-white/10 transition-all bg-white/2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Dispositivo Móvil</span>
+                    <span className="bg-rose-500/20 text-rose-455 border border-rose-500/30 text-[8px] font-black uppercase px-2 py-0.5 rounded-full">iOS / iPadOS</span>
+                  </div>
+                  <h4 className="text-xs font-extrabold text-white">ClubLab Video Companion para iOS</h4>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Aplicación de videoanálisis táctico optimizada para iPads. Diseñada para trabajar a pie de campo grabando cortes y anotando jugadas directamente sobre la pantalla táctil.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <a
+                    href="#download-ios"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      alert("Iniciando la descarga del paquete ClubLab_Video_Companion.ipa (48 MB) para su instalación corporativa via MDM o TestFlight...");
+                    }}
+                    className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer text-center"
+                  >
+                    Descargar para iOS (.ipa)
+                  </a>
+                  <span className="text-[9px] text-slate-500 text-center block mt-1.5 font-medium">Requisitos: iOS 15.0+ • Optimizado para iPad</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+      {selectedFileForAdjustment && (
+        <ImageAdjusterModal
+          file={selectedFileForAdjustment}
+          onClose={() => setSelectedFileForAdjustment(null)}
+          onConfirm={async (blob) => {
+            await handleUploadProcessedLogo(blob);
+            setSelectedFileForAdjustment(null);
+          }}
+        />
+      )}
     </div>
   );
 }

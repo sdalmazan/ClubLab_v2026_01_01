@@ -45,7 +45,7 @@
     "players": "Players",
     "teams": "Teams",
     "training": "Planning",
-    "performance": "Performance",
+    "performance": "Statistics",
     "injuries": "Injuries",
     "matches": "Matches",
     "academy": "Academy",
@@ -146,7 +146,7 @@
     }
   },
   "performance": {
-    "title": "Performance",
+    "title": "Statistics",
     "wellness": "Wellness",
     "loads": "Loads",
     "alerts": "Alerts",

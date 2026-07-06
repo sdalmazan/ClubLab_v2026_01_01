@@ -327,7 +327,7 @@ export default async function PlayerDetailPage({
       {/* ── QUICK LINKS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { href: `/performance?playerId=${player.id}`, label: "Rendimiento", icon: TrendingUp, color: "text-emerald-450" },
+          { href: `/performance?playerId=${player.id}`, label: "Estadísticas", icon: TrendingUp, color: "text-emerald-450" },
           { href: `/training?playerId=${player.id}`, label: "Entrenamientos", icon: Dumbbell, color: "text-indigo-450" },
           { href: `/injuries?playerId=${player.id}`, label: "Historial lesiones", icon: Stethoscope, color: "text-rose-450" },
         ].map((link) => {

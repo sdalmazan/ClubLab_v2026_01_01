@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClubLab — v2026.01.02
 
-## Getting Started
+Plataforma de gestión deportiva para clubes de fútbol. Centraliza la administración de plantillas, planificación de entrenamientos, seguimiento de rendimiento físico, control de lesiones, estadísticas de partidos y gestión de academia.
 
-First, run the development server:
+---
+
+## Stack Tecnológico
+
+| Capa | Tecnología |
+|---|---|
+| Framework | Next.js 16 (App Router) |
+| UI | React 19 + Lucide React |
+| Estilos | Tailwind CSS v4 + CSS variables |
+| Base de datos | Supabase (PostgreSQL + RLS) |
+| Autenticación | Supabase Auth + `@supabase/ssr` |
+| i18n | next-intl v4 — rutas dinámicas `[locale]` |
+| Formularios | react-hook-form + zod |
+
+---
+
+## Setup Local
+
+### 1. Prerrequisitos
+
+- Node.js ≥ 20
+- npm ≥ 10
+
+### 2. Variables de entorno
+
+```bash
+cp .env.example .env.local
+# Rellenar NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+### 3. Instalar dependencias
+
+```bash
+npm install
+```
+
+### 4. Iniciar el servidor de desarrollo
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Estructura de Directorios
 
-## Learn More
+```
+src/
+├── app/
+│   ├── [locale]/
+│   │   ├── (auth)/          # Login, registro, recuperación de contraseña
+│   │   ├── (dashboard)/     # Panel principal (protegido por auth)
+│   │   └── onboarding/      # Configuración inicial de org y roles
+│   └── api/                 # Route Handlers de Next.js
+├── components/
+│   ├── layout/              # AppSidebar, BottomNavBar, Header, etc.
+│   ├── players/             # Componentes de gestión de jugadores
+│   ├── training/            # Componentes de planificación de entrenamientos
+│   ├── academy/             # Componentes del módulo Academia
+│   ├── settings/            # Ajustes de organización
+│   └── ui/                  # Primitivos de UI (shadcn/ui)
+├── features/
+│   └── performance/         # Lógica de carga y rendimiento físico
+├── services/                # Capa de acceso a datos (queries Supabase)
+├── lib/
+│   ├── supabase/            # Clientes server/client de Supabase
+│   ├── permissions/         # Helper `can.ts` para control de acceso
+│   ├── licensing/           # Verificación de features por plan
+│   └── colors.ts            # Validación de colores de branding
+├── hooks/                   # Custom React hooks
+├── i18n/                    # Configuración de next-intl
+└── types/                   # Tipos globales de TypeScript
+supabase/
+└── migrations/              # 16 migraciones SQL ordenadas cronológicamente
+messages/                    # Archivos de traducción (es, en, ...)
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Convenciones de Desarrollo
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Rutas protegidas**: Todo el dashboard verifica sesión en el `layout.tsx` del grupo `(dashboard)`. Si no hay sesión, redirige a `/login`.
+- **Colores de marca**: Los colores primario/secundario del club se inyectan como variables CSS (`--primary`, `--primary-foreground`) en el layout. Usar siempre `bg-primary`, `text-primary`, etc. — nunca clases hardcoded de Tailwind como `bg-emerald-500`.
+- **Permisos**: Usar el helper `can(user, permission)` de `@/lib/permissions/can` para lógica de autorización en componentes y layouts.
+- **Base de datos**: No modificar esquemas en producción sin crear una migración SQL en `supabase/migrations/`.
+- **i18n**: Todos los textos de UI van en `messages/{locale}.json`. Usar el hook `useTranslations()` de next-intl.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Historial de Versiones
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Versión | Cambios principales |
+|---|---|
+| v2026.01.02 | Responsividad móvil (BottomNavBar), limpieza del repo, refactor de branding |
+| v2026.01.01 | MVP funcional: dashboard, jugadores, entrenamientos, rendimiento, lesiones, partidos, academia |

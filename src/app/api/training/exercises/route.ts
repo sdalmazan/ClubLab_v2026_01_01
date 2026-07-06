@@ -123,6 +123,39 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "El título es obligatorio" }, { status: 400 });
     }
 
+    // Fetch the existing exercise to check its current scope
+    const { data: existing, error: fetchErr } = await supabase
+      .from("exercises")
+      .select("library_scope")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !existing) {
+      return NextResponse.json({ error: "Ejercicio no encontrado" }, { status: 404 });
+    }
+
+    if (existing.library_scope === "global" || existing.library_scope === "academy") {
+      // Check user role
+      const { data: roleData } = await supabase
+        .from("user_organization_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+      
+      const role = roleData?.role;
+      
+      if (existing.library_scope === "global" && role !== "super_admin") {
+        return NextResponse.json({ error: "No tienes permisos para modificar la biblioteca ClubLab" }, { status: 403 });
+      }
+      
+      if (existing.library_scope === "academy") {
+        const isAcademiaAdmin = role === "super_admin" || role === "admin" || role === "owner" || role === "head_coach";
+        if (!isAcademiaAdmin) {
+          return NextResponse.json({ error: "No tienes permisos para modificar la biblioteca de la Academia" }, { status: 403 });
+        }
+      }
+    }
+
     const { data: exercise, error } = await supabase
       .from("exercises")
       .update({

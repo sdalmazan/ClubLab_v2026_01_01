@@ -79,9 +79,9 @@ export const MUSCLE_GROUPS = [
 ] as const;
 
 export const LIBRARY_SCOPE_LABELS = {
-  global: 'Biblioteca Estándar (Global)',
-  academy: 'Biblioteca de Academia',
-  coach: 'Mi Biblioteca',
+  global: 'ClubLab',
+  academy: 'Academia',
+  coach: 'Personal',
 } as const;
 
 export type ExerciseCategoryKey = (typeof EXERCISE_CATEGORIES)[number]['key'];

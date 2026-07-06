@@ -54,11 +54,11 @@ export function HeaderContextSelector({
               setTeamOpen(!teamOpen);
               setSeasonOpen(false);
             }}
-            className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-slate-950/40 hover:bg-slate-900/60 backdrop-blur-md px-3.5 py-2 transition-all text-xs font-semibold text-slate-300 hover:text-white cursor-pointer focus:outline-none shadow-md"
+            className="flex items-center gap-1.5 sm:gap-2.5 rounded-xl border border-white/10 bg-slate-950/40 hover:bg-slate-900/60 backdrop-blur-md px-2.5 py-1.5 sm:px-3.5 sm:py-2 transition-all text-xs font-semibold text-slate-300 hover:text-white cursor-pointer focus:outline-none shadow-md"
           >
             <Users className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider leading-none mr-0.5">Equipo:</span>
-            <span className="text-white font-bold leading-none">
+            <span className="hidden sm:inline text-slate-500 font-bold uppercase text-[9px] tracking-wider leading-none mr-0.5">Equipo:</span>
+            <span className="text-white font-bold leading-none truncate max-w-[80px] sm:max-w-none">
               {teams.find((t) => t.id === activeTeamId)?.name || "Seleccionar"}
             </span>
             <ChevronDown className="h-3 w-3 text-slate-400 shrink-0 transition-transform duration-200" style={{ transform: teamOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
@@ -100,11 +100,11 @@ export function HeaderContextSelector({
               setSeasonOpen(!seasonOpen);
               setTeamOpen(false);
             }}
-            className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-slate-950/40 hover:bg-slate-900/60 backdrop-blur-md px-3.5 py-2 transition-all text-xs font-semibold text-slate-300 hover:text-white cursor-pointer focus:outline-none shadow-md"
+            className="flex items-center gap-1.5 sm:gap-2.5 rounded-xl border border-white/10 bg-slate-950/40 hover:bg-slate-900/60 backdrop-blur-md px-2.5 py-1.5 sm:px-3.5 sm:py-2 transition-all text-xs font-semibold text-slate-300 hover:text-white cursor-pointer focus:outline-none shadow-md"
           >
             <CalendarDays className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider leading-none mr-0.5">Temp:</span>
-            <span className="text-white font-bold leading-none">
+            <span className="hidden sm:inline text-slate-500 font-bold uppercase text-[9px] tracking-wider leading-none mr-0.5">Temp:</span>
+            <span className="text-white font-bold leading-none truncate max-w-[80px] sm:max-w-none">
               {seasons.find((s) => s.id === activeSeasonId)?.name || "Seleccionar"}
               {seasons.find((s) => s.id === activeSeasonId)?.is_active ? " (Activa)" : ""}
             </span>

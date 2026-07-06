@@ -45,7 +45,7 @@
     "players": "Jugadores",
     "teams": "Equipos",
     "training": "Planificación",
-    "performance": "Rendimiento",
+    "performance": "Estadísticas",
     "injuries": "Lesiones",
     "matches": "Partidos",
     "academy": "Academia",
@@ -146,7 +146,7 @@
     }
   },
   "performance": {
-    "title": "Rendimiento",
+    "title": "Estadísticas",
     "wellness": "Bienestar",
     "loads": "Cargas",
     "alerts": "Alertas",

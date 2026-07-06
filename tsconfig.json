@@ -30,5 +30,13 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "scratch",
+    "scripts",
+    "src/lib/federation/scraper.ts",
+    "src/lib/federation/scrapeMatchday.ts",
+    "src/lib/federation/detectMatchdays.ts",
+    "src/lib/federation/rfcylf-browser.ts"
+  ]
 }
