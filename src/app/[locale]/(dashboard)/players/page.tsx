@@ -29,7 +29,7 @@ function buildFieldAssignments(players: PlayerWithMembership[]) {
     if (!assignments[primary]) assignments[primary] = [];
     assignments[primary]!.push({
       playerId: p.id,
-      name: `${p.first_name} ${p.last_name}`,
+      name: p.sporting_name || `${p.first_name} ${p.last_name}`,
       jerseyNumber: p.membership?.jersey_number,
       status: "green" as const, // TODO: wire to performance engine
     });
@@ -50,17 +50,19 @@ export default async function PlayersPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Load organization type and user role
+  // Load organization type, user role, and settings
   const { data: orgRole } = await supabase
     .from("user_organization_roles")
     .select(`
       team_id,
-      organizations ( type )
+      organizations ( type, settings )
     `)
     .eq("user_id", user?.id)
     .single();
 
   const orgType = (orgRole as any)?.organizations?.type ?? "club";
+  const organizationSettings = (orgRole as any)?.organizations?.settings ?? {};
+  const filialTeams: string[] = organizationSettings.filial_teams ?? [];
   
   const cookieStore = await cookies();
   const globalTeamId = cookieStore.get("cl_active_team_id")?.value;
@@ -70,17 +72,49 @@ export default async function PlayersPage({
     ? params.teamId 
     : (globalTeamId || orgRole?.team_id || "");
 
-  const [players, teams] = await Promise.all([
+  const [rawPlayers, teams] = await Promise.all([
     getSquadPlayers(resolvedTeamId || undefined),
     getOrgTeams(),
   ]);
 
+  const positionWeights: Record<string, number> = {
+    goalkeeper: 1,
+    right_back: 2,
+    right_center_back: 2,
+    left_center_back: 2,
+    left_back: 2,
+    defensive_midfielder: 3,
+    playmaker_midfielder: 3,
+    attacking_midfielder: 3,
+    left_winger: 4,
+    right_winger: 4,
+    striker: 4,
+  };
+
+  const players = [...rawPlayers].sort((a, b) => {
+    const aInactive = a.membership?.status === "inactive" ? 1 : 0;
+    const bInactive = b.membership?.status === "inactive" ? 1 : 0;
+    if (aInactive !== bInactive) return aInactive - bInactive;
+
+    const aPos = a.membership?.positions?.[0] || "";
+    const bPos = b.membership?.positions?.[0] || "";
+    const aW = positionWeights[aPos] || 5;
+    const bW = positionWeights[bPos] || 5;
+    
+    if (aW !== bW) return aW - bW;
+    
+    const aName = `${a.last_name || ""} ${a.first_name || ""}`.toLowerCase();
+    const bName = `${b.last_name || ""} ${b.first_name || ""}`.toLowerCase();
+    return aName.localeCompare(bName);
+  });
+
   const activeTeam = resolvedTeamId ? teams.find((t: any) => t.id === resolvedTeamId) : null;
   const titleSuffix = activeTeam ? `: ${activeTeam.name}` : "";
 
-  const injuredCount = players.filter((p) => p.active_injury?.status === "active").length;
-  const readaptCount = players.filter((p) => p.active_injury?.status === "readaptation").length;
-  const availableCount = players.length - injuredCount - readaptCount;
+  const activePlayers = players.filter((p) => p.membership?.status !== "inactive");
+  const injuredCount = activePlayers.filter((p) => p.active_injury?.status === "active").length;
+  const readaptCount = activePlayers.filter((p) => p.active_injury?.status === "readaptation").length;
+  const availableCount = activePlayers.length - injuredCount - readaptCount;
 
   // Group players by team if no specific team filter is active (only in academy mode)
   const playersByTeam: Record<string, { name: string; players: PlayerWithMembership[] }> = {};
@@ -108,12 +142,19 @@ export default async function PlayersPage({
   return (
     <div className="flex flex-col gap-6">
       {/* ── HEADER ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Plantilla{titleSuffix}</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
-            {players.length} jugadores registrados
-          </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap no-print">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/5 shrink-0">
+            <Users className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
+              Plantilla{titleSuffix}
+            </h1>
+            <p className="text-slate-400 text-xs mt-1">
+              {players.length} jugadores registrados
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2.5">
           {targetTeamId && targetSeasonId && (
@@ -123,9 +164,16 @@ export default async function PlayersPage({
             />
           )}
           <Link
+            href="/players/edit"
+            id="bulk-edit-players-btn"
+            className="flex items-center gap-2 rounded-xl border border-white/10 hover:border-white/20 text-slate-300 hover:text-white text-sm font-semibold px-4 py-2.5 transition-all bg-white/5"
+          >
+            Editar plantilla
+          </Link>
+          <Link
             href="/players/new"
             id="add-player-btn"
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg shadow-emerald-950/40"
+            className="flex items-center gap-2 rounded-xl btn-corporate text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
           >
             <UserPlus className="h-4 w-4" />
             Añadir jugador
@@ -134,7 +182,7 @@ export default async function PlayersPage({
       </div>
 
       {/* ── STATS ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 no-print">
         {[
           { label: "Disponibles", value: availableCount, color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" },
           { label: "Readaptación", value: readaptCount, color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/20" },
@@ -148,17 +196,17 @@ export default async function PlayersPage({
       </div>
 
       {/* ── FILTERS ── */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap no-print">
         {orgType === "academy" && <Filter className="h-4 w-4 text-slate-500 shrink-0" />}
         {orgType === "academy" && teams.length > 1 && (
           <div className="flex gap-2 flex-wrap">
             <Link
               href="/players"
               id="filter-all-teams"
-              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                 !resolvedTeamId
-                  ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400"
-                  : "border-white/10 text-slate-400 hover:border-white/20"
+                  ? "corp-badge"
+                  : "border-white/10 text-slate-400 hover:border-white/20 border"
               }`}
             >
               Todos
@@ -168,10 +216,10 @@ export default async function PlayersPage({
                 key={t.id}
                 href={`/players?teamId=${t.id}`}
                 id={`filter-team-${t.id}`}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                   resolvedTeamId === t.id
-                    ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400"
-                    : "border-white/10 text-slate-400 hover:border-white/20"
+                    ? "corp-badge"
+                    : "border-white/10 text-slate-400 hover:border-white/20 border"
                 }`}
               >
                 {t.name}
@@ -189,7 +237,7 @@ export default async function PlayersPage({
               id={`view-${v}`}
               className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                 view === v
-                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-950/40"
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-black/30"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
@@ -203,7 +251,7 @@ export default async function PlayersPage({
       {players.length === 0 ? (
         <EmptyState teamId={targetTeamId} seasonId={targetSeasonId} />
       ) : view === "field" ? (
-        <InteractiveFieldMap players={players} />
+        <InteractiveFieldMap players={players} organizationSettings={organizationSettings} />
       ) : (
         <Suspense
           fallback={
@@ -219,12 +267,17 @@ export default async function PlayersPage({
               {Object.entries(playersByTeam).map(([tId, group]) => (
                 <div key={tId} className="space-y-3">
                   <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/5 pb-2 flex items-center gap-2">
-                    <span className="w-1.5 h-3 bg-emerald-500 rounded-full" />
+                    <span className="w-1.5 h-3 bg-primary rounded-full" />
                     {group.name} ({group.players.length})
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {group.players.map((p) => (
-                      <PlayerCard key={p.id} player={p} />
+                      <PlayerCard
+                        key={p.id}
+                        player={p}
+                        activeTeamId={resolvedTeamId}
+                        filialTeams={filialTeams}
+                      />
                     ))}
                   </div>
                 </div>
@@ -237,7 +290,12 @@ export default async function PlayersPage({
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {unassignedPlayers.map((p) => (
-                      <PlayerCard key={p.id} player={p} />
+                      <PlayerCard
+                        key={p.id}
+                        player={p}
+                        activeTeamId={resolvedTeamId}
+                        filialTeams={filialTeams}
+                      />
                     ))}
                   </div>
                 </div>
@@ -246,7 +304,12 @@ export default async function PlayersPage({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {players.map((p) => (
-                <PlayerCard key={p.id} player={p} />
+                <PlayerCard
+                  key={p.id}
+                  player={p}
+                  activeTeamId={resolvedTeamId}
+                  filialTeams={filialTeams}
+                />
               ))}
             </div>
           )}
@@ -268,7 +331,7 @@ function EmptyState({ teamId, seasonId }: { teamId: string; seasonId: string }) 
         <Link
           href="/players/new"
           id="empty-add-player-btn"
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm font-semibold px-5 py-2.5 transition-all shadow-lg cursor-pointer"
+          className="flex items-center gap-2 rounded-xl btn-corporate text-sm font-semibold px-5 py-2.5 transition-all shadow-lg cursor-pointer"
         >
           <UserPlus className="h-4 w-4" />
           Añadir primer jugador

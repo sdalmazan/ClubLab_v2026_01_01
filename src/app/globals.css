@@ -226,3 +226,118 @@
 .pb-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
+
+/* ============================================================
+   Corporate Brand Utilities
+   Usan --primary (inyectado por el layout del equipo).
+   Fallback: esmeralda ClubLab para auth/onboarding.
+   ============================================================ */
+
+/* Botón primario CTA (gradiente corporativo) */
+.btn-corporate {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary, #10b981) 80%, #000),
+    var(--primary, #10b981)
+  );
+  color: var(--primary-foreground, #ffffff);
+  transition: filter 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--primary, #10b981) 45%, transparent);
+}
+.btn-corporate:hover:not(:disabled) {
+  filter: brightness(1.14);
+  box-shadow: 0 6px 22px -4px color-mix(in srgb, var(--primary, #10b981) 55%, transparent);
+}
+.btn-corporate:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Botón sólido corporativo (sin gradiente) */
+.btn-corporate-solid {
+  background-color: var(--primary, #10b981);
+  color: var(--primary-foreground, #ffffff);
+  transition: filter 0.15s ease;
+}
+.btn-corporate-solid:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.btn-corporate-solid:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Badge / chip corporativo (fondo sutil) */
+.corp-badge {
+  background: color-mix(in srgb, var(--primary, #10b981) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary, #10b981) 28%, transparent);
+  color: var(--primary, #10b981);
+}
+
+/* Texto con acento corporativo */
+.corp-text {
+  color: var(--primary, #10b981);
+}
+.corp-text-muted {
+  color: color-mix(in srgb, var(--primary, #10b981) 70%, #94a3b8);
+}
+
+/* Focus ring corporativo para inputs */
+.corp-input-focus:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #10b981) 45%, transparent);
+  border-color: color-mix(in srgb, var(--primary, #10b981) 55%, transparent) !important;
+}
+
+/* Spinner de carga corporativo */
+.corp-spinner {
+  border-bottom-color: var(--primary, #10b981) !important;
+}
+
+/* Barra de progreso corporativa */
+.corp-progress {
+  background-color: var(--primary, #10b981);
+  border-radius: 9999px;
+}
+
+/* Hover border corporativo (cards) */
+.corp-card-hover:hover {
+  border-color: color-mix(in srgb, var(--primary, #10b981) 30%, transparent);
+}
+
+/* Ícono corporativo */
+.corp-icon {
+  color: var(--primary, #10b981);
+}
+
+/* Ítem activo de navegación */
+.corp-nav-active {
+  background: color-mix(in srgb, var(--primary, #10b981) 12%, transparent);
+  color: var(--primary, #10b981);
+}
+
+/* accent-color para inputs range/checkbox */
+.corp-accent {
+  accent-color: var(--primary, #10b981);
+}
+
+/* Premium scrollbar utility */
+.premium-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(40% 0.03 265 / 0.5) transparent;
+}
+.premium-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.premium-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.premium-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(40% 0.03 265 / 0.5);
+  border-radius: 3px;
+}
+.premium-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(50% 0.03 265 / 0.7);
+}
