@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { SessionVideoData } from "@/lib/clublab/types";
+import { logger } from '@/lib/logger';
 
 const DATA_FILE_PATH = path.join(process.cwd(), "src", "data", "match-video-analysis.json");
 

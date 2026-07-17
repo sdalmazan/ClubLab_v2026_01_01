@@ -67,7 +67,7 @@ async function main() {
   console.log("  Cargando partidos de la base de datos de estadísticas...");
   let query = statsAdmin
     .from("stat_matches")
-    .select("id, federation_id, home_team, away_team, season, matchday");
+    .select("id, federation_id, home_team, away_team, season, matchday, competition");
   
   if (season) {
     query = query.eq("season", season);
@@ -149,7 +149,7 @@ async function main() {
     console.log(`  ${match.home_team} vs ${match.away_team} | Temporada ${match.season} J${match.matchday}`);
 
     try {
-      const seasonConfig = getSeasonConfig(match.season);
+      const seasonConfig = getSeasonConfig(match.season, match.competition);
       let refererUrl = "https://www.rfcylf.es/";
 
       if (seasonConfig) {

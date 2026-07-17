@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Shield, GraduationCap, User, Check } from "lucide-react";
+import { createInitialSubscription } from './actions';
 
 type OrgType = "club" | "academy" | "independent_coach";
 type Step = 1 | 2 | 3;
@@ -117,20 +118,8 @@ export function OnboardingWizard() {
 
       if (orgErr) throw new Error(orgErr.message);
 
-      // 2. Assign free plan subscription
-      const { data: freePlan } = await supabase
-        .from("plans")
-        .select("id")
-        .eq("slug", "free")
-        .single();
-
-      if (freePlan) {
-        await supabase.from("subscriptions").insert({
-          organization_id: org.id,
-          plan_id: freePlan.id,
-          status: "manual",
-        });
-      }
+      // 2. Assign free plan subscription (via Server Action — uses service_role)
+      await createInitialSubscription(org.id);
 
       // 3. Create user role in user_organization_roles
       const finalRole = role === "player" ? "player" : role === "head_coach" ? "head_coach" : "club_admin";

@@ -6,6 +6,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { Player, PlayerTeamMembership, PositionKey, PlayerStatus, AvailabilityStatus } from "@/types";
+import { logger } from '@/lib/logger';
 
 // ============================================================
 // TYPES
@@ -14,6 +15,7 @@ import type { Player, PlayerTeamMembership, PositionKey, PlayerStatus, Availabil
 export interface PlayerWithMembership extends Player {
   membership?: PlayerTeamMembership & {
     teams?: { name: string; id: string } | null;
+    seasons?: { id: string; name: string; start_date: string } | null;
   };
   latest_wellness?: {
     fatigue: number | null;
@@ -43,6 +45,10 @@ export interface CreatePlayerInput {
   season_id: string;
   jersey_number?: number | null;
   positions?: PositionKey[];
+  adjective?: string | null;
+  sporting_name?: string | null;
+  signing_status?: "signed" | "close" | "difficult";
+  player_type?: "main" | "reserve" | "youth" | "other";
 }
 
 export interface UpdatePlayerInput {
@@ -57,6 +63,9 @@ export interface UpdatePlayerInput {
   physical_status?: PlayerStatus;
   availability_status?: AvailabilityStatus;
   availability_notes?: string | null;
+  adjective?: string | null;
+  sporting_name?: string | null;
+  signing_status?: "signed" | "close" | "difficult";
 }
 
 // ============================================================
@@ -76,8 +85,9 @@ export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMember
       *,
       membership:player_team_memberships(
         id, jersey_number, positions, kicker_roles, status, joined_date, left_date,
-        team_id, season_id,
-        teams:teams(id, name)
+        team_id, season_id, player_type, player_type_label,
+        teams:teams(id, name),
+        seasons:seasons(id, name, start_date)
       ),
       active_injury:injuries(
         id, status, body_part, severity
@@ -94,7 +104,7 @@ export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMember
   const { data, error } = await query;
 
   if (error) {
-    console.error("[getSquadPlayers]", error.message);
+    logger.error("getSquadPlayers", { error: error.message });
     return [];
   }
 
@@ -117,8 +127,9 @@ export async function getPlayerById(id: string): Promise<PlayerWithMembership | 
       *,
       membership:player_team_memberships(
         id, jersey_number, positions, kicker_roles, status, joined_date,
-        team_id, season_id,
-        teams:teams(id, name)
+        team_id, season_id, player_type, player_type_label,
+        teams:teams(id, name),
+        seasons:seasons(id, name, start_date)
       ),
       active_injury:injuries(
         id, status, body_part, severity
@@ -129,7 +140,7 @@ export async function getPlayerById(id: string): Promise<PlayerWithMembership | 
     .single();
 
   if (error) {
-    console.error("[getPlayerById]", error.message);
+    logger.error("getPlayerById", { error: error.message });
     return null;
   }
 
@@ -161,6 +172,9 @@ export async function createPlayer(
       height_cm: input.height_cm,
       weight_kg: input.weight_kg,
       avatar_url: input.avatar_url,
+      adjective: input.adjective,
+      sporting_name: input.sporting_name,
+      signing_status: input.signing_status || "signed",
     })
     .select()
     .single();
@@ -175,6 +189,7 @@ export async function createPlayer(
       season_id: input.season_id,
       jersey_number: input.jersey_number,
       positions: input.positions ?? [],
+      player_type: input.player_type || "main",
       status: "active",
       joined_date: new Date().toISOString().split("T")[0],
     });

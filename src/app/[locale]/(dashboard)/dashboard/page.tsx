@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getSquadPlayers } from "@/services/players";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { statsAdmin } from "@/lib/supabase/stats-admin";
 import Link from "next/link";
 import { 
   Users, 
@@ -14,7 +15,8 @@ import {
   TrendingUp, 
   AlertCircle,
   Clock,
-  MapPin
+  MapPin,
+  LayoutDashboard
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -34,6 +36,7 @@ export default async function DashboardPage() {
     .select(`
       team_id,
       organizations (
+        name,
         type,
         logo_url,
         settings
@@ -42,7 +45,9 @@ export default async function DashboardPage() {
     .eq("user_id", user?.id)
     .single();
 
-  const clubLogoUrl = (orgRole?.organizations as any)?.settings?.club_logo_url || (orgRole?.organizations as any)?.logo_url || "";
+  const orgData = orgRole?.organizations as any;
+  const clubName = orgData?.settings?.club_name || orgData?.name || "ClubLab";
+  const clubLogoUrl = orgData?.settings?.club_logo_url || orgData?.logo_url || "";
 
   const cookieStore = await cookies();
   const globalTeamId = cookieStore.get("cl_active_team_id")?.value;
@@ -50,6 +55,151 @@ export default async function DashboardPage() {
 
   // Fetch real squad players
   const players = await getSquadPlayers(resolvedTeamId || undefined);
+
+  // Get Monday and Sunday of this week
+  const today = new Date();
+  const getMondayDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const mon = new Date(d.setDate(diff));
+    mon.setHours(0, 0, 0, 0);
+    return mon;
+  };
+  const currentMonday = getMondayDate(today.toISOString().split("T")[0]);
+  const currentSunday = new Date(currentMonday);
+  currentSunday.setDate(currentMonday.getDate() + 6);
+  currentSunday.setHours(23, 59, 59, 999);
+
+  const mondayStr = currentMonday.toISOString().split("T")[0];
+  const sundayStr = currentSunday.toISOString().split("T")[0];
+
+  let dbSessions: any[] = [];
+  if (resolvedTeamId) {
+    const { data } = await supabase
+      .from("training_sessions")
+      .select(`
+        id,
+        title,
+        date,
+        session_type,
+        notes,
+        session_exercises (
+          duration_min,
+          exercise:exercises (
+            title
+          )
+        )
+      `)
+      .eq("team_id", resolvedTeamId)
+      .order("date", { ascending: true });
+    dbSessions = data || [];
+  }
+
+  const weekSessions = dbSessions.filter((s) => s.date >= mondayStr && s.date <= sundayStr);
+  const totalTrainings = dbSessions.filter((s) => s.session_type === "training").length;
+
+  const SESSION_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+    training: { bg: "corp-badge-bg", text: "corp-text", border: "corp-badge-border" },
+    individual: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20" },
+    match: { bg: "bg-sky-500/10", text: "text-sky-400", border: "border-sky-500/20" },
+    rest: { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/20" },
+  };
+
+  // Date format helper for matches
+  const formatMatchDate = (dateStr: string, timeStr?: string) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' };
+    const formattedDate = date.toLocaleDateString('es-ES', options);
+    const capitalized = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+    return timeStr ? `${capitalized}, ${timeStr.slice(0, 5)}` : capitalized;
+  };
+
+  // Fetch completed and upcoming matches from database
+  let completedMatches: any[] = [];
+  let nextMatch: any = null;
+
+  if (resolvedTeamId) {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const cleanClubName = clubName
+      .replace(/\b(S\.?D\.?|C\.?D\.?|C\.?F\.?|U\.?D\.?|S\.?A\.?D\.?|Club|Deportivo|Sociedad|Deportiva)\b/gi, "")
+      .trim();
+    const searchPattern = cleanClubName.replace(/[áéíóúÁÉÍÓÚ]/g, "%");
+
+    // 1. Fetch completed matches from Federation DB (stat_matches table) for this club in season 2025/2026
+    const { data: federationMatches } = await statsAdmin
+      .from("stat_matches")
+      .select("*")
+      .or(`home_team.ilike.%${searchPattern}%,away_team.ilike.%${searchPattern}%`)
+      .eq("season", "2025/2026")
+      .order("matchday", { ascending: false })
+      .limit(5);
+
+    completedMatches = (federationMatches || []).map((m: any) => {
+      const normalizedHome = m.home_team.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const normalizedCleanName = cleanClubName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const isHome = normalizedHome.includes(normalizedCleanName);
+      const rival = isHome ? m.away_team : m.home_team;
+      const score = `${m.home_score} - ${m.away_score}`;
+      
+      let result: "win" | "draw" | "loss";
+      if (isHome) {
+        result = m.home_score > m.away_score ? "win" : m.home_score === m.away_score ? "draw" : "loss";
+      } else {
+        result = m.away_score > m.home_score ? "win" : m.away_score === m.home_score ? "draw" : "loss";
+      }
+
+      return {
+        id: m.id,
+        match_opponent: rival,
+        match_score: score,
+        match_is_home: isHome,
+        match_result: result,
+        date_label: `Jornada ${m.matchday}`,
+        date: m.match_date || todayStr
+      };
+    });
+
+    // 2. Fetch the next upcoming match directly from the preseason planning (preseason_sessions table)
+    const { data: upcomingPreseason } = await supabase
+      .from("preseason_sessions")
+      .select("*")
+      .eq("team_id", resolvedTeamId)
+      .in("type", ["friendly", "league"])
+      .gte("date", todayStr)
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .limit(1);
+
+    const preseasonMatch = upcomingPreseason?.[0] || null;
+
+    if (preseasonMatch) {
+      nextMatch = {
+        id: preseasonMatch.id,
+        date: preseasonMatch.date,
+        start_time: preseasonMatch.start_time,
+        match_opponent: preseasonMatch.opponent || "Rival",
+        match_is_home: !(preseasonMatch.location?.toLowerCase().includes("visitante") || preseasonMatch.location?.toLowerCase().includes("fuera")),
+        match_competition: preseasonMatch.type === "friendly" ? "friendly" : "league",
+        title: preseasonMatch.type === "friendly" ? "Partido Amistoso" : "Partido Liga",
+        notes: preseasonMatch.comments
+      };
+    } else {
+      // Fallback: Fetch upcoming match from the normal calendar (training_sessions table)
+      const { data: upcomingMatches } = await supabase
+        .from("training_sessions")
+        .select("*")
+        .eq("team_id", resolvedTeamId)
+        .eq("session_type", "match")
+        .gte("date", todayStr)
+        .order("date", { ascending: true })
+        .order("start_time", { ascending: true })
+        .limit(1);
+      
+      nextMatch = upcomingMatches?.[0] || null;
+    }
+  }
 
   // Calculate metrics
   const totalPlayers = players.length;
@@ -108,16 +258,21 @@ export default async function DashboardPage() {
     <div className="animate-fade-in space-y-6 pb-12">
       {/* ── HEADER ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            Bienvenido a <span className="text-primary">ClubLab</span>
-          </h1>
-          <p className="text-slate-400 text-xs mt-0.5">
-            Panel de control para la gestión deportiva y análisis de la S.D. Almazán.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/5 shrink-0">
+            <LayoutDashboard className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
+              Centro de Rendimiento
+            </h1>
+            <p className="text-slate-400 text-[11px] mt-1 font-medium">
+              Panel de control y analítica para la gestión de la <span className="text-primary font-bold">{clubName}</span>.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-[10px] bg-slate-900 border border-white/5 px-3 py-1.5 rounded-xl text-slate-400">
-          <Clock className="h-3 w-3 text-emerald-450" />
+          <Clock className="h-3 w-3 corp-icon" />
           <span>Última actualización: Hoy, {new Date().toLocaleDateString("es-ES")}</span>
         </div>
       </div>
@@ -156,7 +311,7 @@ export default async function DashboardPage() {
         <Link href="/training" className="glass-card hover:bg-white/5 border border-white/5 rounded-2xl p-5 flex items-center justify-between transition-all group cursor-pointer shadow-lg">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Entrenamientos</span>
-            <span className="text-3xl font-black text-white">4</span>
+            <span className="text-3xl font-black text-white">{totalTrainings}</span>
             <span className="text-[9px] text-slate-400 mt-1 flex items-center gap-1">
               Ver planificación semanal <ChevronRight className="h-2.5 w-2.5 text-primary group-hover:translate-x-0.5 transition-transform" />
             </span>
@@ -196,89 +351,267 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between border-b border-white/5 pb-3.5 mb-4">
               <div className="flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-amber-500" />
-                <span className="text-xs font-black uppercase text-slate-300 tracking-wider">Próximo Partido Oficial</span>
+                <span className="text-xs font-black uppercase text-slate-300 tracking-wider">Próximo Partido</span>
               </div>
-              <span className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
-                Jornada 34
+              {nextMatch && (
+                <span className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+                  {nextMatch.match_competition === "friendly" ? "Amistoso" : nextMatch.match_competition === "league" ? "Liga" : (nextMatch.match_competition || "Pretemporada")}
+                </span>
+              )}
+            </div>
+
+            {!nextMatch ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 mb-3 text-slate-400">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-bold text-slate-300">No hay partidos planificados</span>
+                <p className="text-[10px] text-slate-500 mt-1 max-w-[280px]">
+                  Configura amistosos o liga desde el planning de pretemporada.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6 py-2">
+                {/* Home Team */}
+                <div className="flex flex-col items-center gap-2 w-28 text-center">
+                  <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2 shadow-md">
+                    {nextMatch.match_is_home ? (
+                      clubLogoUrl ? (
+                        <img src={clubLogoUrl} className="h-full w-full object-contain" alt={clubName} />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-blue-500 shadow-md">
+                          <Trophy className="h-6 w-6 text-white" />
+                        </div>
+                      )
+                    ) : (
+                      <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2.5 shadow-md">
+                        <span className="text-xl font-black text-rose-500">
+                          {(nextMatch.match_opponent || "Rival").slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs font-bold text-white leading-tight">
+                    {nextMatch.match_is_home ? clubName : (nextMatch.match_opponent || "Rival")}
+                  </span>
+                </div>
+
+                {/* Match info middle */}
+                <div className="flex flex-col items-center text-center space-y-1">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest">
+                    {nextMatch.title || "Pretemporada"}
+                  </span>
+                  <div className="text-xl font-black text-white flex items-center gap-2">
+                    <span>vs</span>
+                  </div>
+                  <span className="bg-slate-950/80 px-3 py-1 rounded-lg border border-white/5 text-[10px] font-bold text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="h-3 w-3 text-primary" />
+                    <span>{formatMatchDate(nextMatch.date, nextMatch.start_time)}</span>
+                  </span>
+                  {nextMatch.notes && (
+                    <span className="text-[9px] text-slate-450 flex items-center gap-1 pt-1">
+                      <MapPin className="h-2.5 w-2.5 text-slate-500" />
+                      <span>{nextMatch.notes}</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Away Team */}
+                <div className="flex flex-col items-center gap-2 w-28 text-center">
+                  <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2 shadow-md">
+                    {!nextMatch.match_is_home ? (
+                      clubLogoUrl ? (
+                        <img src={clubLogoUrl} className="h-full w-full object-contain" alt={clubName} />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-blue-500 shadow-md">
+                          <Trophy className="h-6 w-6 text-white" />
+                        </div>
+                      )
+                    ) : (
+                      <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2.5 shadow-md">
+                        <span className="text-xl font-black text-rose-500">
+                          {(nextMatch.match_opponent || "Rival").slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs font-bold text-white leading-tight">
+                    {!nextMatch.match_is_home ? clubName : (nextMatch.match_opponent || "Rival")}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Widget: Sesiones de la Semana */}
+          <div className="glass rounded-3xl border border-white/10 p-6 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 h-32 w-32 bg-indigo-500/10 rounded-full blur-3xl -z-10" />
+            
+            <div className="flex items-center justify-between border-b border-white/5 pb-3.5 mb-4">
+              <Link 
+                href="/training"
+                className="flex items-center gap-2 hover:text-white transition-colors group cursor-pointer"
+              >
+                <Calendar className="h-4 w-4 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span className="text-xs font-black uppercase text-slate-350 tracking-wider group-hover:text-white flex items-center gap-1">
+                  Sesiones de esta Semana
+                  <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-primary" />
+                </span>
+              </Link>
+              <span className="text-[10px] text-slate-400 font-bold bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full">
+                {mondayStr.split("-").reverse().slice(0, 2).join("/")} - {sundayStr.split("-").reverse().slice(0, 2).join("/")}
               </span>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 py-2">
-              {/* Home Team */}
-              <div className="flex flex-col items-center gap-2 w-28 text-center">
-                <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2 shadow-md">
-                  {clubLogoUrl ? (
-                    <img src={clubLogoUrl} className="h-full w-full object-contain" alt="S.D. Almazán" />
-                  ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-blue-500 shadow-md">
-                      <Trophy className="h-6 w-6 text-white" />
+            {!weekSessions || weekSessions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 mb-3 text-slate-500">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-bold text-slate-400">No hay sesiones esta semana</span>
+                <p className="text-[10px] text-slate-500 mt-1 max-w-[280px]">
+                  Ve a Planificación para programar entrenamientos o partidos para esta semana.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {weekSessions.map((session: any) => {
+                  const typeStyles = SESSION_TYPE_COLORS[session.session_type] || {
+                    bg: "bg-slate-500/10",
+                    text: "text-slate-400",
+                    border: "border-slate-500/20"
+                  };
+                  
+                  const exercisesList = (session.session_exercises || [])
+                    .map((se: any) => se.exercise?.title)
+                    .filter(Boolean);
+
+                  return (
+                    <div 
+                      key={session.id}
+                      className="glass-card rounded-2xl border border-white/5 p-4 bg-white/1 hover:bg-white/2 transition-all flex flex-col justify-between gap-3"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">
+                            {new Date(session.date + "T00:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric" })}
+                          </span>
+                          <span className={`rounded-lg border px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider ${typeStyles.bg} ${typeStyles.text} ${typeStyles.border}`}>
+                            {session.session_type === "training" ? "Entrenamiento" : session.session_type === "rest" ? "Descanso" : "Partido"}
+                          </span>
+                        </div>
+                        <div>
+                          <Link 
+                            href={`/training/${session.id}`}
+                            className="text-xs font-extrabold text-white hover:corp-text transition-colors line-clamp-1"
+                          >
+                            {session.title || "Sesión"}
+                          </Link>
+                          {session.notes && (
+                            <p className="text-[9px] text-slate-400 line-clamp-1 mt-0.5">{session.notes}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Exercises preview */}
+                      <div className="border-t border-white/5 pt-2 mt-1">
+                        <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
+                          Tareas ({exercisesList.length})
+                        </span>
+                        {exercisesList.length === 0 ? (
+                          <span className="text-[9px] text-slate-500 italic">Sin tareas asignadas</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {exercisesList.slice(0, 3).map((title: string, idx: number) => (
+                              <span 
+                                key={idx}
+                                className="text-[9px] text-slate-300 bg-white/5 border border-white/5 rounded px-1.5 py-0.5 truncate max-w-[120px]"
+                                title={title}
+                              >
+                                {title}
+                              </span>
+                            ))}
+                            {exercisesList.length > 3 && (
+                              <span className="text-[8px] font-bold text-slate-400 self-center">
+                                +{exercisesList.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-                <span className="text-xs font-bold text-white leading-tight">S.D. Almazán</span>
+                  );
+                })}
               </div>
-
-              {/* Match info middle */}
-              <div className="flex flex-col items-center text-center space-y-1">
-                <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest">Tercera Federación (G. 8)</span>
-                <div className="text-xl font-black text-white flex items-center gap-2">
-                  <span>vs</span>
-                </div>
-                <span className="bg-slate-950/80 px-3 py-1 rounded-lg border border-white/5 text-[10px] font-bold text-slate-300 flex items-center gap-1.5">
-                  <Calendar className="h-3 w-3 text-primary" />
-                  <span>Domingo 5 de Julio, 17:00</span>
-                </span>
-                <span className="text-[9px] text-slate-455 flex items-center gap-1 pt-1">
-                  <MapPin className="h-2.5 w-2.5 text-slate-500" />
-                  <span>La Arboleda (Almazán) - Local</span>
-                </span>
-              </div>
-
-              {/* Away Team */}
-              <div className="flex flex-col items-center gap-2 w-28 text-center">
-                <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2.5 shadow-md">
-                  <span className="text-2xl font-black text-rose-500">AT</span>
-                </div>
-                <span className="text-xs font-bold text-white leading-tight">Atlético Tordesillas</span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Widget: Últimos Resultados */}
           <div className="glass rounded-3xl border border-white/10 p-6 shadow-xl space-y-4">
-            <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Últimos Resultados</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider">Últimos Resultados (T. 2025/2026)</h3>
+              {completedMatches.length > 0 && (
+                <div className="flex items-center gap-1.5 no-print">
+                  <span className="text-[9px] text-slate-500 font-extrabold uppercase tracking-wider">Racha:</span>
+                  <div className="flex gap-1">
+                    {[...completedMatches].reverse().map((res: any, idx: number) => {
+                      const letter = res.match_result === "win" ? "V" : res.match_result === "draw" ? "E" : "D";
+                      const colors = res.match_result === "win"
+                        ? "bg-emerald-500/20 text-emerald-450 border-emerald-500/40"
+                        : res.match_result === "draw"
+                        ? "bg-slate-500/20 text-slate-400 border-slate-500/30"
+                        : "bg-rose-500/20 text-rose-455 border-rose-500/40";
+                      return (
+                        <span 
+                          key={idx}
+                          className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black border ${colors}`}
+                          title={`vs ${res.match_opponent}`}
+                        >
+                          {letter}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
             
             <div className="space-y-2">
-              {[
-                { rival: "Real Ávila", score: "2 - 1", isHome: false, date: "28/06/2026", result: "lose" },
-                { rival: "Arandina C.F.", score: "0 - 0", isHome: true, date: "21/06/2026", result: "draw" },
-                { rival: "C.D. Bupolsa", score: "1 - 2", isHome: false, date: "14/06/2026", result: "win" },
-              ].map((res, idx) => {
-                const colorClass = res.result === "win" 
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                  : res.result === "draw" 
-                  ? "bg-slate-500/10 text-slate-400 border-slate-500/20" 
-                  : "bg-rose-500/10 text-rose-455 border-rose-500/20";
-                
-                const label = res.result === "win" ? "V" : res.result === "draw" ? "E" : "D";
+              {completedMatches.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 italic text-xs">
+                  No hay partidos disputados registrados en la temporada 2025/2026.
+                </div>
+              ) : (
+                completedMatches.map((res: any, idx: number) => {
+                  const resultType = res.match_result === "win" ? "win" : res.match_result === "draw" ? "draw" : "lose";
+                  const colorClass = resultType === "win" 
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                    : resultType === "draw" 
+                    ? "bg-slate-500/10 text-slate-400 border-slate-500/20" 
+                    : "bg-rose-500/10 text-rose-455 border-rose-500/20";
+                  
+                  const label = resultType === "win" ? "V" : resultType === "draw" ? "E" : "D";
 
-                return (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-white/2 hover:bg-white/4 border border-white/5 rounded-2xl transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-6 h-6 flex items-center justify-center text-[10px] font-black rounded-lg border ${colorClass}`}>
-                        {label}
-                      </span>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-white">vs {res.rival}</span>
-                        <span className="text-[9px] text-slate-500">{res.isHome ? "Local" : "Visitante"} • {res.date}</span>
+                  return (
+                    <div key={res.id || idx} className="flex items-center justify-between p-3 bg-white/2 hover:bg-white/4 border border-white/5 rounded-2xl transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-6 h-6 flex items-center justify-center text-[10px] font-black rounded-lg border ${colorClass}`}>
+                          {label}
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-white">vs {res.match_opponent || "Rival"}</span>
+                          <span className="text-[9px] text-slate-500">
+                            {res.match_is_home ? "Local" : "Visitante"} • {new Date(res.date).toLocaleDateString("es-ES")}
+                          </span>
+                        </div>
                       </div>
+                      <span className="text-xs font-extrabold text-white bg-slate-950/60 px-2.5 py-1 rounded-lg border border-white/5">
+                        {res.match_score || "- -"}
+                      </span>
                     </div>
-                    <span className="text-xs font-extrabold text-white bg-slate-950/60 px-2.5 py-1 rounded-lg border border-white/5">
-                      {res.score}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { CustomSelect } from "@/components/ui/CustomSelect";
+import { createClient } from "@/lib/supabase/client";
 
 interface Match {
   id: string;
@@ -43,9 +44,11 @@ interface Match {
 
 export default function MatchesPage() {
   const [mounted, setMounted] = useState(false);
+  const [supabase] = useState(() => createClient());
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [season, setSeason] = useState("2025/2026");
+  const [availableSeasons, setAvailableSeasons] = useState<string[]>(["2026/2027", "2025/2026", "2024/2025"]);
   const [search, setSearch] = useState("");
   const [matchdayFilter, setMatchdayFilter] = useState("all");
 
@@ -93,6 +96,42 @@ export default function MatchesPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch seasons dynamically and determine active season
+  useEffect(() => {
+    async function loadSeasons() {
+      try {
+        const { data: seasonsList } = await supabase
+          .from("seasons")
+          .select("id, name")
+          .order("name", { ascending: false });
+
+        if (seasonsList) {
+          const names = seasonsList.map(s => s.name);
+          const uniqueSeasons = Array.from(
+            new Set([...names, "2026/2027", "2025/2026", "2024/2025"])
+          ).sort().reverse();
+          setAvailableSeasons(uniqueSeasons);
+
+          // Get active season from cookie
+          const cookieValue = document.cookie
+            .split("; ")
+            .find((row) => row.startsWith("cl_active_season_id="))
+            ?.split("=")[1];
+
+          if (cookieValue) {
+            const matchS = seasonsList.find(s => s.id === cookieValue);
+            if (matchS) {
+              setSeason(matchS.name);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading seasons:", err);
+      }
+    }
+    loadSeasons();
+  }, [supabase]);
 
   // Fetch matches
   useEffect(() => {
@@ -336,13 +375,18 @@ export default function MatchesPage() {
     <div className="animate-fade-in space-y-6 pb-12 text-slate-100">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            Calendario y <span className="text-primary">Scouting Rival</span>
-          </h1>
-          <p className="text-slate-400 text-xs mt-0.5">
-            Historial de encuentros oficiales, actas arbitrales y analítica de rendimiento del oponente.
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/5 shrink-0">
+            <Trophy className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
+              Calendario y Scouting
+            </h1>
+            <p className="text-slate-400 text-xs mt-1">
+              Historial de encuentros oficiales, actas arbitrales y analítica de rendimiento.
+            </p>
+          </div>
         </div>
 
         {/* Season Selector */}
@@ -351,10 +395,7 @@ export default function MatchesPage() {
           <CustomSelect
             value={season}
             onChange={setSeason}
-            options={[
-              { value: "2025/2026", label: "Temporada 2025/2026" },
-              { value: "2024/2025", label: "Temporada 2024/2025" },
-            ]}
+            options={availableSeasons.map(s => ({ value: s, label: `Temporada ${s}` }))}
             className="w-48"
           />
         </div>

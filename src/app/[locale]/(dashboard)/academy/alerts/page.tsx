@@ -362,7 +362,7 @@ export default function MethodologyAlertsPage() {
 
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center gap-2 rounded-xl bg-emerald-550 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 transition-all cursor-pointer shadow-lg shadow-emerald-950/40"
+            className="flex items-center gap-2 rounded-xl btn-corporate text-white text-xs font-semibold px-4 py-2.5 transition-all cursor-pointer shadow-lg"
           >
             <Sliders className="h-4 w-4" />
             Configurar Alertas
@@ -377,7 +377,7 @@ export default function MethodologyAlertsPage() {
       )}
 
       {success && (
-        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400 flex items-center gap-2">
+        <div className="rounded-xl corp-badge px-4 py-3 text-sm flex items-center gap-2">
           <CheckCircle className="h-4 w-4 shrink-0" />
           {success}
         </div>
@@ -450,7 +450,7 @@ export default function MethodologyAlertsPage() {
               <button
                 type="submit"
                 disabled={savingSettings}
-                className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-450 text-white text-xs font-bold py-2.5 transition-all shadow-lg"
+                className="flex-1 rounded-xl btn-corporate text-white text-xs font-bold py-2.5 transition-all shadow-lg"
               >
                 {savingSettings ? "Guardando..." : "Guardar Ajustes"}
               </button>
@@ -467,7 +467,7 @@ export default function MethodologyAlertsPage() {
         </div>
       ) : alerts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 border border-dashed border-emerald-500/10 bg-emerald-500/3 rounded-3xl p-6 text-center max-w-2xl mx-auto">
-          <CheckCircle className="h-10 w-10 text-emerald-500 mb-3" />
+          <CheckCircle className="h-10 w-10 corp-icon mb-3" />
           <h3 className="text-base font-extrabold text-white">¡Modelo de Juego Correcto!</h3>
           <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">
             No se han detectado desviaciones ni periodos de inactividad de conceptos en las planificaciones de ningún equipo.

@@ -157,7 +157,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
   return (
     <Sidebar variant="sidebar" collapsible="icon" className="hidden md:flex">
       {/* ── HEADER ── */}
-      <SidebarHeader className="px-4 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center py-5 transition-all duration-200">
+      <SidebarHeader className="px-4 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center py-5 transition-all duration-200">
         <Link href="/dashboard" className="flex items-center gap-3 group">
           {user.club_logo_url ? (
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white border border-white/10 p-1 shadow-lg shadow-black/40 overflow-hidden transition-all">
@@ -187,10 +187,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
       <SidebarSeparator className="mx-4 group-data-[collapsible=icon]:mx-2 transition-all duration-200" />
 
-      {/* ── CONTENT ── */}
-      <SidebarContent className="px-2 py-2">
+      <SidebarContent className="px-2 py-2 group-data-[collapsible=icon]:px-0">
         {/* Main navigation */}
-        <SidebarGroup>
+        <SidebarGroup className="group-data-[collapsible=icon]:px-0">
           <SidebarGroupContent>
             <SidebarMenu>
               {mainItems.map((item) => (
@@ -221,7 +220,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
         {/* Advanced — Academy */}
         {advancedItems.length > 0 && (
-          <SidebarGroup>
+          <SidebarGroup className="group-data-[collapsible=icon]:px-0">
             <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-600 px-2">
               Avanzado
             </SidebarGroupLabel>
@@ -248,7 +247,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         )}
 
         {/* System */}
-        <SidebarGroup className="mt-auto">
+        <SidebarGroup className="mt-auto group-data-[collapsible=icon]:px-0">
           <SidebarGroupContent>
             <SidebarMenu>
               {systemItems.map((item) => (

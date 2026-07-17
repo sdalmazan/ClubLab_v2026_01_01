@@ -66,6 +66,7 @@ export default async function EditTemplatePage({
         userId={user.id}
         exerciseLibrary={exerciseLibrary}
         initialData={template}
+        userRole={orgRole.role}
       />
     </div>
   );

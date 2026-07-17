@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useId, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Users, FileText, Paintbrush, RotateCcw, Trash2, Shield, Circle, UserMinus, Pencil, ArrowUpRight, Target } from "lucide-react";
+import { Users, FileText, Paintbrush, RotateCcw, Trash2, Shield, Circle, UserMinus, Pencil, ArrowUpRight, Target, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PositionKey } from "@/types";
 import { POSITION_LABELS } from "@/types";
@@ -188,6 +188,42 @@ export function MatchGamePlan({
   organizationSettings = {},
 }: MatchGamePlanProps) {
   const [activeTab, setActiveTab] = useState<"lineup" | "kickers" | "abp" | "whiteboard">("lineup");
+  const [activeSeasonName, setActiveSeasonName] = useState<string>("");
+
+  useEffect(() => {
+    async function loadActiveSeason() {
+      try {
+        const supabase = createClient();
+        const activeSeasonId = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("cl_active_season_id="))
+          ?.split("=")[1];
+
+        if (activeSeasonId) {
+          const { data: season } = await supabase
+            .from("seasons")
+            .select("name")
+            .eq("id", activeSeasonId)
+            .single();
+          if (season) {
+            setActiveSeasonName(season.name);
+          }
+        } else {
+          const { data: seasons } = await supabase
+            .from("seasons")
+            .select("name")
+            .eq("is_active", true)
+            .limit(1);
+          if (seasons && seasons.length > 0) {
+            setActiveSeasonName(seasons[0].name);
+          }
+        }
+      } catch (e) {
+        console.error("Error loading season name for print header:", e);
+      }
+    }
+    loadActiveSeason();
+  }, []);
 
   const formation = value.formation ?? "4-3-3";
   const lineup = value.lineup ?? {};
@@ -514,32 +550,104 @@ export function MatchGamePlan({
 
   return (
     <div className="space-y-6">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: portrait;
+            margin: 10mm;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          .no-print, header, nav, aside, button, [data-sidebar], .sidebar-inset > header {
+            display: none !important;
+          }
+          .glass {
+            background: transparent !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: none !important;
+          }
+          .text-white {
+            color: black !important;
+          }
+          .text-slate-300, .text-slate-400, .text-slate-350, .text-slate-450 {
+            color: #1e293b !important;
+          }
+          /* Keep soccer pitch visual background */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      ` }} />
+
+      {/* Print header */}
+      <div className="hidden print:flex items-center justify-between border-b-2 border-slate-300 pb-4 mb-6 w-full">
+        <div className="flex items-center gap-4">
+          {organizationSettings?.club_logo_url ? (
+            <img
+              src={organizationSettings.club_logo_url}
+              alt="Escudo"
+              className="h-14 w-14 object-contain"
+            />
+          ) : (
+            <div className="h-14 w-14 rounded-full bg-slate-100 flex items-center justify-center border border-slate-300">
+              <Shield className="h-8 w-8 text-slate-400" />
+            </div>
+          )}
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-900">
+              {organizationSettings?.club_name || "ClubLab"}
+            </h1>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Plan de Partido — Temporada {activeSeasonName || "2026/2027"}
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-slate-400 font-semibold">ClubLab Oficial</p>
+          <p className="text-[10px] text-slate-500">Fecha de exportación: {new Date().toLocaleDateString()}</p>
+        </div>
+      </div>
+
       {/* Tab Navigation (Hidden in print) */}
-      <div className="flex border-b border-white/10 gap-2 mb-6 no-print overflow-x-auto pb-1">
-        {[
-          { id: "lineup" as const, label: "Convocatoria y Alineación", icon: Users },
-          { id: "abp" as const, label: "Pautas y Roles ABP", icon: FileText },
-          { id: "whiteboard" as const, label: "Pizarra Táctica", icon: Paintbrush },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-xl border-b-2 transition-all cursor-pointer whitespace-nowrap",
-                isActive
-                  ? "border-emerald-500 bg-emerald-500/5 text-emerald-400"
-                  : "border-transparent text-slate-400 hover:text-white hover:bg-white/2"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          );
-        })}
+      <div className="flex border-b border-white/10 gap-2 mb-6 no-print overflow-x-auto pb-1 items-center justify-between">
+        <div className="flex gap-2">
+          {[
+            { id: "lineup" as const, label: "Convocatoria y Alineación", icon: Users },
+            { id: "abp" as const, label: "Pautas y Roles ABP", icon: FileText },
+            { id: "whiteboard" as const, label: "Pizarra Táctica", icon: Paintbrush },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-xl border-b-2 transition-all cursor-pointer whitespace-nowrap",
+                  isActive
+                    ? "border-emerald-500 bg-emerald-500/5 text-emerald-400"
+                    : "border-transparent text-slate-400 hover:text-white hover:bg-white/2"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 text-xs text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer no-print mr-2"
+          title="Exportar PDF"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          <span>Exportar PDF</span>
+        </button>
       </div>
 
       {/* ── ALINEACIÓN Y SUPLENTES (PÁGINA 1) ── */}
@@ -556,7 +664,7 @@ export function MatchGamePlan({
           <div className="flex flex-col flex-1 min-h-0 space-y-4">
             <div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Users className="h-4 w-4 text-emerald-500" />
+                <Users className="h-4 w-4 corp-icon" />
                 Convocatoria y Suplentes ({substitutes.length})
               </h3>
               <p className="text-[10px] text-slate-500 mt-0.5">
@@ -904,7 +1012,8 @@ export function MatchGamePlan({
                         key={subId}
                         draggable={interactive}
                         onDragStart={(e) => handleDragStart(e, subId)}
-                        className="flex items-center gap-1.5 bg-sky-950/40 hover:bg-sky-900/40 border border-sky-500/20 px-2 py-1 rounded-lg text-xs font-semibold text-sky-400 cursor-grab select-none transition-all"
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold cursor-grab select-none transition-all border"
+                        style={{ background: `${homeColor}18`, borderColor: `${homeColor}33`, color: homeColor }}
                       >
                         <span
                           className={cn(
@@ -972,7 +1081,7 @@ export function MatchGamePlan({
         <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10">
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Target className="h-4 w-4 text-emerald-500" />
+              <Target className="h-4 w-4 corp-icon" />
               Lanzadores Habituales de Balón Parado
             </h3>
             <p className="text-[10px] text-slate-400">
@@ -1006,7 +1115,7 @@ export function MatchGamePlan({
                           }
                           handleFieldChange("habitual_kickers", newKickers);
                         }}
-                        className="rounded border-white/10 bg-slate-900 text-emerald-500 focus:ring-0 focus:ring-offset-0"
+                        className="rounded border-white/10 bg-slate-900 corp-accent focus:ring-0 focus:ring-offset-0"
                       />
                       <span className="truncate">
                         {p.first_name} {p.last_name} {number && `#${number}`}
@@ -1330,7 +1439,7 @@ export function MatchGamePlan({
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 print:text-black">
-                <Paintbrush className="h-4.5 w-4.5 text-emerald-500" />
+                <Paintbrush className="h-4.5 w-4.5 corp-icon" />
                 Pizarra Balón Parado (ABP)
               </h2>
               <p className="text-[10px] text-slate-450 mt-0.5 print:hidden">
@@ -2362,12 +2471,12 @@ function WhiteboardCanvas({
               placeholder="Nueva jugada..."
               value={newPlayName}
               onChange={(e) => setNewPlayName(e.target.value)}
-              className="rounded-lg bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 w-28"
+              className="rounded-lg bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none corp-input-focus w-28"
             />
             <button
               type="button"
               onClick={handleSaveToLibrary}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
+              className="btn-corporate-solid text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
             >
               Guardar
             </button>
@@ -2376,7 +2485,7 @@ function WhiteboardCanvas({
               <select
                 value={selectedPlayIndex}
                 onChange={(e) => setSelectedPlayIndex(e.target.value)}
-                className="rounded-lg bg-slate-800 border border-white/10 px-2 py-1 text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 cursor-pointer"
+                className="rounded-lg bg-slate-800 border border-white/10 px-2 py-1 text-[10px] text-white focus:outline-none corp-input-focus cursor-pointer"
               >
                 <option value="">-- Cargar jugada --</option>
                 {playbook.map((play, i) => (
@@ -2443,7 +2552,7 @@ function WhiteboardCanvas({
                     maxLength={3}
                     value={editingText}
                     onChange={(e) => setEditingText(e.target.value)}
-                    className="w-11 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-xs text-center text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="w-11 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-xs text-center text-white focus:outline-none corp-input-focus"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleSaveChipLabel();
@@ -2453,7 +2562,7 @@ function WhiteboardCanvas({
                   <button
                     type="button"
                     onClick={handleSaveChipLabel}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors"
+                    className="btn-corporate-solid text-white text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors"
                   >
                     OK
                   </button>

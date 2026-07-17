@@ -19,7 +19,7 @@ export default async function NewPlayerPage() {
   // Get org info for the service call
   const { data: roleData } = await supabase
     .from("user_organization_roles")
-    .select("organization_id, organizations(id, clubs(id, seasons(id, name, is_active)))")
+    .select("role, organization_id, organizations(id, clubs(id, seasons(id, name, is_active)))")
     .eq("user_id", user!.id)
     .single();
 
@@ -34,6 +34,7 @@ export default async function NewPlayerPage() {
     : [];
   const activeSeason = seasons.find((s: any) => s.is_active) ?? seasons[0];
   const organizationId = roleData?.organization_id ?? "";
+  const userRole = roleData?.role ?? "player";
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl">
@@ -55,6 +56,7 @@ export default async function NewPlayerPage() {
         teams={teams as any}
         defaultSeasonId={activeSeason?.id ?? ""}
         organizationId={organizationId}
+        userRole={userRole}
       />
     </div>
   );

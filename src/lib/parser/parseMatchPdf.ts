@@ -241,6 +241,25 @@ export async function parseMatchPdf(
     report.goals_visitor = parseInt(scoreMatches[1][1]);
   }
 
+  // Si no se detectaron marcadores parentizados (formato RFEF nacional sin paréntesis, ej: "3 - 0")
+  if (report.goals_local === 0 && report.goals_visitor === 0) {
+    const arbitrosIdx = lines.findIndex((l) => l.toUpperCase().includes("ÁRBITROS"));
+    if (arbitrosIdx !== -1) {
+      // Buscar en las 3 líneas anteriores un marcador tipo "X - Y"
+      for (let offset = 1; offset <= 3; offset++) {
+        const prevLine = lines[arbitrosIdx - offset];
+        if (prevLine) {
+          const scoreMatch = prevLine.match(/^(\d+)\s*-\s*(\d+)$/);
+          if (scoreMatch) {
+            report.goals_local = parseInt(scoreMatch[1]);
+            report.goals_visitor = parseInt(scoreMatch[2]);
+            break;
+          }
+        }
+      }
+    }
+  }
+
   const visitorIdx = lines.findIndex(
     (l: string, idx: number) => idx > 10 && report.visitor_team && l === report.visitor_team
   );

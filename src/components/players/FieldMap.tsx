@@ -16,6 +16,8 @@ interface PlayerDot {
   birthYear?: string;
   seasonStartYear?: string;
   adjective?: string;
+  isReserveOrYouth?: boolean;
+  jerseyNumber?: number | null;
 }
 
 interface FieldMapProps {
@@ -25,6 +27,9 @@ interface FieldMapProps {
   onPositionClick?: (position: PositionKey) => void;
   formation?: string;
   printMode?: boolean;
+  hideMetadata?: boolean;
+  onPlayerClick?: (playerId: string) => void;
+  attendanceStatuses?: Record<string, "present" | "absent" | "injured" | "rest" | "other">;
 }
 
 const FORMATIONS_COORDINATES: Record<string, Record<PositionKey, { x: number; y: number }>> = {
@@ -181,6 +186,9 @@ export function FieldMap({
   onPositionClick,
   formation = "4-3-3",
   printMode = false,
+  hideMetadata = false,
+  onPlayerClick,
+  attendanceStatuses,
 }: FieldMapProps) {
   const [manualOrders, setManualOrders] = useState<Record<string, string[]>>({});
 
@@ -385,7 +393,9 @@ export function FieldMap({
 
                     // Text color mapping based on signing/active status or membership type
                     let nameColorClass = "text-white";
-                    if (p.status === "yellow" || p.status === "red") {
+                    if (p.isReserveOrYouth) {
+                      nameColorClass = "text-purple-400 font-extrabold";
+                    } else if (p.status === "yellow" || p.status === "red") {
                       nameColorClass = "text-purple-400 font-extrabold";
                     } else if (p.signingStatus === "close") {
                       nameColorClass = "text-amber-500 font-extrabold";
@@ -395,39 +405,52 @@ export function FieldMap({
                       nameColorClass = "text-slate-400 font-medium";
                     }
 
+                    const attendanceStatus = attendanceStatuses?.[p.playerId] ?? "present";
+                    const isNotPresent = attendanceStatus !== "present";
+
                     return (
                       <div
                         key={p.playerId}
+                        onClick={() => onPlayerClick?.(p.playerId)}
                         className={cn(
-                          "flex items-center justify-between border rounded-lg p-1 w-full group/item",
+                          "flex items-center justify-between border rounded-lg p-1 w-full group/item transition-all",
                           printMode
                             ? "bg-zinc-900 border-zinc-800 shadow-none"
-                            : "bg-zinc-900/60 border-zinc-800/80 shadow-sm"
+                            : isNotPresent
+                            ? "bg-zinc-950/40 border-zinc-900 text-slate-500 opacity-40 line-through"
+                            : "bg-zinc-900/60 border-zinc-800/80 shadow-sm",
+                          onPlayerClick && "cursor-pointer hover:bg-zinc-800/80"
                         )}
                       >
                         {/* Player Details */}
                         <div className="flex flex-col items-center flex-1 min-w-0 pr-1">
                           {/* Name (bold, larger by 10%) */}
-                          <span
-                            className={cn("text-[13px] font-extrabold leading-tight truncate w-full block text-center", nameColorClass)}
-                            title={p.name}
-                          >
-                            {displayName}
-                          </span>
-                          {/* Details */}
-                          <div className="flex items-center justify-center gap-0.5 mt-0.5 text-[9.5px] font-medium leading-none flex-wrap w-full">
-                            {p.birthYear && (
-                              <span className={cn(isSub23 ? "text-blue-400 font-bold" : "text-slate-400")}>
-                                {p.birthYear}
-                              </span>
-                            )}
-                            {p.birthYear && p.adjective && <span className="text-slate-500">•</span>}
-                            {p.adjective && (
-                              <span className="text-slate-400" title={p.adjective}>
-                                {p.adjective}
-                              </span>
-                            )}
+                          <div className="flex items-center justify-center gap-1 w-full">
+                            {attendanceStatus === "absent" && <span className="h-1.5 w-1.5 rounded-full bg-slate-500 shrink-0" />}
+                            {attendanceStatus === "injured" && <span className="text-red-500 text-[9px] font-black shrink-0">✚</span>}
+                            <span
+                              className={cn("text-[13px] font-extrabold leading-tight truncate", nameColorClass)}
+                              title={p.name}
+                            >
+                              {displayName}
+                            </span>
                           </div>
+                          {/* Details */}
+                          {!hideMetadata && (p.birthYear || p.adjective) && (
+                            <div className="flex items-center justify-center gap-0.5 mt-0.5 text-[9.5px] font-medium leading-none flex-wrap w-full">
+                              {p.birthYear && (
+                                <span className={cn(isSub23 ? "text-blue-400 font-bold" : "text-slate-400")}>
+                                  {p.birthYear}
+                                </span>
+                              )}
+                              {p.birthYear && p.adjective && <span className="text-slate-500">•</span>}
+                              {p.adjective && (
+                                <span className="text-slate-400" title={p.adjective}>
+                                  {p.adjective}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Order Controls (Side-by-Side to prevent row stretching) */}

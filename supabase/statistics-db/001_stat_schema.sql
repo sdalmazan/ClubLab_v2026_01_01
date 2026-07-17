@@ -47,9 +47,12 @@ CREATE TABLE IF NOT EXISTS stat_matches (
   -- Referencia a la página de jornada (para re-scraping si hace falta)
   matchday_url      TEXT,
 
-  -- Control de scraping
   scraped_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   raw_text_hash     TEXT,                  -- hash del texto del PDF para detectar cambios
+
+  -- Cuerpo técnico del partido
+  local_staff       JSONB,
+  visitor_staff     JSONB,
 
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -265,6 +268,8 @@ CREATE INDEX IF NOT EXISTS idx_stat_matches_date
   ON stat_matches(match_date);
 CREATE INDEX IF NOT EXISTS idx_stat_matches_federation_id
   ON stat_matches(federation_id);
+CREATE INDEX IF NOT EXISTS idx_stat_matches_competition_season
+  ON stat_matches(competition, season);
 
 -- stat_lineups
 CREATE INDEX IF NOT EXISTS idx_stat_lineups_match
@@ -315,6 +320,10 @@ CREATE INDEX IF NOT EXISTS idx_stat_influence_team_season
 -- Índice compuesto para queries de win-rate por jugador
 CREATE INDEX IF NOT EXISTS idx_stat_influence_player_season_result
   ON stat_player_match_influence(player_name, season, team_result);
+CREATE INDEX IF NOT EXISTS idx_stat_influence_season_player_name
+  ON stat_player_match_influence(season, player_name);
+CREATE INDEX IF NOT EXISTS idx_stat_influence_season_team_name
+  ON stat_player_match_influence(season, team_name);
 
 -- ============================================================
 -- ROW LEVEL SECURITY — Lectura pública, escritura solo service_role
@@ -601,3 +610,132 @@ $$;
 COMMENT ON FUNCTION recalculate_match_influence(UUID) IS
   'Recalcula stat_player_match_influence para un partido dado. '
   'Útil si se corrigen datos del acta sin re-scrapear.';
+
+-- ============================================================
+-- ALTERACIONES Y PARCHES DE BASE DE DATOS (MIGRACIONES)
+-- ============================================================
+
+-- Agregar columnas a stat_matches si no existen
+ALTER TABLE stat_matches ADD COLUMN IF NOT EXISTS local_staff JSONB;
+ALTER TABLE stat_matches ADD COLUMN IF NOT EXISTS visitor_staff JSONB;
+
+-- Índices sobre JSONB de cuerpo técnico para búsquedas ultrarrápidas
+CREATE INDEX IF NOT EXISTS idx_stat_matches_local_coach ON stat_matches((local_staff->>'coach'));
+CREATE INDEX IF NOT EXISTS idx_stat_matches_visitor_coach ON stat_matches((visitor_staff->>'coach'));
+
+-- Vista agregada para estadísticas de jugadores por temporada
+DROP VIEW IF EXISTS v_player_season_stats CASCADE;
+CREATE OR REPLACE VIEW v_player_season_stats AS
+SELECT
+  MAX(i.id::text)::uuid as id,
+  i.player_name,
+  i.season,
+  MAX(i.main_db_player_id::text)::uuid as main_db_player_id,
+  
+  -- Resolver el equipo principal del jugador en esta temporada (evitando nombres corruptos como '2025-2026')
+  COALESCE(
+    (
+      SELECT sub.team_name
+      FROM stat_player_match_influence sub
+      WHERE sub.player_name = i.player_name AND sub.season = i.season AND sub.team_name NOT LIKE '202%' AND sub.team_name NOT LIKE '2025-2026'
+      GROUP BY sub.team_name
+      ORDER BY COUNT(*) DESC
+      LIMIT 1
+    ),
+    MAX(i.team_name)
+  ) as team_name,
+
+  -- Resolver la competición principal de ese equipo/jugador en la temporada
+  COALESCE(
+    (
+      SELECT sm.competition
+      FROM stat_player_match_influence sub
+      JOIN stat_matches sm ON sm.id = sub.match_id
+      WHERE sub.player_name = i.player_name AND sub.season = i.season
+      GROUP BY sm.competition
+      ORDER BY COUNT(*) DESC
+      LIMIT 1
+    ),
+    MAX(m.competition)
+  ) as competition,
+
+  COALESCE(SUM(i.goals_scored), 0)::integer as goals,
+  COALESCE(SUM(i.minutes_on), 0)::integer as minutes,
+  COALESCE(SUM(CASE WHEN i.is_starter THEN 1 ELSE 0 END), 0)::integer as starts,
+  COUNT(*)::integer as matches,
+  COALESCE(SUM(i.goal_diff_while_on), 0)::integer as impact,
+  COALESCE(SUM(i.team_goals_scored), 0)::integer as team_goals,
+  COALESCE(SUM(i.yellow_cards), 0)::integer as yellow_cards,
+  COALESCE(SUM(i.red_cards), 0)::integer as red_cards,
+
+  ROUND(
+    CASE 
+      WHEN SUM(i.minutes_on) = 0 THEN 0 
+      ELSE (SUM(i.goals_scored)::float / SUM(i.minutes_on)::float) * 90 
+    END::numeric, 
+    2
+  )::float as goals_90,
+
+  ROUND(
+    CASE 
+      WHEN SUM(i.team_goals_scored) = 0 THEN 0 
+      ELSE (SUM(i.goals_scored)::float / SUM(i.team_goals_scored)::float) * 100 
+    END::numeric, 
+    1
+  )::float as dependency,
+
+  ROUND(
+    CASE 
+      WHEN SUM(i.minutes_on) = 0 THEN 0 
+      ELSE (SUM(CASE WHEN i.team_goals_conceded = 0 THEN i.minutes_on ELSE 0 END)::float / SUM(i.minutes_on)::float) * 100 
+    END::numeric, 
+    1
+  )::float as clean_sheet_ratio,
+
+  ROUND(
+    CASE 
+      WHEN SUM(i.minutes_on) = 0 THEN 0 
+      ELSE (SUM(i.goals_against_while_on)::float / SUM(i.minutes_on)::float) * 90 
+    END::numeric, 
+    2
+  )::float as goals_conceded_90,
+
+  ROUND(
+    CASE 
+      WHEN COUNT(CASE WHEN NOT i.is_starter AND i.minutes_on > 0 THEN 1 END) = 0 THEN 0 
+      ELSE SUM(CASE WHEN NOT i.is_starter AND i.minutes_on > 0 THEN i.goal_diff_while_on ELSE 0 END)::float / 
+           COUNT(CASE WHEN NOT i.is_starter AND i.minutes_on > 0 THEN 1 END)::float 
+    END::numeric, 
+    2
+  )::float as revulsive_impact,
+
+  ROUND(
+    CASE 
+      WHEN SUM(i.team_goals_conceded) = 0 THEN 0 
+      ELSE (SUM(i.goals_against_while_on)::float / SUM(i.team_goals_conceded)::float) * 100 
+    END::numeric, 
+    1
+  )::float as conceded_goals_ratio,
+
+  COALESCE(MAX(v_shirt.shirt_number), 9)::integer as shirt_number,
+
+  CASE
+    WHEN LOWER(i.player_name) LIKE '%portero%' OR LOWER(i.player_name) LIKE '%keeper%' OR COALESCE(MAX(v_shirt.shirt_number), 9) IN (1, 13) THEN 'goalkeeper'
+    WHEN COALESCE(MAX(v_shirt.shirt_number), 9) IN (2, 3, 4, 5, 20, 22) THEN 'back'
+    WHEN COALESCE(MAX(v_shirt.shirt_number), 9) IN (6, 8, 10, 14, 15, 16) THEN 'midfielder'
+    WHEN COALESCE(MAX(v_shirt.shirt_number), 9) IN (7, 11, 17, 18, 19) THEN 'winger'
+    WHEN SUM(i.goals_scored) > 5 THEN 'striker'
+    ELSE 'midfielder'
+  END::text as position
+
+FROM stat_player_match_influence i
+JOIN stat_matches m ON m.id = i.match_id
+LEFT JOIN LATERAL (
+  SELECT l.shirt_number
+  FROM stat_lineups l
+  WHERE l.player_name = i.player_name AND l.shirt_number IS NOT NULL
+  GROUP BY l.shirt_number
+  ORDER BY COUNT(*) DESC
+  LIMIT 1
+) v_shirt ON true
+GROUP BY i.player_name, i.season;

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PositionSelector } from "@/components/players/FieldMap";
 import type { PositionKey } from "@/types";
+import { NATIONALITIES } from "@/types";
+import { createClient } from "@/lib/supabase/client";
 
 interface Team {
   id: string;
@@ -15,27 +17,32 @@ interface CreatePlayerFormProps {
   teams: Team[];
   defaultSeasonId: string;
   organizationId: string;
+  userRole?: string;
 }
 
 export function CreatePlayerForm({
   teams,
   defaultSeasonId,
   organizationId,
+  userRole = "player",
 }: CreatePlayerFormProps) {
   const router = useRouter();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [sportingName, setSportingName] = useState("");
   const [dob, setDob] = useState("");
-  const [nationality, setNationality] = useState("");
+  const [nationality, setNationality] = useState("Española");
   const [dominantFoot, setDominantFoot] = useState<"right" | "left" | "both">("right");
   const [heightCm, setHeightCm] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [jerseyNumber, setJerseyNumber] = useState("");
-  const [positions, setPositions] = useState<PositionKey[]>([]);
+  const [positions, setPositions] = useState<string[]>([]);
   const [teamId, setTeamId] = useState(teams[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dorsalConflictMsg, setDorsalConflictMsg] = useState<string | null>(null);
+  const [adjective, setAdjective] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,10 +53,36 @@ export function CreatePlayerForm({
     setError(null);
     setLoading(true);
 
+    if (jerseyNumber) {
+      const num = Number(jerseyNumber);
+      if (!isNaN(num) && num > 0) {
+        const supabase = createClient();
+        const { data: existing, error: checkError } = await supabase
+          .from("player_team_memberships")
+          .select("player_id, players ( first_name, last_name )")
+          .eq("team_id", teamId)
+          .eq("jersey_number", num)
+          .eq("status", "active");
+
+        if (checkError) {
+          console.error("Error checking jersey number:", checkError);
+        } else if (existing && existing.length > 0) {
+          const otherPlayer = existing[0].players as any;
+          const otherName = otherPlayer ? `${otherPlayer.first_name} ${otherPlayer.last_name}` : "otro jugador";
+          setDorsalConflictMsg(
+            `El dorsal ${num} ya está asignado a ${otherName} en este equipo. Por favor, elige otro dorsal.`
+          );
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
     const body = {
       organizationId,
       firstName,
       lastName,
+      sportingName: sportingName || null,
       dob: dob || null,
       nationality: nationality || null,
       dominantFoot,
@@ -59,6 +92,7 @@ export function CreatePlayerForm({
       positions,
       teamId,
       seasonId: defaultSeasonId,
+      adjective: adjective.trim() || null,
     };
 
     const res = await fetch("/api/players", {
@@ -78,19 +112,19 @@ export function CreatePlayerForm({
     router.push(`/players/${data.id}`);
     router.refresh();
   }
-
   const inputClass =
-    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all";
+    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 corp-input-focus transition-all";
 
   const labelClass =
     "block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5";
 
   return (
-    <form
-      id="create-player-form"
-      onSubmit={handleSubmit}
-      className="glass rounded-2xl p-6 space-y-6"
-    >
+    <>
+      <form
+        id="create-player-form"
+        onSubmit={handleSubmit}
+        className="glass rounded-2xl p-6 space-y-6"
+      >
       {/* ── PERSONAL ── */}
       <section>
         <h2 className="text-sm font-bold text-white mb-4 pb-2 border-b border-white/5">
@@ -121,6 +155,17 @@ export function CreatePlayerForm({
               placeholder="García López"
             />
           </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="player-sportingname" className={labelClass}>Nombre deportivo (ej: "Charly")</label>
+            <input
+              id="player-sportingname"
+              type="text"
+              value={sportingName}
+              onChange={(e) => setSportingName(e.target.value)}
+              className={inputClass}
+              placeholder="Charly"
+            />
+          </div>
           <div>
             <label htmlFor="player-dob" className={labelClass}>Fecha de nacimiento</label>
             <input
@@ -133,14 +178,19 @@ export function CreatePlayerForm({
           </div>
           <div>
             <label htmlFor="player-nationality" className={labelClass}>Nacionalidad</label>
-            <input
+            <select
               id="player-nationality"
-              type="text"
               value={nationality}
               onChange={(e) => setNationality(e.target.value)}
               className={inputClass}
-              placeholder="Española"
-            />
+            >
+              <option value="">Selecciona nacionalidad...</option>
+              {NATIONALITIES.map((n) => (
+                <option key={n.value} value={n.value}>
+                  {n.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </section>
@@ -222,12 +272,13 @@ export function CreatePlayerForm({
             <label htmlFor="player-jersey" className={labelClass}>Dorsal</label>
             <input
               id="player-jersey"
-              type="number"
-              min={1} max={99}
+              type="text"
+              pattern="[0-9]*"
+              inputMode="numeric"
               value={jerseyNumber}
-              onChange={(e) => setJerseyNumber(e.target.value)}
+              onChange={(e) => setJerseyNumber(e.target.value.replace(/\D/g, ""))}
               className={inputClass}
-              placeholder="10"
+              placeholder="Ej. 10"
             />
           </div>
         </div>
@@ -242,6 +293,23 @@ export function CreatePlayerForm({
             </p>
           )}
         </div>
+
+        {userRole !== "player" && (
+          <div className="mt-4 border-t border-white/5 pt-4">
+            <label htmlFor="player-adjective" className={labelClass}>Adjetivo descriptivo (Cuerpo Técnico)</label>
+            <input
+              id="player-adjective"
+              type="text"
+              value={adjective}
+              onChange={(e) => setAdjective(e.target.value)}
+              className={inputClass}
+              placeholder="Ej. Técnico, Rápido, Rematador..."
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              Este adjetivo solo es visible y editable por el cuerpo técnico. Los jugadores no lo verán en su ficha.
+            </p>
+          </div>
+        )}
       </section>
 
       {error && (
@@ -262,11 +330,68 @@ export function CreatePlayerForm({
           id="create-player-submit"
           type="submit"
           disabled={loading || teams.length === 0}
-          className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex-1 rounded-xl btn-corporate font-semibold text-sm py-2.5 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {loading ? "Guardando..." : "Añadir jugador"}
         </button>
       </div>
     </form>
+      
+      <AlertModal
+        isOpen={dorsalConflictMsg !== null}
+        title="Dorsal Duplicado"
+        message={dorsalConflictMsg || ""}
+        onConfirm={() => setDorsalConflictMsg(null)}
+      />
+    </>
+  );
+}
+
+interface AlertModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel?: () => void;
+}
+
+function AlertModal({
+  isOpen,
+  title,
+  message,
+  confirmLabel = "Aceptar",
+  cancelLabel,
+  onConfirm,
+  onCancel,
+}: AlertModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="glass max-w-md w-full rounded-2xl border border-white/10 p-6 space-y-4 shadow-2xl animate-in fade-in duration-200">
+        <h3 className="text-base font-bold text-white uppercase tracking-wider">{title}</h3>
+        <p className="text-slate-350 text-xs leading-relaxed font-medium">{message}</p>
+        <div className="flex gap-3 justify-end pt-2">
+          {cancelLabel && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 rounded-xl border border-white/10 hover:border-white/20 text-slate-400 hover:text-white text-xs font-semibold transition-all cursor-pointer"
+            >
+              {cancelLabel}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl btn-corporate text-xs font-semibold shadow-lg cursor-pointer"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -12,7 +12,13 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function NewTemplatePage() {
+interface PageProps {
+  searchParams: Promise<{ cloneFrom?: string }>;
+}
+
+export default async function NewTemplatePage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const cloneFrom = params.cloneFrom;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -34,18 +40,27 @@ export default async function NewTemplatePage() {
 
   const exerciseLibrary = await getTaskLibrary(orgRole.organization_id, user.id);
 
+  let initialData = null;
+  if (cloneFrom) {
+    const { getTemplateById } = await import("@/services/templates");
+    initialData = await getTemplateById(cloneFrom);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* ── HEADER ── */}
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-lg shadow-emerald-950/50">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl btn-corporate shadow-lg">
             <BookOpen className="h-4.5 w-4.5 text-white" />
           </div>
-          <span>Nueva Plantilla</span>
+          <span>{cloneFrom ? "Clonar Plantilla" : "Nueva Plantilla"}</span>
         </h1>
         <p className="text-slate-400 text-sm mt-1 ml-11">
-          Diseña una estructura teórica de sesión, definiendo tiempos de ejercicio y materiales por defecto.
+          {cloneFrom 
+            ? "Clona y personaliza una plantilla existente para guardarla en tu biblioteca personal o de la academia."
+            : "Diseña una estructura teórica de sesión, definiendo tiempos de ejercicio y materiales por defecto."
+          }
         </p>
       </div>
 
@@ -54,6 +69,9 @@ export default async function NewTemplatePage() {
         organizationId={orgRole.organization_id}
         userId={user.id}
         exerciseLibrary={exerciseLibrary}
+        initialData={initialData}
+        isClone={!!cloneFrom}
+        userRole={orgRole.role}
       />
     </div>
   );

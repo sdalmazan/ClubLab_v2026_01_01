@@ -28,6 +28,8 @@ interface TemplateFormProps {
   userId: string;
   exerciseLibrary: ExerciseLibraryItem[];
   initialData?: any; // If editing
+  isClone?: boolean;
+  userRole?: string;
 }
 
 export function TemplateForm({
@@ -35,16 +37,24 @@ export function TemplateForm({
   userId,
   exerciseLibrary = [],
   initialData,
+  isClone = false,
+  userRole = "coach",
 }: TemplateFormProps) {
   const router = useRouter();
-  const isEdit = !!initialData;
+  const isEdit = !!initialData && !isClone;
+
+  // Determine user permissions
+  const isAcademiaAdmin = userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach";
 
   // 1. Basic Fields State
-  const [title, setTitle] = useState(initialData?.title ?? "");
+  const initialTitle = isClone && initialData?.title ? `Copia de ${initialData.title}` : (initialData?.title ?? "");
+  const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [durationMin, setDurationMin] = useState(initialData?.duration_min ?? 90);
   const [sessionType, setSessionType] = useState<SessionType>(initialData?.session_type ?? "training");
   const [isShared, setIsShared] = useState(initialData?.is_shared ?? false);
+  const [libraryScope, setLibraryScope] = useState<string>(initialData?.library_scope ?? "coach");
+  const [microcycleDay, setMicrocycleDay] = useState<string>(initialData?.microcycle_day ?? "none");
 
   // Objectives (array of tags)
   const [objectiveInput, setObjectiveInput] = useState("");
@@ -212,7 +222,9 @@ export function TemplateForm({
       duration_min: Number(durationMin),
       session_type: sessionType,
       objectives,
-      is_shared: isShared,
+      is_shared: libraryScope === "academy",
+      library_scope: libraryScope,
+      microcycle_day: microcycleDay === "none" ? null : microcycleDay,
       exercises: exercisesPayload,
     };
 
@@ -241,7 +253,7 @@ export function TemplateForm({
 
   const labelClass = "block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5";
   const inputClass =
-    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all";
+    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 corp-input-focus transition-all";
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-6 max-w-5xl mx-auto">
@@ -255,7 +267,7 @@ export function TemplateForm({
       {/* ── SECCIÓN 1: DATOS BÁSICOS ── */}
       <div className="glass rounded-2xl p-6 space-y-6">
         <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
-          <PenTool className="h-5 w-5 text-emerald-500" />
+          <PenTool className="h-5 w-5 corp-icon" />
           Datos Generales de la Plantilla
         </h2>
 
@@ -291,8 +303,8 @@ export function TemplateForm({
           </div>
         </div>
 
-        {/* Row 2: Duration & Shared */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Row 2: Duration, Library Scope & Microcycle Day */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label htmlFor="template-duration" className={labelClass}>Duración Estimada (min)</label>
             <input
@@ -304,17 +316,43 @@ export function TemplateForm({
               className={inputClass}
             />
           </div>
-          <div className="flex items-center gap-2 h-full pt-6">
-            <input
-              id="template-shared"
-              type="checkbox"
-              checked={isShared}
-              onChange={(e) => setIsShared(e.target.checked)}
-              className="h-4 w-4 rounded border-white/10 bg-white/5 text-emerald-500 focus:ring-emerald-500/50"
-            />
-            <label htmlFor="template-shared" className="text-xs font-semibold text-slate-300 cursor-pointer select-none">
-              Compartir con toda la academia (Metodología del club)
-            </label>
+          <div>
+            <label htmlFor="template-scope" className={labelClass}>Biblioteca de Destino</label>
+            <select
+              id="template-scope"
+              value={libraryScope}
+              onChange={(e) => {
+                const val = e.target.value;
+                setLibraryScope(val);
+                setIsShared(val === "academy");
+              }}
+              className={inputClass}
+            >
+              <option value="coach">Personal (Mis Plantillas)</option>
+              {isAcademiaAdmin ? (
+                <option value="academy">Metodología (Academia)</option>
+              ) : (
+                <option value="academy" disabled>Metodología (Academia - Requiere Coordinador)</option>
+              )}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="template-day" className={labelClass}>Día de Microciclo</label>
+            <select
+              id="template-day"
+              value={microcycleDay}
+              onChange={(e) => setMicrocycleDay(e.target.value)}
+              className={inputClass}
+            >
+              <option value="none">Ninguno / General</option>
+              <option value="MD-4">MD-4 (Fuerza)</option>
+              <option value="MD-3">MD-3 (Resistencia/Duración)</option>
+              <option value="MD-2">MD-2 (Velocidad/Transición)</option>
+              <option value="MD-1">MD-1 (Activación/ABP)</option>
+              <option value="MD">MD (Partido)</option>
+              <option value="MD+1">MD+1 (Recuperación)</option>
+              <option value="MD+2">MD+2 (Compensación)</option>
+            </select>
           </div>
         </div>
 
@@ -325,7 +363,7 @@ export function TemplateForm({
             {objectives.map((obj, i) => (
               <span
                 key={i}
-                className="flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs px-2.5 py-1 font-semibold"
+                className="flex items-center gap-1 rounded corp-badge text-xs px-2.5 py-1 font-semibold"
               >
                 {obj}
                 <button
@@ -344,7 +382,7 @@ export function TemplateForm({
               placeholder="Ej: Posesión en oleadas, Fuerza explosiva..."
               value={objectiveInput}
               onChange={(e) => setObjectiveInput(e.target.value)}
-              className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 corp-input-focus transition-all"
             />
             <button
               type="button"
@@ -374,13 +412,13 @@ export function TemplateForm({
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-emerald-500" />
+            <BookOpen className="h-5 w-5 corp-icon" />
             Estructura de Ejercicios de la Plantilla
           </h2>
           <button
             type="button"
             onClick={() => setIsLibraryOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold px-4 py-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl btn-corporate-solid text-white text-xs font-semibold px-4 py-2 shadow-lg transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Añadir Ejercicio
@@ -394,7 +432,7 @@ export function TemplateForm({
             <button
               type="button"
               onClick={() => setIsLibraryOpen(true)}
-              className="text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1"
+              className="text-xs font-bold corp-text hover:underline flex items-center gap-1"
             >
               Seleccionar de la biblioteca <Plus className="h-3.5 w-3.5" />
             </button>
@@ -411,7 +449,7 @@ export function TemplateForm({
                   {/* Exercise Header */}
                   <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-3">
                     <div className="flex items-center gap-2">
-                      <span className="h-6 w-6 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-extrabold flex items-center justify-center">
+                      <span className="h-6 w-6 rounded-lg corp-badge text-xs font-extrabold flex items-center justify-center">
                         {index + 1}
                       </span>
                       <div>
@@ -455,7 +493,7 @@ export function TemplateForm({
                     <div>
                       <label className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                         <span>Duración de la tarea</span>
-                        <span className="text-emerald-400 font-extrabold">{ex.duration_min} minutos</span>
+                        <span className="corp-text font-extrabold">{ex.duration_min} minutos</span>
                       </label>
                       <input
                         type="range"
@@ -466,7 +504,7 @@ export function TemplateForm({
                         onChange={(e) =>
                           updateExerciseField(index, "duration_min", Number(e.target.value))
                         }
-                        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer corp-accent"
                       />
                     </div>
                     <div>
@@ -507,7 +545,7 @@ export function TemplateForm({
                           {ex.pitch_zones.map((zone: string) => (
                             <span
                               key={zone}
-                              className="rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-extrabold text-[10px] px-2 py-0.5"
+                              className="rounded corp-badge font-extrabold text-[10px] px-2 py-0.5"
                             >
                               Zona {zone}
                             </span>
@@ -635,7 +673,7 @@ export function TemplateForm({
         <button
           type="submit"
           disabled={saving}
-          className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-3 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+          className="flex-1 rounded-xl btn-corporate text-white font-semibold text-sm py-3 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
           {saving ? "Guardando plantilla..." : isEdit ? "Actualizar Plantilla" : "Crear Plantilla"}
         </button>
@@ -670,7 +708,7 @@ export function TemplateForm({
                       className={cn(
                         "flex items-center justify-between p-3 rounded-xl border transition-all",
                         isAdded
-                          ? "border-emerald-500/20 bg-emerald-500/5 opacity-60"
+                          ? "corp-badge opacity-60"
                           : "border-white/5 bg-white/2 hover:bg-white/5 hover:border-white/10"
                       )}
                     >
@@ -687,8 +725,8 @@ export function TemplateForm({
                         className={cn(
                           "rounded-lg text-[10px] font-bold px-3 py-1.5 transition-all cursor-pointer",
                           isAdded
-                            ? "bg-white/5 text-emerald-400 border border-white/5 cursor-default"
-                            : "bg-emerald-500 hover:bg-emerald-400 text-white"
+                            ? "bg-white/5 corp-text border border-white/5 cursor-default"
+                            : "btn-corporate-solid text-white"
                         )}
                       >
                         {isAdded ? "Añadido" : "Seleccionar"}

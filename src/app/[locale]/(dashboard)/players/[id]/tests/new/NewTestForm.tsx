@@ -67,7 +67,7 @@ export function NewTestForm({ playerId, testTypes }: NewTestFormProps) {
   }
 
   const inputClass =
-    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all";
+    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 corp-input-focus transition-all";
   
   const labelClass =
     "block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5";
@@ -171,7 +171,7 @@ export function NewTestForm({ playerId, testTypes }: NewTestFormProps) {
         <button
           type="submit"
           disabled={saving}
-          className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex-1 rounded-xl btn-corporate font-semibold text-sm py-2.5 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {saving ? "Guardando..." : "Guardar Test"}
         </button>

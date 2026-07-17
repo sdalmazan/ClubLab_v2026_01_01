@@ -232,20 +232,25 @@ export default function InjuriesPage() {
   return (
     <div className="animate-fade-in space-y-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            Parte Médico y <span className="text-rose-500">Lesiones</span>
-          </h1>
-          <p className="text-slate-400 text-xs mt-0.5">
-            Gestión de la enfermería del equipo, fases de rehabilitación y altas médicas.
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shadow-lg shadow-rose-500/5 shrink-0">
+            <HeartPulse className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
+              Enfermería y Lesiones
+            </h1>
+            <p className="text-slate-400 text-xs mt-1">
+              Gestión de la enfermería del equipo, fases de rehabilitación y altas médicas.
+            </p>
+          </div>
         </div>
 
         {/* Log Injury Button */}
         <button
           onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-xs font-black uppercase text-white rounded-xl shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-102"
+          className="btn-corporate px-4 py-2 text-xs font-black uppercase rounded-xl shadow-lg flex items-center gap-1.5 cursor-pointer transition-all"
         >
           <Plus className="h-4 w-4" />
           <span>Registrar Lesión</span>
@@ -284,7 +289,7 @@ export default function InjuriesPage() {
             <span className="text-3xl font-black text-emerald-455">{healthyPlayers.length}</span>
             <span className="text-[9px] text-slate-455">Listos para competir</span>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 shadow-inner">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
             <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
@@ -293,7 +298,7 @@ export default function InjuriesPage() {
       {/* Injuries Grid List */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white/2 border border-white/5 rounded-3xl">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 corp-spinner" />
           <p className="text-xs text-slate-500 mt-2">Cargando datos del equipo médico...</p>
         </div>
       ) : injuredPlayers.length === 0 ? (
@@ -372,7 +377,7 @@ export default function InjuriesPage() {
                   </button>
                   <button
                     onClick={() => handleHealPlayer(p.id)}
-                    className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 text-[10px] font-black text-emerald-455 uppercase rounded-xl cursor-pointer transition-colors"
+                    className="px-3 py-1.5 corp-badge text-[10px] font-black uppercase rounded-xl cursor-pointer transition-colors"
                     title="Alta Médica Inmediata"
                   >
                     Alta Directa

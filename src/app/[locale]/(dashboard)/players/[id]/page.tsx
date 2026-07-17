@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getPlayerById } from "@/services/players";
+import { getPlayerById, getOrgTeams } from "@/services/players";
+import { createClient } from "@/lib/supabase/server";
 import { getPerformanceTestsByPlayerId } from "@/services/tests";
 import { getPlayerTasks } from "@/services/tasks";
 import { PlayerStatusBadge, InjuryBadge, AvailabilityBadge } from "@/components/players/PlayerStatusBadge";
 import { PlayerPositionsMap } from "@/components/players/PlayerPositionsMap";
-import { POSITION_LABELS, type PositionKey } from "@/types";
+import { POSITION_LABELS, type PositionKey, NATIONALITY_TO_COUNTRY_CODE } from "@/types";
 import {
   ArrowLeft, Ruler, Weight, Cake, Flag, Shirt,
   Activity, HeartPulse, Edit, Dumbbell,
@@ -49,6 +50,18 @@ export default async function PlayerDetailPage({
 }) {
   const { id } = await params;
   
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let userRole = "player";
+  if (user) {
+    const { data: orgRole } = await supabase
+      .from("user_organization_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+    if (orgRole) userRole = orgRole.role;
+  }
+
   const [player, tests, tasks] = await Promise.all([
     getPlayerById(id),
     getPerformanceTestsByPlayerId(id, 5),
@@ -127,6 +140,16 @@ export default async function PlayerDetailPage({
                       #{membership.jersey_number}
                     </span>
                   )}
+                  {age !== null && age < 23 && (
+                    <span className="inline-flex items-center text-xs font-bold text-blue-400 border border-blue-500/30 rounded-full px-2.5 py-0.5 bg-blue-500/5">
+                      Sub-23
+                    </span>
+                  )}
+                  {userRole !== "player" && player.adjective && (
+                    <span className="inline-flex items-center text-xs font-bold text-amber-400 border border-amber-500/30 rounded-full px-2.5 py-0.5 bg-amber-500/5">
+                      ★ {player.adjective}
+                    </span>
+                  )}
                 </div>
               </div>
               <Link
@@ -159,9 +182,26 @@ export default async function PlayerDetailPage({
               value={player.dominant_foot === "right" ? "Derecho" : player.dominant_foot === "left" ? "Izquierdo" : "Ambidiestro"}
             />
           )}
-          {player.nationality && (
-            <Stat icon={<Flag className="h-4 w-4" />} label="Nacionalidad" value={player.nationality} />
-          )}
+          {player.nationality && (() => {
+            const countryCode = NATIONALITY_TO_COUNTRY_CODE[player.nationality];
+            return (
+              <Stat
+                icon={
+                  countryCode ? (
+                    <img
+                      src={`https://flagcdn.com/w40/${countryCode}.png`}
+                      alt={player.nationality}
+                      className="h-3 w-4.5 object-cover rounded shadow-sm shrink-0"
+                    />
+                  ) : (
+                    <Flag className="h-4 w-4" />
+                  )
+                }
+                label="Nacionalidad"
+                value={player.nationality}
+              />
+            );
+          })()}
         </div>
       </div>
 
@@ -171,6 +211,7 @@ export default async function PlayerDetailPage({
         <PlayerPositionsMap
           playerId={player.id}
           playerName={name}
+          sportingName={player.sporting_name}
           jerseyNumber={membership?.jersey_number}
           positions={positions as PositionKey[]}
         />
@@ -194,7 +235,7 @@ export default async function PlayerDetailPage({
               </p>
               <Link
                 href="/injuries"
-                className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
+                className="text-xs corp-text hover:opacity-80 transition-opacity"
               >
                 Ver módulo de lesiones →
               </Link>
@@ -237,7 +278,7 @@ export default async function PlayerDetailPage({
         <div className="glass-card rounded-2xl p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-emerald-500" />
+              <Gauge className="h-4 w-4 corp-icon" />
               Tests físicos
             </h2>
             <Link

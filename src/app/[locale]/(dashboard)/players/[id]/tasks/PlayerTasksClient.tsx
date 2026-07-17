@@ -94,7 +94,7 @@ export function PlayerTasksClient({
   }
 
   const inputClass =
-    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all";
+    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 corp-input-focus transition-all";
 
   const labelClass =
     "block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5";
@@ -107,7 +107,7 @@ export function PlayerTasksClient({
           Asignación Individual
         </h1>
         <p className="text-slate-400 text-sm mt-0.5">
-          Asigna pautas y ejercicios de recuperación o prevención para {player.first_name} {player.last_name}
+          Asigna pautas y ejercicios de recuperación o prevención para {player.sporting_name || `${player.first_name} ${player.last_name}`}
         </p>
       </div>
 
@@ -115,7 +115,7 @@ export function PlayerTasksClient({
         {/* FORMULARIO DE ASIGNACIÓN */}
         <div className="lg:col-span-1 glass rounded-2xl p-5 space-y-4">
           <h2 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-emerald-500" />
+            <ClipboardList className="h-4 w-4 corp-icon" />
             Asignar Ejercicio
           </h2>
 
@@ -126,7 +126,7 @@ export function PlayerTasksClient({
           ) : (
             <form onSubmit={handleAssign} className="space-y-4">
               {assignSuccess && (
-                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2.5 text-emerald-400 text-xs font-bold">
+                <div className="rounded-xl corp-badge px-3.5 py-2.5 text-xs font-bold">
                   ✓ Ejercicio asignado con éxito.
                 </div>
               )}
@@ -171,7 +171,7 @@ export function PlayerTasksClient({
               <button
                 type="submit"
                 disabled={assignLoading}
-                className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                className="w-full rounded-xl btn-corporate font-semibold text-sm py-2.5 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed mt-2"
               >
                 {assignLoading ? "Asignando..." : "Asignar Ejercicio"}
               </button>

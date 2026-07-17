@@ -37,19 +37,25 @@ export default async function PlayerTestsPage({
       </Link>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            Historial de tests físicos
-          </h1>
-          <p className="text-slate-400 text-sm mt-0.5">
-            {player.first_name} {player.last_name}
-            {player.membership?.jersey_number != null && ` (Dorsal #${player.membership.jersey_number})`}
-          </p>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap border-b border-white/5 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/5 shrink-0">
+            <ClipboardList className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
+              Historial de tests físicos
+            </h1>
+            <p className="text-slate-400 text-xs mt-1">
+              {player.first_name} {player.last_name}
+              {player.membership?.jersey_number != null && ` (Dorsal #${player.membership.jersey_number})`}
+            </p>
+          </div>
         </div>
         <Link
           href={`/players/${id}/tests/new`}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg shadow-emerald-950/40"
+          className="flex items-center gap-2 rounded-xl btn-corporate text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
         >
           <ClipboardList className="h-4 w-4" />
           Registrar nuevo test
@@ -90,7 +96,7 @@ export default async function PlayerTestsPage({
                       </div>
                     </td>
                     <td className="py-4 px-4 whitespace-nowrap">
-                      <span className="inline-flex items-center bg-white/5 border border-white/10 text-emerald-400 font-extrabold px-3 py-1 rounded-lg">
+                      <span className="inline-flex items-center corp-badge font-extrabold px-3 py-1 rounded-lg">
                         {test.value} {test.physical_tests?.unit}
                       </span>
                     </td>

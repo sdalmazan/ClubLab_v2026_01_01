@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -83,7 +83,7 @@ function ColorPickerGrid({
                     value={inputValue}
                     onChange={handleTextChange}
                     placeholder="#10b981"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white uppercase placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white uppercase placeholder-slate-700 focus:outline-none corp-input-focus"
                   />
                 </div>
                 <div className="relative h-8 w-8 rounded-lg overflow-hidden border border-white/10 shrink-0 cursor-pointer">
@@ -125,7 +125,7 @@ function ColorPickerGrid({
                     title={c.name}
                     className={`h-7 w-7 rounded-lg border transition-all hover:scale-110 cursor-pointer flex items-center justify-center ${
                       c.hex.toLowerCase() === selectedColor.toLowerCase()
-                        ? "border-white ring-2 ring-emerald-500/50 scale-105"
+                        ? "border-white corp-input-focus ring-2 scale-105"
                         : "border-white/10 hover:border-white/30"
                     }`}
                     style={{ backgroundColor: c.hex }}
@@ -206,6 +206,29 @@ export function SettingsForm({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectedFileForAdjustment, setSelectedFileForAdjustment] = useState<File | null>(null);
 
+  // New reserve teams & default alert staff configurations
+  const [filialTeams, setFilialTeams] = useState<string[]>(organizationSettings?.filial_teams ?? []);
+  const [alertsDefaultWarmup, setAlertsDefaultWarmup] = useState<string[]>(organizationSettings?.alerts_default_warmup ?? []);
+  const [alertsDefaultCooldown, setAlertsDefaultCooldown] = useState<string[]>(organizationSettings?.alerts_default_cooldown ?? []);
+  const [newFilialName, setNewFilialName] = useState("");
+  const [staffList, setStaffList] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadStaff() {
+      if (!organizationId) return;
+      try {
+        const res = await fetch("/api/training/sessions/staff");
+        if (res.ok) {
+          const data = await res.json();
+          setStaffList(data);
+        }
+      } catch (e) {
+        console.error("Error loading staff:", e);
+      }
+    }
+    loadStaff();
+  }, [organizationId]);
+
   // Custom taxonomy states
   const [customConcepts, setCustomConcepts] = useState<any[]>(() => {
     return organizationSettings?.custom_tactical_concepts ?? [
@@ -278,6 +301,117 @@ export function SettingsForm({
     setCustomMuscles(customMuscles.filter((m) => m.key !== key));
   };
 
+  // Custom positions states
+  const [customPositions, setCustomPositions] = useState<any[]>(() => {
+    return organizationSettings?.custom_positions ?? [
+      { key: "goalkeeper", label: "Portero", campogramaSlot: "goalkeeper" },
+      { key: "left_back", label: "Lateral Izquierdo", campogramaSlot: "left_back" },
+      { key: "left_center_back", label: "Central Izquierdo", campogramaSlot: "left_center_back" },
+      { key: "right_center_back", label: "Central Derecho", campogramaSlot: "right_center_back" },
+      { key: "right_back", label: "Lateral Derecho", campogramaSlot: "right_back" },
+      { key: "defensive_midfielder", label: "Pivote", campogramaSlot: "defensive_midfielder" },
+      { key: "playmaker_midfielder", label: "Interior", campogramaSlot: "playmaker_midfielder" },
+      { key: "attacking_midfielder", label: "Mediapunta", campogramaSlot: "attacking_midfielder" },
+      { key: "left_winger", label: "Extremo Izquierdo", campogramaSlot: "left_winger" },
+      { key: "right_winger", label: "Extremo Derecho", campogramaSlot: "right_winger" },
+      { key: "striker", label: "Delantero Centro", campogramaSlot: "striker" }
+    ];
+  });
+
+  const [newPositionLabel, setNewPositionLabel] = useState("");
+  const [newPositionSlot, setNewPositionSlot] = useState("left_back");
+
+  const [formationCoordinates, setFormationCoordinates] = useState<Record<string, { x: number; y: number }>>(() => {
+    return organizationSettings?.formation_coordinates ?? {
+      goalkeeper: { x: 50, y: 88 },
+      left_back: { x: 15, y: 70 },
+      left_center_back: { x: 35, y: 74 },
+      right_center_back: { x: 65, y: 74 },
+      right_back: { x: 85, y: 70 },
+      defensive_midfielder: { x: 50, y: 56 },
+      playmaker_midfielder: { x: 30, y: 44 },
+      attacking_midfielder: { x: 70, y: 44 },
+      left_winger: { x: 15, y: 25 },
+      striker: { x: 50, y: 18 },
+      right_winger: { x: 85, y: 25 },
+    };
+  });
+
+  const [activeDragSlot, setActiveDragSlot] = useState<string | null>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+
+  const handlePointerDown = (slot: string, e: React.PointerEvent) => {
+    e.preventDefault();
+    setActiveDragSlot(slot);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!activeDragSlot || !fieldRef.current) return;
+    const rect = fieldRef.current.getBoundingClientRect();
+    let x = ((e.clientX - rect.left) / rect.width) * 100;
+    let y = ((e.clientY - rect.top) / rect.height) * 100;
+    x = Math.max(0, Math.min(100, Math.round(x)));
+    y = Math.max(0, Math.min(100, Math.round(y)));
+    setFormationCoordinates(prev => ({
+      ...prev,
+      [activeDragSlot]: { x, y }
+    }));
+  };
+
+  const handlePointerUp = (slot: string, e: React.PointerEvent) => {
+    setActiveDragSlot(null);
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const CAMPOGRAMA_SLOTS = [
+    { key: "goalkeeper", num: 1, label: "Portero (POR)" },
+    { key: "left_back", num: 2, label: "Lateral Izq (LI)" },
+    { key: "left_center_back", num: 3, label: "Central Izq (DFC)" },
+    { key: "right_center_back", num: 4, label: "Central Der (DFC)" },
+    { key: "right_back", num: 5, label: "Lateral Der (LD)" },
+    { key: "defensive_midfielder", num: 6, label: "Pivote Def (MCD)" },
+    { key: "playmaker_midfielder", num: 7, label: "Interior Org (MC)" },
+    { key: "attacking_midfielder", num: 8, label: "Mediapunta (MCO)" },
+    { key: "left_winger", num: 9, label: "Extremo Izq (EI)" },
+    { key: "right_winger", num: 10, label: "Extremo Der (ED)" },
+    { key: "striker", num: 11, label: "Delantero (DC)" }
+  ];
+
+  const POSITION_ROLES_SHORT: Record<string, string> = {
+    goalkeeper: "POR",
+    left_back: "LI",
+    left_center_back: "DFC",
+    right_center_back: "DFC",
+    right_back: "LD",
+    defensive_midfielder: "MCD",
+    playmaker_midfielder: "MC",
+    attacking_midfielder: "MCO",
+    left_winger: "EI",
+    right_winger: "ED",
+    striker: "DC"
+  };
+
+  const addPosition = () => {
+    if (!newPositionLabel.trim()) return;
+    const key = newPositionLabel.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+    if (customPositions.some((p) => p.key === key)) {
+      alert("Ya existe una posición con una clave similar.");
+      return;
+    }
+    setCustomPositions([
+      ...customPositions,
+      { key, label: newPositionLabel.trim(), campogramaSlot: newPositionSlot }
+    ]);
+    setNewPositionLabel("");
+  };
+
+  const removePosition = (key: string) => {
+    setCustomPositions(customPositions.filter((p) => p !== key && p.key !== key));
+  };
+
   function handleLogoFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -326,6 +460,7 @@ export function SettingsForm({
         default_training_time: defaultTrainingTime.trim(),
         custom_tactical_concepts: customConcepts,
         custom_muscle_groups: customMuscles,
+        custom_positions: customPositions,
       };
 
       const { error: dbError } = await supabase
@@ -450,6 +585,11 @@ export function SettingsForm({
       default_training_time: defaultTrainingTime.trim(),
       custom_tactical_concepts: customConcepts,
       custom_muscle_groups: customMuscles,
+      custom_positions: customPositions,
+      filial_teams: filialTeams,
+      alerts_default_warmup: alertsDefaultWarmup,
+      alerts_default_cooldown: alertsDefaultCooldown,
+      formation_coordinates: formationCoordinates,
     };
 
     const { error } = await supabase
@@ -471,6 +611,56 @@ export function SettingsForm({
       console.error("Error updating alert settings", alertErr);
     }
 
+    // Sync filial teams into the teams database table so they are real entities with UUIDs
+    try {
+      const { data: clubData } = await supabase
+        .from("clubs")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .limit(1)
+        .maybeSingle();
+
+      if (clubData?.id) {
+        const { data: seasonData } = await supabase
+          .from("seasons")
+          .select("id")
+          .eq("club_id", clubData.id)
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle();
+
+        if (seasonData?.id) {
+          // 1. Get existing teams for this club and season
+          const { data: existingTeams } = await supabase
+            .from("teams")
+            .select("id, name")
+            .eq("club_id", clubData.id)
+            .eq("season_id", seasonData.id);
+
+          const existingNames = existingTeams?.map(t => t.name.toLowerCase().trim()) ?? [];
+
+          // 2. Insert any missing filial teams
+          for (const ft of filialTeams) {
+            const cleanName = ft.trim();
+            if (cleanName && !existingNames.includes(cleanName.toLowerCase())) {
+              await supabase
+                .from("teams")
+                .insert({
+                  club_id: clubData.id,
+                  season_id: seasonData.id,
+                  name: cleanName,
+                  category: "Filial",
+                  gender: "male",
+                  color: "#6366f1"
+                });
+            }
+          }
+        }
+      }
+    } catch (syncErr) {
+      console.error("Error syncing filial teams:", syncErr);
+    }
+
     if (error) {
       setOrgError(error.message);
     } else {
@@ -487,7 +677,7 @@ export function SettingsForm({
       {/* ── LEFT: Account Info ── */}
       <div className="lg:col-span-1 space-y-6">
         <div className="glass rounded-2xl p-6 border border-white/[0.06] flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-full bg-emerald-950/50 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-extrabold text-2xl mb-4 shadow-lg shadow-emerald-950/40">
+          <div className="h-16 w-16 rounded-full bg-slate-900/50 border border-white/10 flex items-center justify-center corp-text font-extrabold text-2xl mb-4 shadow-lg">
             {fullName.split("@")[0].slice(0, 2).toUpperCase()}
           </div>
           <h2 className="text-lg font-bold text-white truncate max-w-full">
@@ -499,7 +689,7 @@ export function SettingsForm({
 
           <div className="w-full border-t border-white/[0.06] pt-4 mt-2 space-y-3.5 text-left">
             <div className="flex items-center gap-3">
-              <UserCog className="h-4 w-4 text-emerald-500 shrink-0" />
+              <UserCog className="h-4 w-4 corp-icon shrink-0" />
               <div>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">
                   Rol asignado
@@ -511,7 +701,7 @@ export function SettingsForm({
             </div>
 
             <div className="flex items-center gap-3">
-              <Building2 className="h-4 w-4 text-emerald-500 shrink-0" />
+              <Building2 className="h-4 w-4 corp-icon shrink-0" />
               <div>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">
                   Organización
@@ -534,7 +724,7 @@ export function SettingsForm({
             onClick={() => setActiveTab('profile')}
             className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'profile'
-                ? 'border-emerald-500 text-emerald-400'
+                ? 'border-[var(--corp)] corp-text'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -547,7 +737,7 @@ export function SettingsForm({
                 onClick={() => setActiveTab('branding')}
                 className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'branding'
-                    ? 'border-emerald-500 text-emerald-400'
+                    ? 'border-[var(--corp)] corp-text'
                     : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
@@ -558,7 +748,7 @@ export function SettingsForm({
                 onClick={() => setActiveTab('team')}
                 className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'team'
-                    ? 'border-emerald-500 text-emerald-400'
+                    ? 'border-[var(--corp)] corp-text'
                     : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
@@ -569,7 +759,7 @@ export function SettingsForm({
                 onClick={() => setActiveTab('methodology')}
                 className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'methodology'
-                    ? 'border-emerald-500 text-emerald-400'
+                    ? 'border-[var(--corp)] corp-text'
                     : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
@@ -582,7 +772,7 @@ export function SettingsForm({
             onClick={() => setActiveTab('video_pack')}
             className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'video_pack'
-                ? 'border-emerald-500 text-emerald-400'
+                ? 'border-[var(--corp)] corp-text'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -596,7 +786,7 @@ export function SettingsForm({
             {/* Form: Profile details */}
             <div className="glass rounded-2xl p-6 border border-white/[0.06]">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
+                <div className="p-2 corp-badge rounded-xl">
                   <User className="h-5 w-5" />
                 </div>
                 <div>
@@ -629,7 +819,7 @@ export function SettingsForm({
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder-slate-600"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none corp-input-focus transition-all placeholder-slate-600"
                       placeholder="Tu Nombre completo"
                     />
                   </div>
@@ -653,7 +843,7 @@ export function SettingsForm({
                   <button
                     type="submit"
                     disabled={profileLoading}
-                    className="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg shadow-emerald-950/45 cursor-pointer"
+                    className="px-6 py-2 rounded-xl btn-corporate text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg cursor-pointer"
                   >
                     {profileLoading ? "Guardando..." : "Guardar cambios"}
                   </button>
@@ -664,7 +854,7 @@ export function SettingsForm({
             {/* Form: Password reset */}
             <div className="glass rounded-2xl p-6 border border-white/[0.06]">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
+                <div className="p-2 corp-badge rounded-xl">
                   <Key className="h-5 w-5" />
                 </div>
                 <div>
@@ -686,7 +876,7 @@ export function SettingsForm({
                       minLength={8}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder-slate-700"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none corp-input-focus transition-all placeholder-slate-700"
                       placeholder="Mínimo 8 caracteres"
                     />
                   </div>
@@ -702,7 +892,7 @@ export function SettingsForm({
                       minLength={8}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder-slate-700"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none corp-input-focus transition-all placeholder-slate-700"
                       placeholder="Confirmar contraseña"
                     />
                   </div>
@@ -726,7 +916,7 @@ export function SettingsForm({
                   <button
                     type="submit"
                     disabled={passwordLoading}
-                    className="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg shadow-emerald-950/45 cursor-pointer"
+                    className="px-6 py-2 rounded-xl btn-corporate text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg cursor-pointer"
                   >
                     {passwordLoading ? "Actualizando..." : "Actualizar contraseña"}
                   </button>
@@ -740,7 +930,7 @@ export function SettingsForm({
         {isOrgAdmin && activeTab === 'branding' && organizationId && (
           <div className="glass rounded-2xl p-6 border border-white/[0.06] space-y-6">
             <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-              <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
+              <div className="p-2 corp-badge rounded-xl">
                 <Building2 className="h-5 w-5" />
               </div>
               <div>
@@ -761,7 +951,7 @@ export function SettingsForm({
                     value={clubName}
                     onChange={(e) => setClubName(e.target.value)}
                     placeholder="Nombre oficial del club"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder-slate-750"
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none corp-input-focus transition-all placeholder-slate-750"
                   />
                 </div>
 
@@ -870,7 +1060,7 @@ export function SettingsForm({
                 <button
                   type="submit"
                   disabled={orgLoading}
-                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg shadow-emerald-950/45 cursor-pointer"
+                  className="px-6 py-2 rounded-xl btn-corporate text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg cursor-pointer"
                 >
                   {orgLoading ? "Guardando..." : "Guardar ajustes de marca"}
                 </button>
@@ -883,7 +1073,7 @@ export function SettingsForm({
         {isOrgAdmin && activeTab === 'team' && organizationId && (
           <div className="glass rounded-2xl p-6 border border-white/[0.06] space-y-6">
             <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-              <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
+              <div className="p-2 corp-badge rounded-xl">
                 <Building2 className="h-5 w-5" />
               </div>
               <div>
@@ -904,7 +1094,7 @@ export function SettingsForm({
                     required
                     value={defaultTrainingTime}
                     onChange={(e) => setDefaultTrainingTime(e.target.value)}
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none corp-input-focus"
                   />
                 </div>
               </div>
@@ -926,7 +1116,7 @@ export function SettingsForm({
                         required
                         value={checkinHours}
                         onChange={(e) => setCheckinHours(Number(e.target.value))}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none corp-input-focus [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-[10px] text-slate-500 font-semibold">horas</span>
                     </div>
@@ -945,7 +1135,7 @@ export function SettingsForm({
                         required
                         value={checkinClose}
                         onChange={(e) => setCheckinClose(Number(e.target.value))}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none corp-input-focus [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-[10px] text-slate-500 font-semibold">min</span>
                     </div>
@@ -964,7 +1154,7 @@ export function SettingsForm({
                         required
                         value={checkoutDelay}
                         onChange={(e) => setCheckoutDelay(Number(e.target.value))}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none corp-input-focus [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-[10px] text-slate-500 font-semibold">min</span>
                     </div>
@@ -983,9 +1173,119 @@ export function SettingsForm({
                         required
                         value={checkoutClose}
                         onChange={(e) => setCheckoutClose(Number(e.target.value))}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none corp-input-focus [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <span className="text-[10px] text-slate-500 font-semibold">h</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filial Teams */}
+              <div className="space-y-4 border-t border-white/5 pt-4">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest border-b border-white/5 pb-1">Equipos Filiales / Reservas</h4>
+                <p className="text-slate-400 text-[11px] leading-normal">
+                  Registra los nombres de los equipos filiales o de categorías inferiores (ej: Juvenil A, Filial, Cadete) para destacar a sus jugadores en la planificación de sesiones.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej: Juvenil A"
+                    value={newFilialName}
+                    onChange={(e) => setNewFilialName(e.target.value)}
+                    className="flex-1 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none corp-input-focus"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newFilialName.trim() && !filialTeams.includes(newFilialName.trim())) {
+                        setFilialTeams([...filialTeams, newFilialName.trim()]);
+                        setNewFilialName("");
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all border border-white/10 cursor-pointer"
+                  >
+                    Añadir
+                  </button>
+                </div>
+                {filialTeams.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {filialTeams.map((team, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg corp-badge text-xs font-medium">
+                        {team}
+                        <button
+                          type="button"
+                          onClick={() => setFilialTeams(filialTeams.filter((t) => t !== team))}
+                          className="corp-text hover:opacity-70 font-bold ml-1 text-xs focus:outline-none"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Default Alerts Staff */}
+              <div className="space-y-4 border-t border-white/5 pt-4">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest border-b border-white/5 pb-1">Alertas de Planificación por Defecto</h4>
+                <p className="text-slate-400 text-[11px] leading-normal mb-3">
+                  Selecciona qué miembros del cuerpo técnico recibirán alertas por defecto cuando los bloques de Calentamiento (Bloque 1) o de Vuelta a la Calma (Bloque 3) se dejen vacíos.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Warmup alerts */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-400">Calentamiento (Bloque 1) — Destinatarios</label>
+                    <div className="max-h-40 overflow-y-auto border border-white/10 rounded-xl p-3 bg-white/5 space-y-2">
+                      {staffList.length === 0 ? (
+                        <p className="text-slate-500 text-xs italic">Cargando personal técnico...</p>
+                      ) : (
+                        staffList.map((member) => (
+                          <label key={member.id} className="flex items-center gap-2.5 text-xs text-slate-350 cursor-pointer hover:text-white transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={alertsDefaultWarmup.includes(member.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setAlertsDefaultWarmup([...alertsDefaultWarmup, member.id]);
+                                } else {
+                                  setAlertsDefaultWarmup(alertsDefaultWarmup.filter((id) => id !== member.id));
+                                }
+                              }}
+                              className="rounded border-white/10 bg-white/5 corp-accent focus:ring-[var(--corp)]/50"
+                            />
+                            <span>{member.name} <span className="text-[10px] text-slate-500">({member.role})</span></span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cooldown alerts */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-400">Vuelta a la Calma (Bloque 3) — Destinatarios</label>
+                    <div className="max-h-40 overflow-y-auto border border-white/10 rounded-xl p-3 bg-white/5 space-y-2">
+                      {staffList.length === 0 ? (
+                        <p className="text-slate-500 text-xs italic">Cargando personal técnico...</p>
+                      ) : (
+                        staffList.map((member) => (
+                          <label key={member.id} className="flex items-center gap-2.5 text-xs text-slate-350 cursor-pointer hover:text-white transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={alertsDefaultCooldown.includes(member.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setAlertsDefaultCooldown([...alertsDefaultCooldown, member.id]);
+                                } else {
+                                  setAlertsDefaultCooldown(alertsDefaultCooldown.filter((id) => id !== member.id));
+                                }
+                              }}
+                              className="rounded border-white/10 bg-white/5 corp-accent focus:ring-[var(--corp)]/50"
+                            />
+                            <span>{member.name} <span className="text-[10px] text-slate-500">({member.role})</span></span>
+                          </label>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1009,7 +1309,7 @@ export function SettingsForm({
                 <button
                   type="submit"
                   disabled={orgLoading}
-                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg shadow-emerald-950/45 cursor-pointer"
+                  className="px-6 py-2 rounded-xl btn-corporate text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg cursor-pointer"
                 >
                   {orgLoading ? "Guardando..." : "Guardar planificación"}
                 </button>
@@ -1023,7 +1323,7 @@ export function SettingsForm({
           <div className="glass rounded-2xl p-6 border border-white/[0.06] space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
+                <div className="p-2 corp-badge rounded-xl">
                   <Building2 className="h-5 w-5" />
                 </div>
                 <div>
@@ -1036,7 +1336,7 @@ export function SettingsForm({
                   href="/settings/facilities"
                   className="inline-flex items-center gap-2 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold px-4 py-2.5 transition-all shadow-md"
                 >
-                  <Building2 className="h-4 w-4 text-emerald-500" />
+                  <Building2 className="h-4 w-4 corp-icon" />
                   Gestionar Instalaciones / Campos
                 </Link>
               </div>
@@ -1143,7 +1443,7 @@ export function SettingsForm({
                         <button
                           type="button"
                           onClick={addConcept}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 rounded-lg cursor-pointer transition-colors animate-pulse"
+                          className="btn-corporate-solid text-white font-bold text-xs px-3 rounded-lg cursor-pointer transition-colors animate-pulse"
                         >
                           +
                         </button>
@@ -1203,11 +1503,184 @@ export function SettingsForm({
                         <button
                           type="button"
                           onClick={addMuscle}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 rounded-lg cursor-pointer transition-colors"
+                          className="btn-corporate-solid text-white font-bold text-xs px-3 rounded-lg cursor-pointer transition-colors"
                         >
                           +
                         </button>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Posiciones Personalizadas */}
+              <div className="space-y-4 border-t border-white/5 pt-4">
+                <h4 className="text-xs font-bold text-slate-450 uppercase tracking-widest border-b border-white/5 pb-1">
+                  Personalización de Posiciones de la Plantilla
+                </h4>
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  Modifica las etiquetas de las posiciones de los jugadores o añade nuevas posiciones. Elige también a qué posición del campograma (coordenada visual en el campo) se asocia cada una.
+                </p>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* List & Add Form */}
+                  <div className="lg:col-span-2 space-y-4 bg-white/2 p-4 border border-white/5 rounded-xl">
+                    {/* List of Custom Positions */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-1">
+                      {customPositions.map((p, index) => (
+                        <div
+                          key={p.key}
+                          className="flex flex-col gap-2 p-3 rounded-xl bg-slate-900/60 border border-white/5 hover:border-white/10 transition-all text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">
+                              Posición #{index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removePosition(p.key)}
+                              className="text-slate-500 hover:text-rose-450 font-extrabold text-sm px-1.5 cursor-pointer transition-colors"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          
+                          {/* Label Edit */}
+                          <div className="space-y-1">
+                            <label className="text-[10px] text-slate-400 font-semibold block">Nombre / Etiqueta:</label>
+                            <input
+                              type="text"
+                              value={p.label}
+                              onChange={(e) => {
+                                const updated = [...customPositions];
+                                updated[index] = { ...p, label: e.target.value };
+                                setCustomPositions(updated);
+                              }}
+                              className="w-full rounded-lg bg-white/5 border border-white/10 px-2.5 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            />
+                          </div>
+
+                          {/* Mapeo Campograma */}
+                          <div className="space-y-1">
+                            <label className="text-[10px] text-slate-400 font-semibold block">Ubicación en Campograma:</label>
+                            <select
+                              value={p.campogramaSlot}
+                              onChange={(e) => {
+                                const updated = [...customPositions];
+                                updated[index] = { ...p, campogramaSlot: e.target.value };
+                                setCustomPositions(updated);
+                              }}
+                              className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-xs text-white focus:outline-none cursor-pointer [&>option]:bg-slate-900 [&>option]:text-white"
+                            >
+                              <option value="goalkeeper">Portero</option>
+                              <option value="left_back">Lateral Izquierdo</option>
+                              <option value="left_center_back">Central Izquierdo</option>
+                              <option value="right_center_back">Central Derecho</option>
+                              <option value="right_back">Lateral Derecho</option>
+                              <option value="defensive_midfielder">Pivote / MC Defensivo</option>
+                              <option value="playmaker_midfielder">Interior / MC Organizador</option>
+                              <option value="attacking_midfielder">Mediapunta</option>
+                              <option value="left_winger">Extremo Izquierdo</option>
+                              <option value="right_winger">Extremo Derecho</option>
+                              <option value="striker">Delantero Centro</option>
+                            </select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add Custom Position Form */}
+                    <div className="space-y-2 border-t border-white/5 pt-3">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Añadir Nueva Posición</span>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="text"
+                          placeholder="Ej: Carrilero Izquierdo o Interior Izquierdo"
+                          value={newPositionLabel}
+                          onChange={(e) => setNewPositionLabel(e.target.value)}
+                          className="flex-1 rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                        <select
+                          value={newPositionSlot}
+                          onChange={(e) => setNewPositionSlot(e.target.value)}
+                          className="rounded-lg bg-slate-950 border border-white/10 px-2 py-1.5 text-xs text-white cursor-pointer focus:outline-none [&>option]:bg-slate-900 [&>option]:text-white"
+                        >
+                          <option value="goalkeeper">Portero (POR)</option>
+                          <option value="left_back">Lateral Izquierdo (LI)</option>
+                          <option value="left_center_back">Central Izquierdo (DFC)</option>
+                          <option value="right_center_back">Central Derecho (DFC)</option>
+                          <option value="right_back">Lateral Derecho (LD)</option>
+                          <option value="defensive_midfielder">Pivote / MC Defensivo (MCD)</option>
+                          <option value="playmaker_midfielder">Interior / MC Organizador (MC)</option>
+                          <option value="attacking_midfielder">Mediapunta (MCO)</option>
+                          <option value="left_winger">Extremo Izquierdo (EI)</option>
+                          <option value="right_winger">Extremo Derecho (ED)</option>
+                          <option value="striker">Delantero Centro (DC)</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={addPosition}
+                          className="btn-corporate-solid text-white font-bold text-xs px-4 py-1.5 rounded-lg cursor-pointer transition-colors"
+                        >
+                          Añadir Posición
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual Campograma Adjustment Column */}
+                  <div className="bg-white/2 p-4 border border-white/5 rounded-xl flex flex-col gap-3">
+                    <span className="block text-[11px] font-bold text-white uppercase tracking-wider">Distribución Táctica (1 al 11)</span>
+                    <p className="text-[9px] text-slate-500 leading-normal">
+                      Arrastra los dorsales sobre el campo de fútbol para posicionar visualmente cada rol táctico del equipo.
+                    </p>
+
+                    {/* Field Container */}
+                    <div
+                      ref={fieldRef}
+                      onPointerMove={handlePointerMove}
+                      className="relative w-full aspect-[3/4] border border-emerald-800/40 rounded-xl overflow-hidden select-none touch-none shadow-md shadow-black/20"
+                      style={{
+                        backgroundImage: "linear-gradient(to bottom, rgba(16, 44, 27, 0.98), rgba(6, 27, 14, 0.98))"
+                      }}
+                    >
+                      {/* Soccer lines */}
+                      <div className="absolute inset-3 border border-white/10 rounded pointer-events-none">
+                        <div className="absolute top-1/2 left-0 right-0 h-px bg-white/10" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 border border-white/10 rounded-full" />
+                        <div className="absolute top-0 left-1/5 right-1/5 h-10 border-b border-x border-white/10" />
+                        <div className="absolute bottom-0 left-1/5 right-1/5 h-10 border-t border-x border-white/10" />
+                      </div>
+
+                      {/* Interactive Dots */}
+                      {CAMPOGRAMA_SLOTS.map((slot) => {
+                        const coord = formationCoordinates[slot.key] ?? { x: 50, y: 50 };
+                        const isDragging = activeDragSlot === slot.key;
+                        return (
+                          <div
+                            key={slot.key}
+                            onPointerDown={(e) => handlePointerDown(slot.key, e)}
+                            onPointerUp={(e) => handlePointerUp(slot.key, e)}
+                            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-grab active:cursor-grabbing group z-10"
+                            style={{
+                              left: `${coord.x}%`,
+                              top: `${coord.y}%`,
+                              touchAction: "none"
+                            }}
+                          >
+                            <div className={`h-6 w-6 rounded-full border flex items-center justify-center text-[10px] font-black text-white shadow-lg transition-transform ${
+                              isDragging
+                                ? "bg-amber-500 border-white scale-125 shadow-amber-500/40"
+                                : "bg-[var(--primary)] border-white/80 group-hover:scale-110 shadow-black/50"
+                            }`}>
+                              {slot.num}
+                            </div>
+                            <span className="mt-0.5 text-[7px] font-extrabold text-white bg-slate-950/90 border border-white/5 px-1 py-0.2 rounded leading-none whitespace-nowrap shadow-sm">
+                              {POSITION_ROLES_SHORT[slot.key]}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1231,7 +1704,7 @@ export function SettingsForm({
                 <button
                   type="submit"
                   disabled={orgLoading}
-                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg shadow-emerald-950/45 cursor-pointer"
+                  className="px-6 py-2 rounded-xl btn-corporate text-white font-semibold text-xs transition-all disabled:opacity-60 shadow-lg cursor-pointer"
                 >
                   {orgLoading ? "Guardando..." : "Guardar ajustes metodológicos"}
                 </button>

@@ -61,7 +61,7 @@ export default async function NewSessionPage({
       {/* ── HEADER ── */}
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-lg shadow-emerald-950/50">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl btn-corporate shadow-lg">
             <CalendarDays className="h-4.5 w-4.5 text-white" />
           </div>
           <span>Nueva Sesión</span>
@@ -80,6 +80,8 @@ export default async function NewSessionPage({
         templates={templates}
         exerciseLibrary={exerciseLibrary}
         organizationSettings={orgSettings}
+        userTeamId={orgRole.team_id}
+        userRole={orgRole.role}
       />
     </div>
   );

@@ -22,6 +22,7 @@ import Link from "next/link";
 import { TacticalConceptsSelector } from "@/components/training/TacticalConceptsSelector";
 import { MuscleGroupsSelector } from "@/components/training/MuscleGroupsSelector";
 import { TaskWhiteboard } from "@/components/training/TaskWhiteboard";
+import { PitchGridSelector } from "@/components/training/PitchGridSelector";
 import { cn } from "@/lib/utils";
 
 interface Exercise {
@@ -72,6 +73,7 @@ export default function ExercisesLibraryPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [whiteboardData, setWhiteboardData] = useState<any>(null);
+  const [selectedPitchZones, setSelectedPitchZones] = useState<string[]>([]);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -135,6 +137,7 @@ export default function ExercisesLibraryPage() {
     setImageUrl("");
     setVideoUrl("");
     setWhiteboardData(null);
+    setSelectedPitchZones([]);
     setIsModalOpen(true);
   }
 
@@ -165,6 +168,7 @@ export default function ExercisesLibraryPage() {
     setImageUrl(ex.image_url || "");
     setVideoUrl(ex.video_url || "");
     setWhiteboardData(ex.whiteboard_data || null);
+    setSelectedPitchZones(ex.whiteboard_data?.pitch_zones ?? []);
     setIsModalOpen(true);
   }
 
@@ -195,6 +199,7 @@ export default function ExercisesLibraryPage() {
     setImageUrl(ex.image_url || "");
     setVideoUrl(ex.video_url || "");
     setWhiteboardData(ex.whiteboard_data || null);
+    setSelectedPitchZones(ex.whiteboard_data?.pitch_zones ?? []);
     setIsModalOpen(true);
   }
 
@@ -222,7 +227,7 @@ export default function ExercisesLibraryPage() {
         players_per_group: needsGroups ? playersPerGroup.trim() || null : null,
         image_url: imageUrl.trim() || null,
         video_url: videoUrl.trim() || null,
-        whiteboard_data: whiteboardData,
+        whiteboard_data: whiteboardData ? { ...whiteboardData, pitch_zones: selectedPitchZones } : (selectedPitchZones.length > 0 ? { pitch_zones: selectedPitchZones } : null),
         whiteboard_zone: whiteboardData?.zone || "full_field",
       };
 
@@ -311,7 +316,7 @@ export default function ExercisesLibraryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <BookOpen className="h-6 w-6 text-emerald-500" />
+            <BookOpen className="h-6 w-6 corp-icon" />
             Biblioteca de Ejercicios
           </h1>
           <p className="text-slate-400 text-sm mt-0.5">
@@ -573,7 +578,7 @@ export default function ExercisesLibraryPage() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleSave}
-            className="glass w-full max-w-xl rounded-3xl border border-white/10 p-6 space-y-5 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto"
+          className="glass w-full max-w-4xl rounded-3xl border border-white/10 p-6 space-y-5 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto"
           >
             <div className="flex justify-between items-center border-b border-white/5 pb-3">
               <h3 className="text-base font-extrabold text-white">
@@ -589,7 +594,48 @@ export default function ExercisesLibraryPage() {
             </div>
 
             <div className="space-y-4">
-              <div>
+              {/* 1. Dibujo Táctico inline */}
+              <div className="border border-white/10 rounded-2xl p-4 bg-slate-900/40 space-y-3">
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  1. Dibujo Táctico del Ejercicio
+                </span>
+                <TaskWhiteboard
+                  value={whiteboardData}
+                  onChange={(wbData) => {
+                    setWhiteboardData(wbData);
+                  }}
+                  interactive={true}
+                  title="Pizarra Táctica"
+                />
+              </div>
+
+              {/* 2. Zonas del Campo (opcional) */}
+              <div className="border-t border-white/5 pt-4 space-y-2">
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  2. Zonas del Campo (Opcional)
+                </span>
+                <div className="flex flex-col md:flex-row gap-4 items-center bg-white/2 p-3 rounded-2xl border border-white/5">
+                  <PitchGridSelector
+                    selectedZones={selectedPitchZones}
+                    onChange={setSelectedPitchZones}
+                    interactive={true}
+                  />
+                  <div className="flex-1 w-full space-y-1">
+                    <p className="text-xs text-slate-400">Selecciona las zonas del campo táctico utilizadas.</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedPitchZones.length === 0 ? (
+                        <span className="text-xs text-slate-650 italic">Todo el campo por defecto</span>
+                      ) : (
+                        selectedPitchZones.map((zone: string) => (
+                          <span key={zone} className="rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-350 font-bold text-[10px] px-2 py-0.5">Zona {zone}</span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-white/5 pt-4">
                 <label className={labelClass}>Título del Ejercicio *</label>
                 <input
                   type="text"
@@ -707,7 +753,7 @@ export default function ExercisesLibraryPage() {
                       type="checkbox"
                       checked={needsGroups}
                       onChange={(e) => setNeedsGroups(e.target.checked)}
-                      className="rounded border-white/10 bg-white/5 text-emerald-500 focus:ring-emerald-500/50 h-4 w-4"
+                      className="rounded border-white/10 bg-white/5 corp-accent h-4 w-4"
                     />
                     Requiere equipos / grupos
                   </label>
@@ -742,32 +788,6 @@ export default function ExercisesLibraryPage() {
                 </div>
               )}
 
-              {/* Whiteboard canvas draw link */}
-              <div className="border-t border-white/5 pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Dibujo Táctico en el Campo
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowWhiteboardModal(true)}
-                    className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/25 text-violet-300 text-xs font-semibold px-3 py-1.5 transition-all cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                    {whiteboardData ? "Editar Dibujo" : "Dibujar Ejercicio"}
-                  </button>
-                </div>
-                {whiteboardData?.imageDataUrl && (
-                  <div className="mt-2 flex justify-center">
-                    <img
-                      src={whiteboardData.imageDataUrl}
-                      alt="Vista previa pizarra"
-                      className="rounded-xl border border-white/10 max-h-32 object-contain bg-slate-900 shadow-lg"
-                    />
-                  </div>
-                )}
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/5 pt-4">
                 <div className="space-y-1.5">
                   <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -790,54 +810,23 @@ export default function ExercisesLibraryPage() {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2 border-t border-white/5">
+            <div className="flex gap-3 pt-2 border-t border-white/5 shadow-inner">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 rounded-xl border border-white/10 text-slate-400 hover:text-white text-xs font-semibold py-2.5 transition-all"
+                className="flex-1 rounded-xl border border-white/10 text-slate-400 hover:text-white text-xs font-semibold py-2.5 transition-all cursor-pointer hover:bg-white/5"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-450 text-white text-xs font-bold py-2.5 transition-all shadow-lg"
+                className="flex-1 rounded-xl bg-emerald-500 hover:bg-emerald-450 text-white text-xs font-bold py-2.5 transition-all shadow-lg cursor-pointer disabled:opacity-50"
               >
                 {saving ? "Guardando..." : editingId ? "Guardar Cambios" : "Crear Ejercicio"}
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {/* ── MODAL: PIZARRA TÁCTICA ── */}
-      {showWhiteboardModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] flex items-center justify-center p-4">
-          <div className="glass w-full max-w-4xl rounded-3xl border border-white/10 flex flex-col max-h-[95vh] overflow-hidden shadow-2xl">
-            <div className="p-5 border-b border-white/5 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-extrabold text-white">Pizarra Táctica (Plantilla)</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{title || "Nuevo Ejercicio"}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowWhiteboardModal(false)}
-                className="text-slate-500 hover:text-white font-bold text-lg cursor-pointer p-2"
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <TaskWhiteboard
-                value={whiteboardData}
-                onChange={(wbData) => {
-                  setWhiteboardData(wbData);
-                }}
-                interactive={true}
-                onClose={() => setShowWhiteboardModal(false)}
-              />
-            </div>
-          </div>
         </div>
       )}
     </div>

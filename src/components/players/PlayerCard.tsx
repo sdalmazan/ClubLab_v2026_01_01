@@ -3,37 +3,63 @@ import { cn } from "@/lib/utils";
 import { PlayerStatusBadge, InjuryBadge } from "./PlayerStatusBadge";
 import type { PlayerWithMembership } from "@/services/players";
 import type { PlayerStatus } from "@/types";
-import { POSITION_LABELS } from "@/types";
+import { POSITION_LABELS, getPositionLabel } from "@/types";
 import { Shirt } from "lucide-react";
 
 interface PlayerCardProps {
   player: PlayerWithMembership;
   status?: PlayerStatus;
+  activeTeamId?: string;
+  filialTeams?: string[];
 }
 
-export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
-  const name = `${player.first_name} ${player.last_name}`;
-  const initials = `${player.first_name[0]}${player.last_name[0]}`.toUpperCase();
+export function PlayerCard({
+  player,
+  status = "green",
+  activeTeamId,
+  filialTeams,
+}: PlayerCardProps) {
+  const name = player.sporting_name || `${player.first_name} ${player.last_name}`;
+  const initials = player.sporting_name ? player.sporting_name.substring(0, 2).toUpperCase() : `${player.first_name[0] || ""}${player.last_name[0] || ""}`.toUpperCase();
   const membership = player.membership;
   const injury = player.active_injury;
   const primaryPosition = membership?.positions?.[0];
 
   const isInactive = membership?.status === "inactive";
   const playerType = membership?.player_type ?? "main";
-  const customLabel = membership?.player_type_label || (playerType === "reserve" ? "Filial" : playerType === "youth" ? "Juvenil" : playerType === "other" ? "Otros" : "");
+  const playerTeamName = membership?.teams?.name ?? "";
+
+  // Check if player belongs to a filial team (case-insensitive comparison)
+  const cleanFilialList = filialTeams?.map((t) => t.toLowerCase().trim()) ?? [];
+  const isReserve = playerType === "reserve" ||
+                    cleanFilialList.includes(playerTeamName.toLowerCase().trim()) ||
+                    (activeTeamId && membership?.teams?.id && membership.teams.id !== activeTeamId);
+  const isYouth = playerType === "youth";
+  const isOther = playerType === "other";
+
+  const customLabel = membership?.player_type_label || (isReserve ? "Filial" : isYouth ? "Juvenil" : isOther ? "Otros" : "");
+
+  const isClose = player.signing_status === "close";
+  const isDifficult = player.signing_status === "difficult";
 
   let borderStyle = "border-white/5 bg-white/2 hover:border-white/20";
   let labelColor = "";
 
-  if (playerType === "reserve") {
-    borderStyle = "border-sky-500/20 bg-sky-500/5 hover:border-sky-500/45";
-    labelColor = "bg-sky-500/10 text-sky-400 border-sky-500/20";
-  } else if (playerType === "youth") {
-    borderStyle = "border-purple-500/20 bg-purple-500/5 hover:border-purple-500/45";
+  if (isClose) {
+    borderStyle = "border-amber-500/40 bg-amber-500/5 hover:border-amber-500/80 shadow-md shadow-amber-950/30 ring-1 ring-amber-500/20";
+    labelColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+  } else if (isDifficult) {
+    borderStyle = "border-rose-500/40 bg-rose-500/5 hover:border-rose-500/80 shadow-md shadow-rose-950/30 ring-1 ring-rose-500/20";
+    labelColor = "bg-rose-500/10 text-rose-455 border-rose-500/20";
+  } else if (isReserve) {
+    borderStyle = "border-purple-500/45 bg-purple-500/5 hover:border-purple-500/80 shadow-md shadow-purple-950/30 ring-1 ring-purple-500/20";
     labelColor = "bg-purple-500/10 text-purple-400 border-purple-500/20";
-  } else if (playerType === "other") {
-    borderStyle = "border-indigo-500/20 bg-indigo-500/5 hover:border-indigo-500/45";
+  } else if (isYouth) {
+    borderStyle = "border-indigo-500/45 bg-indigo-500/5 hover:border-indigo-500/80 shadow-md shadow-indigo-950/30 ring-1 ring-indigo-500/20";
     labelColor = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+  } else if (isOther) {
+    borderStyle = "border-sky-500/35 bg-sky-500/5 hover:border-sky-500/60 shadow-sm shadow-sky-950/20";
+    labelColor = "bg-sky-500/10 text-sky-400 border-sky-500/20";
   }
 
   const cardClass = cn(
@@ -41,6 +67,23 @@ export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
     borderStyle,
     isInactive && "opacity-45 grayscale"
   );
+
+  // Accurate age calculation
+  const getAge = (dobString: string) => {
+    const today = new Date();
+    const birthDate = new Date(dobString);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+  const seasonStartYear = player.membership?.seasons?.start_date
+    ? new Date(player.membership.seasons.start_date).getFullYear()
+    : new Date().getFullYear();
+  const sub23LimitYear = seasonStartYear - 22;
+  const isSub23 = player.date_of_birth && new Date(player.date_of_birth).getFullYear() >= sub23LimitYear;
 
   return (
     <Link
@@ -79,12 +122,12 @@ export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
               </p>
               {primaryPosition && (
                 <p className="text-[11.5px] text-slate-400 mt-0.5 truncate font-medium flex items-center gap-1.5">
-                  <span>{POSITION_LABELS[primaryPosition]}</span>
-                  {player.date_of_birth && (
-                    <span className="text-[10px] text-slate-500 font-normal">
-                      ({new Date(player.date_of_birth).getFullYear()})
-                    </span>
-                  )}
+                  <span>{getPositionLabel(primaryPosition)}</span>
+                </p>
+              )}
+              {membership?.teams?.name && (
+                <p className="text-[10.5px] text-slate-500 font-bold uppercase tracking-wider mt-0.5 truncate">
+                  {membership.teams.name}
                 </p>
               )}
             </div>
@@ -92,9 +135,19 @@ export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
           </div>
 
           {/* Badges */}
-          <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+          <div className="mt-2.5 flex flex-wrap gap-1.5 items-center">
             {injury && <InjuryBadge status={injury.status as any} />}
-            {player.date_of_birth && new Date().getFullYear() - new Date(player.date_of_birth).getFullYear() <= 22 && (
+            {player.date_of_birth && (
+              <span className={cn(
+                "text-[9px] font-extrabold border rounded px-1.5 py-0.5 uppercase tracking-wider",
+                isSub23
+                  ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                  : "bg-white/5 border-white/10 text-slate-400"
+              )}>
+                {new Date(player.date_of_birth).getFullYear()}
+              </span>
+            )}
+            {isSub23 && (
               <span className="text-[9px] font-extrabold bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 uppercase tracking-wider">
                 Sub-23
               </span>
@@ -104,9 +157,9 @@ export function PlayerCard({ player, status = "green" }: PlayerCardProps) {
                 Baja: {new Date(membership.left_date).toLocaleDateString()}
               </span>
             )}
-            {!isInactive && membership?.joined_date && (
-              <span className="text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded px-1.5 py-0.5">
-                Alta: {new Date(membership.joined_date).toLocaleDateString()}
+            {(isClose || isDifficult) && (
+              <span className={cn("text-[9px] font-extrabold border rounded px-1.5 py-0.5 uppercase tracking-wider", labelColor)}>
+                {isClose ? "Fichaje: Cerca" : "Fichaje: Difícil"}
               </span>
             )}
             {playerType !== "main" && customLabel && (

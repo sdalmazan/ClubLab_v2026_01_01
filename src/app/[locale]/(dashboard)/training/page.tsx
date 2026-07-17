@@ -19,8 +19,10 @@ import {
   LayoutGrid
 } from "lucide-react";
 import Link from "next/link";
+import { ExpandableList } from "@/components/training/ExpandableList";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { formatToDDMMAAAA } from "@/lib/utils";
 import { SESSION_TYPE_LABELS, LOAD_LEVEL_LABELS, type SessionType, type LoadLevel } from "@/types";
 
 export const metadata: Metadata = {
@@ -30,14 +32,14 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const SESSION_TYPE_COLORS: Record<SessionType, { bg: string; text: string; border: string }> = {
-  training: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20" },
+const SESSION_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  training: { bg: "corp-badge-bg", text: "corp-text", border: "corp-badge-border" },
   individual: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20" },
   match: { bg: "bg-sky-500/10", text: "text-sky-400", border: "border-sky-500/20" },
 };
 
 const LOAD_COLORS: Record<LoadLevel, string> = {
-  low: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
+  low: "corp-text border-[var(--corp-border)] bg-[var(--corp-bg)]",
   medium: "text-amber-400 border-amber-500/20 bg-amber-500/5",
   medium_high: "text-orange-400 border-orange-500/20 bg-orange-500/5",
   high: "text-rose-400 border-rose-500/20 bg-rose-500/5",
@@ -77,10 +79,10 @@ export default async function TrainingPage({
     getSessionTemplates(),
   ]);
 
-  // Split into upcoming and past
+  // Split into upcoming and past (excluding rest sessions)
   const todayStr = new Date().toISOString().split("T")[0];
-  const upcomingSessions = sessions.filter((s) => s.date >= todayStr).reverse(); // closest first
-  const pastSessions = sessions.filter((s) => s.date < todayStr);
+  const upcomingSessions = sessions.filter((s) => s.date >= todayStr && (s.session_type as string) !== "rest").reverse(); // closest first
+  const pastSessions = sessions.filter((s) => s.date < todayStr && (s.session_type as string) !== "rest");
 
   return (
     <div className="flex flex-col gap-6">
@@ -112,12 +114,12 @@ export default async function TrainingPage({
             className="flex items-center gap-2 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
           >
             <BookOpen className="h-4 w-4 text-slate-400" />
-            Plantillas
+            Biblioteca Sesiones
           </Link>
           <Link
             href="/training/new"
             id="new-session-btn"
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg shadow-emerald-950/40"
+            className="btn-corporate flex items-center gap-2 rounded-xl text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
           >
             <Plus className="h-4 w-4" />
             Nueva sesión
@@ -132,7 +134,7 @@ export default async function TrainingPage({
             href="/training"
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
               !resolvedTeamId
-                ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400"
+                ? "corp-badge border-[var(--corp-border-strong)]"
                 : "border-white/10 text-slate-400 hover:border-white/20"
             }`}
           >
@@ -144,7 +146,7 @@ export default async function TrainingPage({
               href={`/training?teamId=${t.id}`}
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                 resolvedTeamId === t.id
-                  ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400"
+                  ? "corp-badge border-[var(--corp-border-strong)]"
                   : "border-white/10 text-slate-400 hover:border-white/20"
               }`}
             >
@@ -166,7 +168,7 @@ export default async function TrainingPage({
           {/* Upcoming Sessions */}
           <div>
             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-emerald-500" />
+              <CalendarDays className="h-4 w-4 corp-icon" />
               Próximas Sesiones ({upcomingSessions.length})
             </h2>
 
@@ -175,15 +177,20 @@ export default async function TrainingPage({
                 <p className="text-slate-400 text-sm italic">No hay sesiones planificadas</p>
                 <Link
                   href="/training/new"
-                  className="mt-3 text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1"
+                  className="mt-3 text-xs font-bold corp-text hover:underline flex items-center gap-1"
                 >
                   Crear la primera sesión <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
+              <ExpandableList initialCount={4}>
                 {upcomingSessions.map((session) => {
-                  const typeStyles = SESSION_TYPE_COLORS[session.session_type];
+                  const typeStyles = SESSION_TYPE_COLORS[session.session_type] || {
+                    bg: "bg-slate-500/10",
+                    text: "text-slate-400",
+                    border: "border-slate-500/20"
+                  };
+                  const typeLabel = (SESSION_TYPE_LABELS as Record<string, string>)[session.session_type] || ((session.session_type as string) === "rest" ? "Descanso" : session.session_type);
                   return (
                     <div
                       key={session.id}
@@ -194,10 +201,10 @@ export default async function TrainingPage({
                           <span
                             className={`rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${typeStyles.bg} ${typeStyles.text} ${typeStyles.border}`}
                           >
-                            {SESSION_TYPE_LABELS[session.session_type]}
+                            {typeLabel}
                           </span>
                           <span className="text-xs font-semibold text-slate-400">
-                            {session.date}
+                            {formatToDDMMAAAA(session.date)}
                           </span>
                           {session.microcycle_day && (
                             <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-slate-400">
@@ -218,7 +225,7 @@ export default async function TrainingPage({
                         <div>
                           <Link
                             href={`/training/${session.id}`}
-                            className="text-base font-extrabold text-white hover:text-emerald-400 transition-colors leading-tight"
+                            className="text-base font-extrabold text-white hover:corp-text transition-colors leading-tight"
                           >
                             {session.title || "Sesión de Entrenamiento"}
                           </Link>
@@ -246,7 +253,7 @@ export default async function TrainingPage({
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/training/${session.id}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-emerald-500/10 border border-white/10 text-slate-400 hover:text-emerald-400 transition-all"
+                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-[var(--corp-bg)] border border-white/10 text-slate-400 hover:corp-text transition-all"
                           title="Ver informe completo / PDF"
                         >
                           <FileText className="h-4.5 w-4.5" />
@@ -262,7 +269,7 @@ export default async function TrainingPage({
                     </div>
                   );
                 })}
-              </div>
+              </ExpandableList>
             )}
           </div>
 
@@ -276,9 +283,13 @@ export default async function TrainingPage({
             {pastSessions.length === 0 ? (
               <p className="text-slate-500 text-xs italic py-4">No hay historial disponible.</p>
             ) : (
-              <div className="grid grid-cols-1 gap-2.5">
+              <ExpandableList initialCount={4}>
                 {pastSessions.map((session) => {
-                  const typeStyles = SESSION_TYPE_COLORS[session.session_type];
+                  const typeStyles = SESSION_TYPE_COLORS[session.session_type] || {
+                    bg: "bg-slate-500/10",
+                    text: "text-slate-400",
+                    border: "border-slate-500/20"
+                  };
                   return (
                     <div
                       key={session.id}
@@ -288,17 +299,17 @@ export default async function TrainingPage({
                         <span
                           className={`rounded-lg border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shrink-0 ${typeStyles.bg} ${typeStyles.text} ${typeStyles.border}`}
                         >
-                          {SESSION_TYPE_LABELS[session.session_type]}
+                          {(SESSION_TYPE_LABELS as Record<string, string>)[session.session_type] || session.session_type}
                         </span>
                         <div className="overflow-hidden">
                           <Link
                             href={`/training/${session.id}`}
-                            className="text-sm font-bold text-slate-200 hover:text-emerald-400 transition-colors truncate block"
+                            className="text-sm font-bold text-slate-200 hover:corp-text transition-colors truncate block"
                           >
                             {session.title || "Sesión de Entrenamiento"}
                           </Link>
                           <span className="text-[10px] text-slate-500 font-medium">
-                            {session.date} • {session.duration_min || "--"} min
+                            {formatToDDMMAAAA(session.date)} • {session.duration_min || "--"} min
                           </span>
                         </div>
                       </div>
@@ -314,7 +325,7 @@ export default async function TrainingPage({
                     </div>
                   );
                 })}
-              </div>
+              </ExpandableList>
             )}
           </div>
 
@@ -325,7 +336,7 @@ export default async function TrainingPage({
           
           {/* Templates Library Card */}
           <div className="glass-card rounded-2xl border border-white/10 p-5 bg-gradient-to-br from-white/5 to-white/0 flex flex-col gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="corp-badge flex h-10 w-10 items-center justify-center rounded-xl">
               <BookOpen className="h-5 w-5" />
             </div>
             <div>
@@ -344,7 +355,7 @@ export default async function TrainingPage({
               </Link>
               <Link
                 href="/training/templates/new"
-                className="flex items-center justify-between text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="flex items-center justify-between text-xs font-bold corp-text hover:opacity-80 transition-colors"
               >
                 <span>+ Crear nueva plantilla</span>
                 <Plus className="h-4 w-4" />

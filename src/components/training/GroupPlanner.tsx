@@ -36,7 +36,7 @@ export function GroupPlanner({
   onChange,
   interactive = true,
 }: GroupPlannerProps) {
-  const groups = value.groups || [];
+  const groups = value?.groups || [];
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   // Initialize with 2 default groups if empty
@@ -60,7 +60,7 @@ export function GroupPlanner({
         <button
           type="button"
           onClick={initializeGroups}
-          className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-xs font-semibold px-4 py-2 hover:from-emerald-500 hover:to-emerald-400 transition-all cursor-pointer shadow-lg shadow-emerald-950/40"
+          className="flex items-center gap-1.5 rounded-xl btn-corporate text-white text-xs font-semibold px-4 py-2 transition-all cursor-pointer shadow-lg"
         >
           <Plus className="h-4 w-4" />
           Crear Equipos / Grupos

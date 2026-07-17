@@ -34,7 +34,7 @@ interface AdminPortalClientProps {
 }
 
 export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
-  const [activeTab, setActiveTab] = useState<"telemetry" | "organizations" | "users" | "players">("telemetry");
+  const [activeTab, setActiveTab] = useState<"telemetry" | "organizations" | "users" | "players" | "requests">("telemetry");
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -60,6 +60,26 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
   const [players, setPlayers] = useState(initialData.players);
   const [dailyStats, setDailyStats] = useState(initialData.dailyStats);
   const [currentOnlineCount, setCurrentOnlineCount] = useState(initialData.currentOnlineCount);
+
+  // Extract pending position requests
+  const pendingRequests = React.useMemo(() => {
+    const list: { organizationId: string; organizationName: string; playerName: string; suggestedPosition: string; key: string }[] = [];
+    organizations.forEach((org) => {
+      const playerPositions = org.settings?.scouting?.player_positions || {};
+      Object.entries(playerPositions).forEach(([key, value]: [string, any]) => {
+        if (value?.status === "pending") {
+          list.push({
+            organizationId: org.id,
+            organizationName: org.name,
+            playerName: value.playerName || key,
+            suggestedPosition: value.suggestedPosition || "",
+            key
+          });
+        }
+      });
+    });
+    return list;
+  }, [organizations]);
 
   const showFeedback = (type: "success" | "error", message: string) => {
     setFeedback({ type, message });
@@ -90,6 +110,45 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
         setPlayers(prev => prev.filter(p => p.id !== payload.playerId));
       } else if (payload.action === "update_user_role") {
         setUsers(prev => prev.map(u => u.id === payload.userId ? { ...u, role: payload.role } : u));
+      } else if (payload.action === "approve_position_override" || payload.action === "reject_position_override") {
+        setOrganizations(prev => prev.map(org => {
+          if (org.id === payload.organizationId) {
+            const playerPositions = { ...(org.settings?.scouting?.player_positions || {}) };
+            const key = payload.playerName.toUpperCase().trim().toLowerCase();
+            if (payload.action === "approve_position_override") {
+              const existing = playerPositions[key] || {};
+              playerPositions[key] = {
+                ...existing,
+                position: existing.suggestedPosition || existing.position || "",
+                status: "approved"
+              };
+              delete playerPositions[key].suggestedPosition;
+              delete playerPositions[key].proposedByUserId;
+            } else {
+              const existing = playerPositions[key] || {};
+              if (existing.position) {
+                playerPositions[key] = {
+                  position: existing.position,
+                  status: "approved",
+                  playerName: existing.playerName || payload.playerName
+                };
+              } else {
+                delete playerPositions[key];
+              }
+            }
+            return {
+              ...org,
+              settings: {
+                ...org.settings,
+                scouting: {
+                  ...(org.settings?.scouting || {}),
+                  player_positions: playerPositions
+                }
+              }
+            };
+          }
+          return org;
+        }));
       } else if (payload.action === "invite_user") {
         setInviteEmail("");
         // Reload users list (in real scenario, we would trigger a refresh or re-fetch)
@@ -182,6 +241,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
           { id: "organizations", label: "Organizaciones", icon: Building },
           { id: "users", label: "Cuentas y Personal", icon: Users },
           { id: "players", label: "Jugadores Registrados", icon: UserCheck },
+          { id: "requests", label: `Solicitudes de Posición (${pendingRequests.length})`, icon: Clock },
         ].map(tab => (
           <button
             key={tab.id}
@@ -719,6 +779,89 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                             title="Eliminar jugador"
                           >
                             <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: PENDING POSITION OVERRIDES */}
+        {activeTab === "requests" && (
+          <div className="space-y-6">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              Solicitudes Pendientes de Modificación de Posición
+            </h3>
+
+            <div className="glass rounded-2xl bg-white/2 border border-white/10 overflow-hidden">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-white/5 bg-white/1 text-[10px] text-slate-500 font-bold uppercase">
+                    <th className="p-4">Jugador</th>
+                    <th className="p-4">Organización / Club</th>
+                    <th className="p-4">Posición Propuesta</th>
+                    <th className="p-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {pendingRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-4 text-center text-slate-550 italic">
+                        No hay solicitudes de cambio de posición pendientes de aprobación.
+                      </td>
+                    </tr>
+                  ) : (
+                    pendingRequests.map((req, idx) => (
+                      <tr key={idx} className="hover:bg-white/1">
+                        <td className="p-4 font-bold text-white">
+                          {req.playerName}
+                        </td>
+                        <td className="p-4 text-slate-350 font-semibold">
+                          {req.organizationName}
+                          <span className="block font-mono text-[9px] text-slate-600 mt-0.5">ID: {req.organizationId}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className="inline-flex items-center text-[10px] font-extrabold px-2 py-0.5 rounded border bg-amber-500/10 border-amber-500/20 text-amber-400 capitalize">
+                            {req.suggestedPosition === "goalkeeper" ? "Portero" :
+                             req.suggestedPosition === "back" ? "Defensa" :
+                             req.suggestedPosition === "midfielder" ? "Centrocampista" :
+                             req.suggestedPosition === "forward" ? "Delantero / Extremo" : req.suggestedPosition}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right space-x-2">
+                          <button
+                            onClick={() => {
+                              if (confirm(`¿Estás seguro de APROBAR el cambio de posición de "${req.playerName}" en ${req.organizationName}?`)) {
+                                handleAdminAction({
+                                  action: "approve_position_override",
+                                  organizationId: req.organizationId,
+                                  playerName: req.playerName
+                                });
+                              }
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                            title="Aprobar cambio"
+                          >
+                            Aprobar
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`¿Estás seguro de RECHAZAR el cambio de posición de "${req.playerName}" en ${req.organizationName}?`)) {
+                                handleAdminAction({
+                                  action: "reject_position_override",
+                                  organizationId: req.organizationId,
+                                  playerName: req.playerName
+                                });
+                              }
+                            }}
+                            className="bg-rose-600/20 border border-rose-500/30 text-rose-450 hover:bg-rose-600 hover:text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                            title="Rechazar cambio"
+                          >
+                            Rechazar
                           </button>
                         </td>
                       </tr>

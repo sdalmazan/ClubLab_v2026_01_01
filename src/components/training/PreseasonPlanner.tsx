@@ -41,8 +41,10 @@ interface PreseasonSession {
 }
 
 interface PreseasonPlannerProps {
-  teams?: Array<{ id: string; name: string }>;
+  teams?: Array<{ id: string; name: string; season_id?: string | null }>;
   organizationId?: string;
+  isAdmin?: boolean;
+  canSwitchTeams?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -125,7 +127,10 @@ const MONTH_NAMES_FULL = [
 // ─────────────────────────────────────────────
 
 function toDateStr(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function parseDate(s: string): Date {
@@ -171,7 +176,18 @@ function generateWeeks(startDate: Date, endDate: Date): Date[][] {
 }
 
 function newId(): string {
-  return Math.random().toString(36).slice(2, 10);
+  try {
+    if (typeof window !== "undefined" && window.crypto && window.crypto.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+  } catch (e) {}
+
+  // Universal fallback for older browsers or HTTP context
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -946,6 +962,8 @@ function Legend() {
 export function PreseasonPlanner({
   teams = [],
   organizationId = "",
+  isAdmin = false,
+  canSwitchTeams = false,
 }: PreseasonPlannerProps) {
   const [startDate, setStartDate] = useState(DEFAULT_START);
   const [endDate, setEndDate] = useState(DEFAULT_END);
@@ -965,114 +983,250 @@ export function PreseasonPlanner({
   }>({ x: 0, y: 0, open: false, type: "day" });
   const [modal, setModal] = useState<ModalState>(EMPTY_MODAL);
 
+  const [activeTeamId, setActiveTeamId] = useState<string>("");
+  const [activeTeamName, setActiveTeamName] = useState<string>("");
+  const [activeSeasonId, setActiveSeasonId] = useState<string>("");
   const [activeSeasonName, setActiveSeasonName] = useState<string>("");
   const [orgSettings, setOrgSettings] = useState<{ club_name: string; club_logo_url: string } | null>(null);
+  const [syncStatus, setSyncStatus] = useState<"synced" | "syncing" | "error" | "idle" | "loading">("loading");
+
+  const syncToDatabase = useCallback(async (currentSessions: PreseasonSession[], teamId: string, seasonId: string) => {
+    if (!teamId) return;
+    setSyncStatus("syncing");
+    try {
+      const res = await fetch("/api/training/preseason", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teamId,
+          seasonId,
+          sessions: currentSessions,
+        }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to sync");
+      }
+      setSyncStatus("synced");
+    } catch (e: any) {
+      console.error("Failed to sync preseason sessions:", e);
+      setSyncStatus("error");
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedStart = localStorage.getItem("cl_preseason_start_date");
-      const savedEnd = localStorage.getItem("cl_preseason_end_date");
+      const teamId = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("cl_active_team_id="))
+        ?.split("=")[1] || (teams && teams[0]?.id) || "";
+      
+      setActiveTeamId(teamId);
+
+      const teamObj = teams.find((t) => t.id === teamId);
+      const teamName = teamObj ? teamObj.name : "";
+      setActiveTeamName(teamName);
+
+      const seasonId = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("cl_active_season_id="))
+        ?.split("=")[1] || teamObj?.season_id || "";
+      
+      setActiveSeasonId(seasonId);
+
+      // Shift dates migration for local storage (one-time fix for timezone offset cache)
+      const migrationKey = `cl_preseason_dates_shifted_v3_${teamId}`;
+      const hasMigrated = localStorage.getItem(migrationKey);
+      if (!hasMigrated) {
+        const localKey = `cl_preseason_sessions_${teamId}`;
+        const saved = localStorage.getItem(localKey) || localStorage.getItem("cl_preseason_sessions");
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              const migratedSessions = parsed.map((s: any) => {
+                const d = parseDate(s.date);
+                d.setDate(d.getDate() + 1);
+                return {
+                  ...s,
+                  date: toDateStr(d)
+                };
+              });
+              localStorage.setItem(localKey, JSON.stringify(migratedSessions));
+              console.log("Migrated local storage sessions forward by 1 day.");
+            }
+          } catch (e) {
+            console.error("Failed to migrate sessions local storage:", e);
+          }
+        }
+        const savedStart = localStorage.getItem(`cl_preseason_start_date_${teamId}`) || localStorage.getItem("cl_preseason_start_date");
+        if (savedStart) {
+          const d = parseDate(savedStart);
+          d.setDate(d.getDate() + 1);
+          localStorage.setItem(`cl_preseason_start_date_${teamId}`, toDateStr(d));
+        }
+        const savedEnd = localStorage.getItem(`cl_preseason_end_date_${teamId}`) || localStorage.getItem("cl_preseason_end_date");
+        if (savedEnd) {
+          const d = parseDate(savedEnd);
+          d.setDate(d.getDate() + 1);
+          localStorage.setItem(`cl_preseason_end_date_${teamId}`, toDateStr(d));
+        }
+        localStorage.setItem(migrationKey, "true");
+      }
+
+      const savedStart = localStorage.getItem(`cl_preseason_start_date_${teamId}`) || localStorage.getItem("cl_preseason_start_date");
+      const savedEnd = localStorage.getItem(`cl_preseason_end_date_${teamId}`) || localStorage.getItem("cl_preseason_end_date");
       if (savedStart) setStartDate(savedStart);
       if (savedEnd) setEndDate(savedEnd);
 
-      const savedSessions = localStorage.getItem("cl_preseason_sessions");
-      if (savedSessions) {
+      async function loadPrintInfo() {
         try {
-          const parsed = JSON.parse(savedSessions);
-          if (Array.isArray(parsed)) {
-            setSessions(parsed);
-            setHistory([parsed]);
-            setHistoryIndex(0);
-          }
-        } catch (e) {
-          console.error("Failed to parse preseason sessions", e);
-        }
-      }
-    }
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
 
-    async function loadPrintInfo() {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data: orgRole } = await supabase
-          .from("user_organization_roles")
-          .select("organization_id")
-          .eq("user_id", user.id)
-          .single();
-
-        if (orgRole) {
-          const { data: org } = await supabase
-            .from("organizations")
-            .select("name, settings")
-            .eq("id", orgRole.organization_id)
+          const { data: orgRole } = await supabase
+            .from("user_organization_roles")
+            .select("organization_id")
+            .eq("user_id", user.id)
             .single();
 
-          if (org) {
-            setOrgSettings({
-              club_name: org.settings?.club_name || org.name || "",
-              club_logo_url: org.settings?.club_logo_url || "",
-            });
-          }
-
-          const activeSeasonId = document.cookie
-            .split("; ")
-            .find((row) => row.startsWith("cl_active_season_id="))
-            ?.split("=")[1];
-
-          if (activeSeasonId) {
-            const { data: season } = await supabase
-              .from("seasons")
-              .select("name")
-              .eq("id", activeSeasonId)
+          if (orgRole) {
+            const { data: org } = await supabase
+              .from("organizations")
+              .select("name, settings")
+              .eq("id", orgRole.organization_id)
               .single();
-            if (season) {
-              setActiveSeasonName(season.name);
+
+            if (org) {
+              setOrgSettings({
+                club_name: org.settings?.club_name || org.name || "",
+                club_logo_url: org.settings?.club_logo_url || "",
+              });
+            }
+
+            if (seasonId) {
+              const { data: season } = await supabase
+                .from("seasons")
+                .select("name")
+                .eq("id", seasonId)
+                .single();
+              if (season) {
+                setActiveSeasonName(season.name);
+              }
+            } else {
+              const { data: seasons } = await supabase
+                .from("seasons")
+                .select("name")
+                .eq("is_active", true)
+                .limit(1);
+              if (seasons && seasons.length > 0) {
+                setActiveSeasonName(seasons[0].name);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to load print details:", e);
+        }
+      }
+      loadPrintInfo();
+    }
+  }, [teams]);
+
+  useEffect(() => {
+    if (!activeTeamId) return;
+
+    async function loadSessions() {
+      setSyncStatus("loading");
+      try {
+        const res = await fetch(`/api/training/preseason?teamId=${activeTeamId}`);
+        if (!res.ok) throw new Error("Failed to fetch sessions");
+        const dbSessions = await res.json();
+        
+        if (dbSessions && dbSessions.length > 0) {
+          setSessions(dbSessions);
+          setHistory([dbSessions]);
+          setHistoryIndex(0);
+          setSyncStatus("synced");
+        } else {
+          const localKey = `cl_preseason_sessions_${activeTeamId}`;
+          let saved = localStorage.getItem(localKey);
+          if (!saved) {
+            saved = localStorage.getItem("cl_preseason_sessions");
+          }
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              // Migrate legacy non-UUID IDs to standard UUIDs
+              const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+              let needsUpdate = false;
+              
+              const migrated = parsed.map((s: any) => {
+                if (!s.id || !uuidRegex.test(s.id)) {
+                  needsUpdate = true;
+                  return { ...s, id: newId() };
+                }
+                return s;
+              });
+
+              if (needsUpdate) {
+                localStorage.setItem(localKey, JSON.stringify(migrated));
+              }
+
+              setSessions(migrated);
+              setHistory([migrated]);
+              setHistoryIndex(0);
+              await syncToDatabase(migrated, activeTeamId, activeSeasonId);
+            } else {
+              setSessions([]);
+              setHistory([[]]);
+              setHistoryIndex(0);
+              setSyncStatus("synced");
             }
           } else {
-            const { data: seasons } = await supabase
-              .from("seasons")
-              .select("name")
-              .eq("is_active", true)
-              .limit(1);
-            if (seasons && seasons.length > 0) {
-              setActiveSeasonName(seasons[0].name);
-            }
+            setSessions([]);
+            setHistory([[]]);
+            setHistoryIndex(0);
+            setSyncStatus("synced");
           }
         }
       } catch (e) {
-        console.error("Failed to load print details:", e);
+        console.error("Failed to load sessions:", e);
+        setSyncStatus("error");
       }
     }
-    loadPrintInfo();
-  }, []);
+    loadSessions();
+  }, [activeTeamId, activeSeasonId, syncToDatabase]);
 
   const handleStartDateChange = useCallback((val: string) => {
     setStartDate(val);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("cl_preseason_start_date", val);
+    if (typeof window !== "undefined" && activeTeamId) {
+      localStorage.setItem(`cl_preseason_start_date_${activeTeamId}`, val);
     }
-  }, []);
+  }, [activeTeamId]);
 
   const handleEndDateChange = useCallback((val: string) => {
     setEndDate(val);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("cl_preseason_end_date", val);
+    if (typeof window !== "undefined" && activeTeamId) {
+      localStorage.setItem(`cl_preseason_end_date_${activeTeamId}`, val);
     }
-  }, []);
+  }, [activeTeamId]);
 
   const updateSessionsWithHistory = useCallback((newSessions: PreseasonSession[]) => {
     setSessions(newSessions);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("cl_preseason_sessions", JSON.stringify(newSessions));
+    if (typeof window !== "undefined" && activeTeamId) {
+      localStorage.setItem(`cl_preseason_sessions_${activeTeamId}`, JSON.stringify(newSessions));
     }
     setHistory((prev) => {
       const nextHistory = prev.slice(0, historyIndex + 1);
       return [...nextHistory, newSessions];
     });
     setHistoryIndex((prev) => prev + 1);
-  }, [historyIndex]);
+    
+    syncToDatabase(newSessions, activeTeamId, activeSeasonId);
+  }, [historyIndex, activeTeamId, activeSeasonId, syncToDatabase]);
 
   const handleSessionSelectForCopy = useCallback((session: PreseasonSession) => {
     setCopiedSession(session);
@@ -1124,11 +1278,12 @@ export function PreseasonPlanner({
       setHistoryIndex(prevIndex);
       const prevSessions = history[prevIndex];
       setSessions(prevSessions);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("cl_preseason_sessions", JSON.stringify(prevSessions));
+      if (typeof window !== "undefined" && activeTeamId) {
+        localStorage.setItem(`cl_preseason_sessions_${activeTeamId}`, JSON.stringify(prevSessions));
       }
+      syncToDatabase(prevSessions, activeTeamId, activeSeasonId);
     }
-  }, [historyIndex, history]);
+  }, [historyIndex, history, activeTeamId, activeSeasonId, syncToDatabase]);
 
   const handleRedo = useCallback(() => {
     if (historyIndex < history.length - 1) {
@@ -1136,11 +1291,23 @@ export function PreseasonPlanner({
       setHistoryIndex(nextIndex);
       const nextSessions = history[nextIndex];
       setSessions(nextSessions);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("cl_preseason_sessions", JSON.stringify(nextSessions));
+      if (typeof window !== "undefined" && activeTeamId) {
+        localStorage.setItem(`cl_preseason_sessions_${activeTeamId}`, JSON.stringify(nextSessions));
       }
+      syncToDatabase(nextSessions, activeTeamId, activeSeasonId);
     }
-  }, [historyIndex, history]);
+  }, [historyIndex, history, activeTeamId, activeSeasonId, syncToDatabase]);
+
+  const handlePrint = useCallback(() => {
+    const originalTitle = document.title;
+    const teamLabel = activeTeamName || "Equipo";
+    const seasonLabel = (activeSeasonName || "2026-2027").replace(/\//g, "-");
+    document.title = `Planning pretemporada - ${teamLabel} - ${seasonLabel}`;
+    window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 100);
+  }, [activeTeamName, activeSeasonName]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1576,12 +1743,61 @@ export function PreseasonPlanner({
             <h1 className="text-xl font-extrabold text-white leading-tight">
               {orgSettings?.club_name || "SD Almazán"}
             </h1>
-            <h2 className="text-sm font-semibold text-slate-350 mt-0.5">
-              Planning de Pretemporada
+            <h2 className="text-sm font-semibold text-slate-350 mt-0.5 flex items-center gap-2">
+              <span>Planning de Pretemporada</span>
+              {isAdmin && syncStatus === "loading" && (
+                <span className="text-[9px] text-slate-400 font-normal px-2 py-0.5 rounded-full bg-slate-500/10 border border-slate-500/20 animate-pulse no-print">
+                  ⏳ Cargando...
+                </span>
+              )}
+              {isAdmin && syncStatus === "syncing" && (
+                <span className="text-[9px] text-amber-400 font-normal px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 animate-pulse no-print">
+                  ⏳ Guardando...
+                </span>
+              )}
+              {isAdmin && syncStatus === "synced" && (
+                <span className="text-[9px] text-emerald-400 font-normal px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 no-print">
+                  ✅ Sincronizado en la nube
+                </span>
+              )}
+              {isAdmin && syncStatus === "error" && (
+                <span className="text-[9px] text-rose-450 font-bold px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/25 no-print">
+                  ❌ Error al guardar
+                </span>
+              )}
             </h2>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Temporada {activeSeasonName || "2026/2027"}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+              <p className="text-xs text-slate-500 font-medium">
+                Temporada {activeSeasonName || "2026/2027"}
+              </p>
+              {canSwitchTeams && teams && teams.length > 1 && (
+                <div className="flex items-center gap-1.5 no-print">
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Equipo:</span>
+                  <select
+                    value={activeTeamId}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      setActiveTeamId(nextId);
+                      const tObj = teams.find((t) => t.id === nextId);
+                      if (tObj) {
+                        setActiveTeamName(tObj.name);
+                        document.cookie = `cl_active_team_id=${nextId}; path=/`;
+                        if (tObj.season_id) {
+                          setActiveSeasonId(tObj.season_id);
+                        }
+                      }
+                    }}
+                    className="bg-white/5 border border-white/10 rounded-lg text-[11px] font-bold text-white px-2 py-0.5 focus:outline-none focus:border-[var(--corp-border-strong)] transition-all cursor-pointer"
+                  >
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id} className="bg-slate-900 text-white">
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1705,7 +1921,7 @@ export function PreseasonPlanner({
 
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={handlePrint}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white font-bold text-xs transition-all cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
           title="Exportar PDF"
         >

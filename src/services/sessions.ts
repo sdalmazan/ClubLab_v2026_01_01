@@ -5,6 +5,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { TrainingSession } from "@/types";
+import { logger } from '@/lib/logger';
 
 export interface CreateSessionInput {
   team_id: string;
@@ -17,6 +18,8 @@ export interface CreateSessionInput {
   planned_load?: string | null;
   planned_intensity?: string | null;
   objectives?: string[];
+  tactical_concepts?: string[];
+  muscle_groups?: string[];
   notes?: string | null;
   template_id?: string | null;
   status?: "planned" | "completed" | "cancelled";
@@ -53,6 +56,169 @@ export interface CreateSessionInput {
   }>;
 }
 
+export function getMonday(dateStr: string) {
+  const d = new Date(dateStr);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const mon = new Date(d.setDate(diff));
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+
+export function enrichSessionsWithMetrics(sessions: any[]): any[] {
+  if (!sessions || sessions.length === 0) return [];
+
+  // Group by team_id
+  const teamMap: Record<string, any[]> = {};
+  sessions.forEach((s) => {
+    const tId = s.team_id || "default";
+    if (!teamMap[tId]) teamMap[tId] = [];
+    teamMap[tId].push(s);
+  });
+
+  Object.keys(teamMap).forEach((tId) => {
+    const list = teamMap[tId];
+    // Sort ascending for accurate chronological indexing
+    const sorted = [...list].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const firstMonday = sorted.length > 0 ? getMonday(sorted[0].date) : null;
+    
+    let collectiveCounter = 0;
+    const metricsMap: Record<string, any> = {};
+
+    sorted.forEach((s) => {
+      const isCollective = s.session_type === "training" || s.session_type === "match";
+      
+      let totalSeq = null;
+      let weekSeq = null;
+      let micro = null;
+      let meso = null;
+
+      if (isCollective) {
+        collectiveCounter++;
+        totalSeq = collectiveCounter;
+        
+        if (firstMonday) {
+          const sessionMonday = getMonday(s.date);
+          micro = Math.round((sessionMonday.getTime() - firstMonday.getTime()) / (7 * 86400000)) + 1;
+          if (micro < 1) micro = 1;
+          
+          const mesoNum = Math.floor((micro - 1) / 4) + 1;
+          meso = `MESO ${mesoNum}`;
+          
+          const weekCollectives = sorted.filter((x: any) => 
+            (x.session_type === "training" || x.session_type === "match") && 
+            getMonday(x.date).getTime() === sessionMonday.getTime()
+          );
+          weekSeq = weekCollectives.findIndex((x: any) => x.id === s.id) + 1;
+          if (weekSeq < 1) weekSeq = 1;
+        }
+      }
+
+      metricsMap[s.id] = {
+        metrics: {
+          meso: meso || "",
+          micro: micro || 1,
+          orden_semana: weekSeq || 1,
+          total_sesiones: totalSeq || 1
+        },
+        microcycle_day: weekSeq ? String(weekSeq) : ""
+      };
+    });
+
+    // Assign back to original list preserving original order
+    list.forEach((s) => {
+      if (metricsMap[s.id]) {
+        s.metrics = metricsMap[s.id].metrics;
+        s.microcycle_day = metricsMap[s.id].microcycle_day;
+      }
+    });
+  });
+
+  return sessions;
+}
+
+/**
+ * Recalculates sequential metrics for all sessions of a team in a single bulk upsert.
+ * Replaces the previous N-query loop (N+1 anti-pattern) with a single DB operation.
+ * Called after any session create, update, or delete.
+ */
+export async function recalculateAndSaveSessionMetrics(teamId: string, supabase: any) {
+  if (!teamId) return;
+
+  const { data: list, error } = await supabase
+    .from("training_sessions")
+    .select("id, date, team_id, session_type, title, organization_id, status, microcycle_day")
+    .eq("team_id", teamId)
+    .order("date", { ascending: true });
+
+  if (error || !list || list.length === 0) return;
+
+  const firstMonday = getMonday(list[0].date);
+
+  let collectiveCounter = 0;
+  const updates = list.map((s: any) => {
+    const isCollective = s.session_type === "training" || s.session_type === "match";
+    
+    let totalSeq = null;
+    let weekSeq = null;
+    let micro = null;
+    let meso = null;
+    let updatedTitle = s.title;
+
+    if (isCollective) {
+      collectiveCounter++;
+      totalSeq = collectiveCounter;
+      
+      // Auto-name training sessions to "Sesión X"
+      if (s.session_type === "training") {
+        updatedTitle = `Sesión ${totalSeq}`;
+      }
+
+      const sessionMonday = getMonday(s.date);
+      micro = Math.round(
+        (sessionMonday.getTime() - firstMonday.getTime()) / (7 * 86400000)
+      ) + 1;
+      if (micro < 1) micro = 1;
+      
+      const mesoNum = Math.floor((micro - 1) / 4) + 1;
+      meso = `MESO ${mesoNum}`;
+      
+      const weekCollectives = list.filter((x: any) => 
+        (x.session_type === "training" || x.session_type === "match") && 
+        getMonday(x.date).getTime() === sessionMonday.getTime()
+      );
+      weekSeq = weekCollectives.findIndex((x: any) => x.id === s.id) + 1;
+      if (weekSeq < 1) weekSeq = 1;
+    }
+
+    const validTags = ['MD-4', 'MD-3', 'MD-2', 'MD-1', 'MD', 'MD+1', 'MD+2'];
+    const isMicroDayValid = s.microcycle_day && validTags.includes(s.microcycle_day);
+
+    return {
+      id: s.id,
+      organization_id: s.organization_id,
+      team_id: s.team_id,
+      date: s.date,
+      session_type: s.session_type,
+      status: s.status,
+      title: updatedTitle,
+      microcycle_day: isMicroDayValid ? s.microcycle_day : null,
+      mesocycle: meso,
+      session_week_seq: weekSeq,
+      session_total_seq: totalSeq,
+    };
+  });
+
+  // Single bulk upsert — replaces N sequential UPDATE queries
+  const { error: upsertError } = await supabase
+    .from("training_sessions")
+    .upsert(updates, { onConflict: "id" });
+
+  if (upsertError) {
+    logger.error("recalculateAndSaveSessionMetrics", { error: upsertError.message });
+  }
+}
+
 /**
  * Obtiene todas las sesiones de la organización (opcionalmente filtrado por equipo).
  */
@@ -70,11 +236,13 @@ export async function getSessions(teamId?: string): Promise<TrainingSession[]> {
   const { data, error } = await query;
 
   if (error) {
-    console.error("[getSessions]", error.message);
+    logger.error("getSessions", { error: error.message });
     return [];
   }
 
-  return data ?? [];
+  if (!data || data.length === 0) return [];
+
+  return enrichSessionsWithMetrics(data);
 }
 
 /**
@@ -91,8 +259,40 @@ export async function getSessionById(id: string) {
     .single();
 
   if (sessionError) {
-    console.error("[getSessionById] Session error:", sessionError.message);
+    logger.error("getSessionById", { error: sessionError.message });
     return null;
+  }
+
+  // Load team sessions to compute metrics
+  let matchedSession = session;
+  if (session.team_id) {
+    const { data: allSessions } = await supabase
+      .from("training_sessions")
+      .select("id, date, team_id, session_type")
+      .eq("team_id", session.team_id) as any;
+    if (allSessions && allSessions.length > 0) {
+      if (!allSessions.some((s: any) => s.id === session.id)) {
+        allSessions.push(session);
+      }
+      enrichSessionsWithMetrics(allSessions);
+      const found = allSessions.find((s: any) => s.id === session.id);
+      if (found) {
+        matchedSession = {
+          ...session,
+          metrics: found.metrics,
+          microcycle_day: found.microcycle_day
+        };
+      }
+    }
+  }
+
+  if (!matchedSession.metrics) {
+    matchedSession.metrics = {
+      meso: "N/D",
+      micro: 1,
+      orden_semana: 1,
+      total_sesiones: 1
+    };
   }
 
   // 2. Cargar los ejercicios vinculados
@@ -106,7 +306,7 @@ export async function getSessionById(id: string) {
     .order("order_index", { ascending: true });
 
   if (exercisesError) {
-    console.error("[getSessionById] Exercises error:", exercisesError.message);
+    logger.error("getSessionById", { error: exercisesError.message });
   }
 
   // 3. Cargar la asistencia registrada
@@ -131,7 +331,7 @@ export async function getSessionById(id: string) {
     .eq("session_id", id);
 
   if (attendanceError) {
-    console.error("[getSessionById] Attendance error:", attendanceError.message);
+    logger.error("getSessionById", { error: attendanceError.message });
   }
 
   const mappedAttendance = (attendance ?? []).map((att: any) => {
@@ -150,7 +350,7 @@ export async function getSessionById(id: string) {
   });
 
   return {
-    ...session,
+    ...matchedSession,
     exercises: exercises ?? [],
     attendance: mappedAttendance,
   };
@@ -182,6 +382,8 @@ export async function createSession(
       planned_load: input.planned_load || null,
       planned_intensity: input.planned_intensity || null,
       objectives: input.objectives || [],
+      tactical_concepts: input.tactical_concepts || [],
+      muscle_groups: input.muscle_groups || [],
       notes: input.notes || null,
       template_id: input.template_id || null,
       status: input.status || "planned",
@@ -200,7 +402,7 @@ export async function createSession(
     .single();
 
   if (sessionError) {
-    console.error("[createSession] Session insert failed:", sessionError.message);
+    logger.error("createSession", { error: sessionError.message });
     throw new Error(sessionError.message);
   }
 
@@ -221,7 +423,7 @@ export async function createSession(
       .insert(attendanceData);
 
     if (attError) {
-      console.error("[createSession] Attendance insert failed:", attError.message);
+      logger.error("createSession", { error: attError.message });
       throw new Error(attError.message);
     }
   }
@@ -250,10 +452,13 @@ export async function createSession(
       .insert(exercisesData);
 
     if (exError) {
-      console.error("[createSession] Exercises insert failed:", exError.message);
+      logger.error("createSession", { error: exError.message });
       throw new Error(exError.message);
     }
   }
+
+  // Recalculate metrics for all sessions of this team
+  await recalculateAndSaveSessionMetrics(input.team_id, supabase);
 
   return sessionId;
 }
@@ -280,6 +485,8 @@ export async function updateSession(
       planned_load: input.planned_load || null,
       planned_intensity: input.planned_intensity || null,
       objectives: input.objectives || [],
+      tactical_concepts: input.tactical_concepts || [],
+      muscle_groups: input.muscle_groups || [],
       notes: input.notes || null,
       template_id: input.template_id || null,
       status: input.status || "planned",
@@ -298,7 +505,7 @@ export async function updateSession(
     .eq("id", sessionId);
 
   if (sessionError) {
-    console.error("[updateSession] Base update failed:", sessionError.message);
+    logger.error("updateSession", { error: sessionError.message });
     throw new Error(sessionError.message);
   }
 
@@ -309,7 +516,7 @@ export async function updateSession(
     .eq("session_id", sessionId);
 
   if (delAttError) {
-    console.error("[updateSession] Attendance delete failed:", delAttError.message);
+    logger.error("updateSession", { error: delAttError.message });
     throw new Error(delAttError.message);
   }
 
@@ -327,7 +534,7 @@ export async function updateSession(
       .insert(attendanceData);
 
     if (attError) {
-      console.error("[updateSession] Attendance insert failed:", attError.message);
+      logger.error("updateSession", { error: attError.message });
       throw new Error(attError.message);
     }
   }
@@ -339,7 +546,7 @@ export async function updateSession(
     .eq("session_id", sessionId);
 
   if (delExError) {
-    console.error("[updateSession] Exercises delete failed:", delExError.message);
+    logger.error("updateSession", { error: delExError.message });
     throw new Error(delExError.message);
   }
 
@@ -366,27 +573,46 @@ export async function updateSession(
       .insert(exercisesData);
 
     if (exError) {
-      console.error("[updateSession] Exercises insert failed:", exError.message);
+      logger.error("updateSession", { error: exError.message });
       throw new Error(exError.message);
     }
+  }
+
+  // Get team_id of this session to trigger recalculate
+  const { data: sessData } = await supabase
+    .from("training_sessions")
+    .select("team_id")
+    .eq("id", sessionId)
+    .single();
+  if (sessData?.team_id) {
+    await recalculateAndSaveSessionMetrics(sessData.team_id, supabase);
   }
 
   return true;
 }
 
-/**
- * Elimina una sesión de entrenamiento (las cascadas eliminan asistencia y ejercicios vinculados).
- */
 export async function deleteSession(sessionId: string): Promise<boolean> {
   const supabase = await createClient();
+
+  // Get team_id first to trigger recalculate after deletion
+  const { data: sessData } = await supabase
+    .from("training_sessions")
+    .select("team_id")
+    .eq("id", sessionId)
+    .single();
+
   const { error } = await supabase
     .from("training_sessions")
     .delete()
     .eq("id", sessionId);
 
   if (error) {
-    console.error("[deleteSession] Failed:", error.message);
+    logger.error("deleteSession", { error: error.message });
     throw new Error(error.message);
+  }
+
+  if (sessData?.team_id) {
+    await recalculateAndSaveSessionMetrics(sessData.team_id, supabase);
   }
 
   return true;

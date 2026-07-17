@@ -5,6 +5,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { SessionTemplate } from "@/types";
+import { logger } from '@/lib/logger';
 
 export interface CreateTemplateInput {
   title: string;
@@ -13,6 +14,8 @@ export interface CreateTemplateInput {
   session_type: string;
   objectives?: string[];
   is_shared?: boolean;
+  library_scope?: string | null;
+  microcycle_day?: string | null;
   exercises: Array<{
     exercise_id: string;
     order_index: number;
@@ -38,11 +41,17 @@ export async function getSessionTemplates(): Promise<SessionTemplate[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("session_templates")
-    .select("*")
+    .select(`
+      *,
+      exercises:template_exercises(
+        *,
+        exercise:exercises(*)
+      )
+    `)
     .order("title", { ascending: true });
 
   if (error) {
-    console.error("[getSessionTemplates]", error.message);
+    logger.error("getSessionTemplates", { error: error.message });
     return [];
   }
 
@@ -63,7 +72,7 @@ export async function getTemplateById(id: string) {
     .single();
 
   if (templateError) {
-    console.error("[getTemplateById] Template base failed:", templateError.message);
+    logger.error("getTemplateById", { error: templateError.message });
     return null;
   }
 
@@ -78,7 +87,7 @@ export async function getTemplateById(id: string) {
     .order("order_index", { ascending: true });
 
   if (exercisesError) {
-    console.error("[getTemplateById] Exercises fetch failed:", exercisesError.message);
+    logger.error("getTemplateById", { error: exercisesError.message });
   }
 
   return {
@@ -109,12 +118,14 @@ export async function createSessionTemplate(
       session_type: input.session_type,
       objectives: input.objectives || [],
       is_shared: input.is_shared || false,
+      library_scope: input.library_scope || "coach",
+      microcycle_day: input.microcycle_day || null,
     })
     .select("id")
     .single();
 
   if (templateError) {
-    console.error("[createSessionTemplate] Insert failed:", templateError.message);
+    logger.error("createSessionTemplate", { error: templateError.message });
     throw new Error(templateError.message);
   }
 
@@ -144,7 +155,7 @@ export async function createSessionTemplate(
       .insert(exercisesData);
 
     if (exError) {
-      console.error("[createSessionTemplate] Exercises insert failed:", exError.message);
+      logger.error("createSessionTemplate", { error: exError.message });
       throw new Error(exError.message);
     }
   }
@@ -172,12 +183,14 @@ export async function updateSessionTemplate(
       session_type: input.session_type,
       objectives: input.objectives || [],
       is_shared: input.is_shared || false,
+      library_scope: input.library_scope || "coach",
+      microcycle_day: input.microcycle_day || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", templateId);
 
   if (templateError) {
-    console.error("[updateSessionTemplate] Update failed:", templateError.message);
+    logger.error("updateSessionTemplate", { error: templateError.message });
     throw new Error(templateError.message);
   }
 
@@ -188,7 +201,7 @@ export async function updateSessionTemplate(
     .eq("template_id", templateId);
 
   if (delError) {
-    console.error("[updateSessionTemplate] Exercises delete failed:", delError.message);
+    logger.error("updateSessionTemplate", { error: delError.message });
     throw new Error(delError.message);
   }
 
@@ -216,7 +229,7 @@ export async function updateSessionTemplate(
       .insert(exercisesData);
 
     if (exError) {
-      console.error("[updateSessionTemplate] Exercises insert failed:", exError.message);
+      logger.error("updateSessionTemplate", { error: exError.message });
       throw new Error(exError.message);
     }
   }
@@ -235,7 +248,7 @@ export async function deleteSessionTemplate(templateId: string): Promise<boolean
     .eq("id", templateId);
 
   if (error) {
-    console.error("[deleteSessionTemplate] Failed:", error.message);
+    logger.error("deleteSessionTemplate", { error: error.message });
     throw new Error(error.message);
   }
 

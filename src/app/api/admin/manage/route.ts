@@ -219,6 +219,72 @@ export async function POST(req: NextRequest) {
         await runDailyAggregation();
         return NextResponse.json({ success: true });
       }
+      case "approve_position_override": {
+        const { organizationId, playerName } = body;
+        const { data: org, error: orgErr } = await supabaseAdmin
+          .from("organizations")
+          .select("settings")
+          .eq("id", organizationId)
+          .single();
+        if (orgErr) throw orgErr;
+
+        const settings = org?.settings || {};
+        if (!settings.scouting) settings.scouting = {};
+        if (!settings.scouting.player_positions) settings.scouting.player_positions = {};
+
+        const key = playerName.toUpperCase().trim().toLowerCase();
+        const existing = settings.scouting.player_positions[key] || {};
+
+        settings.scouting.player_positions[key] = {
+          ...existing,
+          position: existing.suggestedPosition || existing.position || "",
+          status: "approved"
+        };
+        delete settings.scouting.player_positions[key].suggestedPosition;
+        delete settings.scouting.player_positions[key].proposedByUserId;
+
+        const { error: updateErr } = await supabaseAdmin
+          .from("organizations")
+          .update({ settings })
+          .eq("id", organizationId);
+        if (updateErr) throw updateErr;
+
+        return NextResponse.json({ success: true });
+      }
+      case "reject_position_override": {
+        const { organizationId, playerName } = body;
+        const { data: org, error: orgErr } = await supabaseAdmin
+          .from("organizations")
+          .select("settings")
+          .eq("id", organizationId)
+          .single();
+        if (orgErr) throw orgErr;
+
+        const settings = org?.settings || {};
+        if (!settings.scouting) settings.scouting = {};
+        if (!settings.scouting.player_positions) settings.scouting.player_positions = {};
+
+        const key = playerName.toUpperCase().trim().toLowerCase();
+        const existing = settings.scouting.player_positions[key] || {};
+
+        if (existing.position) {
+          settings.scouting.player_positions[key] = {
+            position: existing.position,
+            status: "approved",
+            playerName: existing.playerName || playerName
+          };
+        } else {
+          delete settings.scouting.player_positions[key];
+        }
+
+        const { error: updateErr } = await supabaseAdmin
+          .from("organizations")
+          .update({ settings })
+          .eq("id", organizationId);
+        if (updateErr) throw updateErr;
+
+        return NextResponse.json({ success: true });
+      }
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }

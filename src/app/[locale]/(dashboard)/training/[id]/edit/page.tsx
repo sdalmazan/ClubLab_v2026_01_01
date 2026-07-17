@@ -89,6 +89,8 @@ export default async function EditSessionPage({
         exerciseLibrary={exerciseLibrary}
         initialData={session}
         organizationSettings={orgSettings}
+        userTeamId={orgRole.team_id}
+        userRole={orgRole.role}
       />
     </div>
   );

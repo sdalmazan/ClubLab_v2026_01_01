@@ -5,6 +5,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { PlayerTask } from "@/types";
+import { logger } from '@/lib/logger';
 
 export interface ExerciseLibraryItem {
   id: string;
@@ -40,7 +41,7 @@ export async function getTaskLibrary(orgId?: string, userId?: string): Promise<E
     .order("title", { ascending: true });
 
   if (error) {
-    console.error("[getTaskLibrary]", error.message);
+    logger.error("getTaskLibrary", { error: error.message });
     return [];
   }
 
@@ -61,7 +62,7 @@ export async function getTaskLibrary(orgId?: string, userId?: string): Promise<E
         data = refetched;
       }
     } else {
-      console.error("[getTaskLibrary] Seeding failed:", seedError.message);
+      logger.error("getTaskLibrary", { error: seedError.message });
     }
   }
 
@@ -135,7 +136,7 @@ export async function getPlayerTasks(playerId: string): Promise<any[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[getPlayerTasks]", error.message);
+    logger.error("getPlayerTasks", { error: error.message });
     return [];
   }
 

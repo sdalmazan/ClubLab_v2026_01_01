@@ -191,7 +191,7 @@ export default function FacilitiesPage() {
 
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-emerald-500" />
+          <Building2 className="h-6 w-6 corp-icon" />
           Instalaciones y Campos
         </h1>
         <p className="text-slate-400 text-sm mt-0.5">
@@ -284,7 +284,7 @@ export default function FacilitiesPage() {
             className="glass rounded-2xl p-6 bg-slate-950/20 border border-white/10 space-y-4"
           >
             <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 mb-2">
-              <Plus className="h-4 w-4 text-emerald-500" />
+              <Plus className="h-4 w-4 corp-icon" />
               Nueva Instalación
             </h3>
 

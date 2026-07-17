@@ -180,7 +180,7 @@ export default function ConceptHeatmapPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-emerald-500" />
+            <BarChart3 className="h-6 w-6 corp-icon" />
             Mapa de Calor de Conceptos
           </h1>
           <p className="text-slate-400 text-sm mt-0.5">
@@ -227,7 +227,7 @@ export default function ConceptHeatmapPage() {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 corp-spinner" />
           <p className="text-xs text-slate-500 mt-2 font-medium">Calculando mapa de calor táctico...</p>
         </div>
       ) : heatmapData.length === 0 ? (

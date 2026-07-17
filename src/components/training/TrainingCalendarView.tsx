@@ -126,7 +126,12 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
   };
 
   // Formatter helpers
-  const formatDateKey = (d: Date) => d.toISOString().split("T")[0];
+  const formatDateKey = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const monthNames = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -177,7 +182,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
             className={cn(
               "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
               viewMode === "week"
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-950/40"
+                ? "bg-primary text-primary-foreground shadow-lg shadow-black/30"
                 : "text-slate-400 hover:text-white"
             )}
           >
@@ -190,7 +195,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
             className={cn(
               "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
               viewMode === "month"
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-950/40"
+                ? "bg-primary text-primary-foreground shadow-lg shadow-black/30"
                 : "text-slate-400 hover:text-white"
             )}
           >
@@ -206,7 +211,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
           {weekDays.map((day, idx) => {
             const dateStr = formatDateKey(day);
             const daySessions = sessions.filter((s) => s.date === dateStr);
-            const isCurrentToday = dateStr === new Date().toISOString().split("T")[0];
+            const isCurrentToday = dateStr === formatDateKey(new Date());
             const weekdayName = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"][idx];
 
             return (
@@ -214,7 +219,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
                 key={dateStr}
                 className={cn(
                   "rounded-2xl border p-3 flex flex-col gap-2 min-h-[140px] transition-all glass-card bg-white/2",
-                  isCurrentToday ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/5"
+                  isCurrentToday ? "border-primary/40 bg-primary/5" : "border-white/5"
                 )}
               >
                 {/* Header info */}
@@ -225,7 +230,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
                   <span
                     className={cn(
                       "text-xs font-extrabold h-6 w-6 rounded-full flex items-center justify-center",
-                      isCurrentToday ? "bg-emerald-500 text-white" : "text-slate-300"
+                      isCurrentToday ? "bg-primary text-primary-foreground" : "text-slate-300"
                     )}
                   >
                     {day.getDate()}
@@ -242,7 +247,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
                     daySessions.map((session) => (
                       <Link
                         key={session.id}
-                        href={`/training/${session.id}`}
+                        href={`/training/${session.id}/edit`}
                         className={cn(
                           "rounded-xl border p-2 text-left hover:-translate-y-0.5 hover:shadow transition-all block",
                           SESSION_TYPE_BORDER_COLORS[session.session_type]
@@ -284,7 +289,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
               const dateStr = formatDateKey(day);
               const daySessions = sessions.filter((s) => s.date === dateStr);
               const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-              const isCurrentToday = dateStr === new Date().toISOString().split("T")[0];
+              const isCurrentToday = dateStr === formatDateKey(new Date());
 
               return (
                 <div
@@ -292,13 +297,13 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
                   className={cn(
                     "border rounded-xl p-2 min-h-[90px] flex flex-col justify-between transition-all glass-card",
                     isCurrentMonth ? "bg-white/2 border-white/5" : "bg-transparent border-transparent opacity-25",
-                    isCurrentToday && "border-emerald-500/40 bg-emerald-500/5"
+                    isCurrentToday && "border-primary/40 bg-primary/5"
                   )}
                 >
                   <span
                     className={cn(
                       "text-[10px] font-extrabold self-end h-5 w-5 rounded-full flex items-center justify-center",
-                      isCurrentToday ? "bg-emerald-500 text-white" : "text-slate-400"
+                      isCurrentToday ? "bg-primary text-primary-foreground" : "text-slate-400"
                     )}
                   >
                     {day.getDate()}
@@ -318,7 +323,7 @@ export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProp
                       return (
                         <Link
                           key={session.id}
-                          href={`/training/${session.id}`}
+                          href={`/training/${session.id}/edit`}
                           className={cn(
                             "text-[9px] font-bold px-1.5 py-0.5 rounded border truncate hover:scale-105 transition-transform block",
                             typeStyles

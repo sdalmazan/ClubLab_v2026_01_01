@@ -5,6 +5,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { PhysicalTest, PhysicalTestResult } from "@/types";
+import { logger } from '@/lib/logger';
 
 export interface PerformanceTestInput {
   player_id: string;
@@ -28,7 +29,7 @@ export async function getTestTypes(): Promise<PhysicalTest[]> {
     .order("name", { ascending: true });
 
   if (error) {
-    console.error("[getTestTypes]", error.message);
+    logger.error("getTestTypes", { error: error.message });
     return [];
   }
 
@@ -66,7 +67,7 @@ export async function getPerformanceTestsByPlayerId(
 
   const { data, error } = await query;
   if (error) {
-    console.error("[getPerformanceTestsByPlayerId]", error.message);
+    logger.error("getPerformanceTestsByPlayerId", { error: error.message });
     return [];
   }
 
