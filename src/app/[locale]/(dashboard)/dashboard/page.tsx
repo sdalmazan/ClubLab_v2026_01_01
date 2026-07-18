@@ -35,6 +35,7 @@ export default async function DashboardPage() {
     .from("user_organization_roles")
     .select(`
       team_id,
+      organization_id,
       organizations (
         name,
         type,
@@ -51,7 +52,29 @@ export default async function DashboardPage() {
 
   const cookieStore = await cookies();
   const globalTeamId = cookieStore.get("cl_active_team_id")?.value;
-  const resolvedTeamId = globalTeamId || orgRole?.team_id || "";
+  let resolvedTeamId = globalTeamId || orgRole?.team_id || "";
+
+  // Fallback to the first team in the organization if no active team is selected yet
+  if (!resolvedTeamId && orgRole?.organization_id) {
+    const { data: clubs } = await supabase
+      .from("clubs")
+      .select("id")
+      .eq("organization_id", orgRole.organization_id);
+    
+    const clubIds = clubs?.map((c: any) => c.id) || [];
+    if (clubIds.length > 0) {
+      const { data: firstTeam } = await supabase
+        .from("teams")
+        .select("id")
+        .in("club_id", clubIds)
+        .order("name")
+        .limit(1)
+        .maybeSingle();
+      if (firstTeam) {
+        resolvedTeamId = firstTeam.id;
+      }
+    }
+  }
 
   // Fetch real squad players
   const players = await getSquadPlayers(resolvedTeamId || undefined);

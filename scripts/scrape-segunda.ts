@@ -23,13 +23,33 @@ async function main() {
   const { runFederationScraperCore } = await import("../src/lib/federation/scraper");
   const { getSeasonConfig } = await import("../src/lib/federation/config");
 
-  // Definir los 5 grupos de Segunda Federación a scrapear
+  // Definir los grupos y temporadas de Segunda Federación a scrapear
   const targets = [
     { season: "2025/2026", competition: "Segunda Federación - Grupo 1" },
     { season: "2025/2026", competition: "Segunda Federación - Grupo 2" },
     { season: "2025/2026", competition: "Segunda Federación - Grupo 3" },
     { season: "2025/2026", competition: "Segunda Federación - Grupo 4" },
     { season: "2025/2026", competition: "Segunda Federación - Grupo 5" },
+    { season: "2024/2025", competition: "Segunda Federación - Grupo 1" },
+    { season: "2024/2025", competition: "Segunda Federación - Grupo 2" },
+    { season: "2024/2025", competition: "Segunda Federación - Grupo 3" },
+    { season: "2024/2025", competition: "Segunda Federación - Grupo 4" },
+    { season: "2024/2025", competition: "Segunda Federación - Grupo 5" },
+    { season: "2023/2024", competition: "Segunda Federación - Grupo 1" },
+    { season: "2023/2024", competition: "Segunda Federación - Grupo 2" },
+    { season: "2023/2024", competition: "Segunda Federación - Grupo 3" },
+    { season: "2023/2024", competition: "Segunda Federación - Grupo 4" },
+    { season: "2023/2024", competition: "Segunda Federación - Grupo 5" },
+    { season: "2022/2023", competition: "Segunda Federación - Grupo 1" },
+    { season: "2022/2023", competition: "Segunda Federación - Grupo 2" },
+    { season: "2022/2023", competition: "Segunda Federación - Grupo 3" },
+    { season: "2022/2023", competition: "Segunda Federación - Grupo 4" },
+    { season: "2022/2023", competition: "Segunda Federación - Grupo 5" },
+    { season: "2021/2022", competition: "Segunda Federación - Grupo 1" },
+    { season: "2021/2022", competition: "Segunda Federación - Grupo 2" },
+    { season: "2021/2022", competition: "Segunda Federación - Grupo 3" },
+    { season: "2021/2022", competition: "Segunda Federación - Grupo 4" },
+    { season: "2021/2022", competition: "Segunda Federación - Grupo 5" },
   ];
 
   const scraperOptions = {

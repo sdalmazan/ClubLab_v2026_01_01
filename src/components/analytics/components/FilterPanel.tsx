@@ -127,6 +127,7 @@ interface FilterPanelProps {
   onDeleteView: (viewId: string) => Promise<void>;
   activeSeasonName: string;
   selectedMetrics: string[];
+  myTeamPlayers?: { id: string; name: string; team_name: string }[];
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -140,6 +141,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onDeleteView,
   activeSeasonName,
   selectedMetrics,
+  myTeamPlayers,
 }) => {
   // Form values
   const [typedSearch, setTypedSearch] = useState("");
@@ -702,15 +704,26 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           {/* Autocomplete suggestions dropdown */}
           {showSuggestions && suggestions.length > 0 && (
             <div className="absolute top-[52px] left-0 w-full rounded-xl border border-slate-850 bg-slate-950 shadow-2xl max-h-48 overflow-y-auto premium-scrollbar z-45 divide-y divide-slate-900">
-              {suggestions.map((sug) => (
-                <div
-                  key={sug}
-                  onClick={() => handleSuggestionClick(sug)}
-                  className="flex items-center justify-between px-3.5 py-2.5 text-xs text-slate-350 hover:bg-slate-900 hover:text-white transition-colors cursor-pointer"
-                >
-                  <span className="font-semibold">{sug}</span>
-                </div>
-              ))}
+              {suggestions.map((sug) => {
+                const isOwnTeamPlayer = myTeamPlayers?.some(
+                  (p) => p.name.toLowerCase().trim() === sug.toLowerCase().trim()
+                );
+                return (
+                  <div
+                    key={sug}
+                    onClick={() => handleSuggestionClick(sug)}
+                    className={`flex items-center justify-between px-3.5 py-2.5 text-xs transition-colors cursor-pointer ${
+                      isOwnTeamPlayer
+                        ? "bg-primary/10 hover:bg-primary/20 text-primary font-bold border-l-2 border-primary"
+                        : "text-slate-350 hover:bg-slate-900 hover:text-white"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>{sug}</span>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

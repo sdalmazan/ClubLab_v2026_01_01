@@ -273,6 +273,24 @@ MetricRegistry.register({
     if (teamConceded === 0) return 0;
     return parseFloat(((playerOnConceded / teamConceded) * 100).toFixed(1));
   },
+},);
+
+MetricRegistry.register({
+  id: "cardPoints",
+  name: "Tarjetas (Puntos)",
+  description: "Índice de amonestaciones combinado (1 pto. por amarilla, 3 ptos. por roja)",
+  entityType: "player",
+  category: "discipline",
+  formatType: "number",
+  precision: 0,
+  chartType: "radar",
+  isComparable: true,
+  isTrendable: true,
+  compute: (records: any[]) => {
+    const y = records.reduce((sum, r) => sum + (r.yellow_cards || 0), 0);
+    const r = records.reduce((sum, r) => sum + (r.red_cards || 0), 0);
+    return y + r * 3;
+  },
 });
 
 // ============================================================

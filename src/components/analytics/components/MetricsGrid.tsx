@@ -16,6 +16,7 @@ interface MetricsGridProps {
   onSort: (metricId: string) => void;
   onPlayerClick?: (playerName: string) => void;
   onShiftMetric?: (metricId: string, direction: "left" | "right") => void;
+  clubName?: string;
 }
 
 /**
@@ -36,6 +37,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
   onSort,
   onPlayerClick,
   onShiftMetric,
+  clubName,
 }) => {
   const topScrollRef = useRef<HTMLDivElement>(null);
   const bottomScrollRef = useRef<HTMLDivElement>(null);
@@ -223,15 +225,35 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                 rows.map((row) => {
                   const isSelected = selectedRowIds.includes(row.id);
 
+                  const cleanClub = (clubName || "")
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/s\.?d\.?/gi, "")
+                    .replace(/c\.?d\.?/gi, "")
+                    .trim();
+
+                  const cleanPlayerClub = (row.details?.team_name || row.details?.current_team || "")
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/s\.?d\.?/gi, "")
+                    .replace(/c\.?d\.?/gi, "")
+                    .trim();
+
+                  const isOwnTeam = cleanClub && cleanPlayerClub && cleanPlayerClub.includes(cleanClub);
+
                   return (
                     <tr
                       key={row.id}
                       className={`hover:bg-slate-900/20 transition-all ${
-                        isSelected ? "bg-primary/5 hover:bg-primary/10" : ""
+                        isSelected ? "bg-primary/10 hover:bg-primary/15" : isOwnTeam ? "bg-primary/5 hover:bg-primary/8" : ""
                       }`}
                     >
                       {/* Checkbox Selector: Sticky Left 0 */}
-                      <td className="py-3 pl-4 pr-2 text-center sticky left-0 z-20 bg-slate-950 border-r border-transparent">
+                      <td className={`py-3 pl-4 pr-2 text-center sticky left-0 z-20 border-r border-transparent transition-all ${
+                        isSelected ? "bg-slate-900" : isOwnTeam ? "bg-slate-900 border-l-2 border-primary" : "bg-slate-950"
+                      }`}>
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -241,7 +263,9 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                       </td>
 
                       {/* Row Header Information: Sticky Left 12 */}
-                      <td className={`py-3 px-4 sticky left-12 z-20 bg-slate-950 border-r border-slate-850 transition-all ${
+                      <td className={`py-3 px-4 sticky left-12 z-20 border-r border-slate-850 transition-all ${
+                        isSelected ? "bg-slate-900" : isOwnTeam ? "bg-slate-900" : "bg-slate-950"
+                      } ${
                         isScrolled ? "shadow-[4px_0_8px_rgba(0,0,0,0.5)]" : ""
                       }`}>
                         <div className="flex items-center gap-3">
@@ -251,13 +275,17 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                           <div className="flex flex-col max-w-[160px]">
                             {onPlayerClick ? (
                               <span
-                                className="font-bold text-white hover:text-primary hover:underline cursor-pointer transition-colors truncate"
+                                className={`font-bold hover:underline cursor-pointer transition-colors truncate ${
+                                  isOwnTeam ? "text-primary hover:text-white" : "text-white hover:text-primary"
+                                }`}
                                 onClick={() => onPlayerClick(row.name)}
                               >
                                 {row.name}
                               </span>
                             ) : (
-                              <span className="font-semibold text-white truncate">{row.name}</span>
+                              <span className={`font-semibold truncate ${isOwnTeam ? "text-primary" : "text-white"}`}>
+                                {row.name}
+                              </span>
                             )}
                             <span className="text-xxs text-slate-500 truncate">
                               {row.entityType === "player" && (
