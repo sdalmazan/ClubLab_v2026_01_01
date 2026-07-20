@@ -1,24 +1,46 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { statsAdmin } from "@/lib/supabase/stats-admin";
 import { getSquadPlayers } from "@/services/players";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const diagnostics: any = {};
   
+  diagnostics.env = {
+    statsUrl: process.env.NEXT_PUBLIC_FEDERATION_SUPABASE_URL ? "DEFINED" : "MISSING",
+    statsKey: process.env.FEDERATION_SUPABASE_SERVICE_ROLE_KEY ? "DEFINED" : "MISSING",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? "DEFINED" : "MISSING",
+    supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? "DEFINED" : "MISSING",
+  };
+
   try {
+    const { searchParams } = new URL(request.url);
+    const paramUserId = searchParams.get("userId");
+    
+    let user: any = null;
+    let authSource = "";
+
     const supabase = await createClient();
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+
+    if (paramUserId) {
+      user = { id: paramUserId, email: "simulated@clublab.com" };
+      authSource = "query_parameter";
+    } else {
+      const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
+      user = authUser;
+      authSource = "auth_session";
+      diagnostics.authError = authErr || null;
+    }
     
     diagnostics.auth = {
+      source: authSource,
       user: user ? { id: user.id, email: user.email } : null,
-      error: authErr || null
     };
 
     if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated", diagnostics }, { status: 401 });
     }
 
     // 1. Fetch orgRole
