@@ -150,14 +150,26 @@ export default async function DashboardPage() {
       .trim();
     const searchPattern = cleanClubName.replace(/[áéíóúÁÉÍÓÚ]/g, "%");
 
+    console.log("[DashboardPage] resolvedTeamId:", resolvedTeamId);
+    console.log("[DashboardPage] clubName:", clubName);
+    console.log("[DashboardPage] searchPattern:", searchPattern);
+    console.log("[DashboardPage] statsUrl:", process.env.NEXT_PUBLIC_FEDERATION_SUPABASE_URL ? "DEFINED" : "MISSING");
+    console.log("[DashboardPage] statsKey:", process.env.FEDERATION_SUPABASE_SERVICE_ROLE_KEY ? "DEFINED" : "MISSING");
+
     // 1. Fetch completed matches from Federation DB (stat_matches table) for this club in season 2025/2026
-    const { data: federationMatches } = await statsAdmin
+    const { data: federationMatches, error: fedError } = await statsAdmin
       .from("stat_matches")
       .select("*")
       .or(`home_team.ilike.%${searchPattern}%,away_team.ilike.%${searchPattern}%`)
       .eq("season", "2025/2026")
       .order("matchday", { ascending: false })
       .limit(5);
+
+    if (fedError) {
+      console.error("[DashboardPage] statsAdmin query error:", fedError);
+    } else {
+      console.log("[DashboardPage] federationMatches count:", federationMatches?.length || 0);
+    }
 
     completedMatches = (federationMatches || []).map((m: any) => {
       const normalizedHome = m.home_team.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -185,7 +197,7 @@ export default async function DashboardPage() {
     });
 
     // 2. Fetch the next upcoming match directly from the preseason planning (preseason_sessions table)
-    const { data: upcomingPreseason } = await supabase
+    const { data: upcomingPreseason, error: preseasonError } = await supabase
       .from("preseason_sessions")
       .select("*")
       .eq("team_id", resolvedTeamId)
@@ -194,6 +206,12 @@ export default async function DashboardPage() {
       .order("date", { ascending: true })
       .order("start_time", { ascending: true })
       .limit(1);
+
+    if (preseasonError) {
+      console.error("[DashboardPage] upcomingPreseason query error:", preseasonError);
+    } else {
+      console.log("[DashboardPage] upcomingPreseason count:", upcomingPreseason?.length || 0);
+    }
 
     const preseasonMatch = upcomingPreseason?.[0] || null;
 
