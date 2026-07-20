@@ -19,11 +19,18 @@ export default async function PreseasonPage() {
   // Load organization role & teams
   const { data: orgRole } = await supabase
     .from("user_organization_roles")
-    .select("organization_id, role")
+    .select(`
+      organization_id,
+      role,
+      organizations (
+        type
+      )
+    `)
     .eq("user_id", user?.id)
     .single();
 
   const orgId = orgRole?.organization_id ?? "";
+  const orgType = (orgRole?.organizations as any)?.type || "club";
   const isAdmin = orgRole?.role === "super_admin" || orgRole?.role === "club_admin";
   const isCoordinator = [
     "super_admin",
@@ -32,7 +39,11 @@ export default async function PreseasonPage() {
     "academy_coordinator",
     "sporting_director"
   ].includes(orgRole?.role ?? "");
-  const teams = await getOrgTeams();
+  
+  let teams = await getOrgTeams();
+  if (orgType === "club" && teams.length > 0) {
+    teams = [teams[0]];
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto">

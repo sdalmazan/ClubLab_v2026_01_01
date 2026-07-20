@@ -108,11 +108,17 @@ export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMember
     return [];
   }
 
-  return (data ?? []).map((p: any) => ({
+  const mappedPlayers = (data ?? []).map((p: any) => ({
     ...p,
     membership: Array.isArray(p.membership) ? p.membership[0] : p.membership,
     active_injury: Array.isArray(p.active_injury) ? p.active_injury[0] : p.active_injury,
   }));
+
+  if (teamId) {
+    return mappedPlayers.filter((p) => p.membership?.team_id === teamId);
+  }
+
+  return mappedPlayers;
 }
 
 /**
@@ -224,7 +230,7 @@ export async function getOrgTeams() {
   const { data } = await supabase
     .from("teams")
     .select("id, name, category, season_id, seasons(name, is_active)")
-    .order("name");
+    .order("created_at", { ascending: true });
   return data ?? [];
 }
 

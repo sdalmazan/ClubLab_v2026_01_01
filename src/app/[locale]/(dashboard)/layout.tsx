@@ -203,7 +203,7 @@ export default async function DashboardLayout({
   let activeSeasonId: string = cookieStore.get("cl_active_season_id")?.value ?? "";
 
   let activeTeam = teamList.find((t) => t.id === activeTeamId);
-  if (!activeTeam) {
+  if (!activeTeam || orgType === "club") {
     activeTeam = teamList.find((t) => t.id === orgRole.team_id) ?? teamList[0] ?? null;
     activeTeamId = activeTeam?.id ?? "";
   }

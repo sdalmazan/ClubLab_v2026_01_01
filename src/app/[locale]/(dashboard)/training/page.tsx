@@ -68,14 +68,21 @@ export default async function TrainingPage({
   const cookieStore = await cookies();
   const globalTeamId = cookieStore.get("cl_active_team_id")?.value;
 
-  // Resolve team filter: lock to global active context unless academy mode is filtering
-  const resolvedTeamId = orgType === "academy"
+  let resolvedTeamId = orgType === "academy"
     ? params.teamId
     : (globalTeamId || orgRole?.team_id || "");
 
-  const [sessions, teams, templates] = await Promise.all([
+  let teams = await getOrgTeams();
+
+  if (orgType === "club") {
+    if (teams.length > 0) {
+      resolvedTeamId = teams[0].id;
+      teams = [teams[0]];
+    }
+  }
+
+  const [sessions, templates] = await Promise.all([
     getSessions(resolvedTeamId || undefined),
-    getOrgTeams(),
     getSessionTemplates(),
   ]);
 

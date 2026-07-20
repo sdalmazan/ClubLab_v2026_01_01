@@ -50,9 +50,10 @@ export default async function DashboardPage() {
   const clubName = orgData?.settings?.club_name || orgData?.name || "ClubLab";
   const clubLogoUrl = orgData?.settings?.club_logo_url || orgData?.logo_url || "";
 
+  const orgType = orgData?.type || "club";
   const cookieStore = await cookies();
   const globalTeamId = cookieStore.get("cl_active_team_id")?.value;
-  let resolvedTeamId = globalTeamId || orgRole?.team_id || "";
+  let resolvedTeamId = orgType === "club" ? "" : (globalTeamId || orgRole?.team_id || "");
 
   // Fallback to the first team in the organization if no active team is selected yet
   if (!resolvedTeamId && orgRole?.organization_id) {
