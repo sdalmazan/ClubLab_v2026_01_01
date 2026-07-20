@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createServiceRoleClient } from "@supabase/supabase-js";
 import { statsAdmin } from "@/lib/supabase/stats-admin";
-import { getSquadPlayers } from "@/services/players";
 
 export const dynamic = "force-dynamic";
 
@@ -17,34 +16,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const paramUserId = searchParams.get("userId");
-    
-    let user: any = null;
-    let authSource = "";
+    const userId = searchParams.get("userId") || "69d4dd8e-ab88-41ee-aa9f-35f97fba04ba"; // Default to Diego
 
-    const supabase = await createClient();
+    diagnostics.targetUserId = userId;
 
-    if (paramUserId) {
-      user = { id: paramUserId, email: "simulated@clublab.com" };
-      authSource = "query_parameter";
-    } else {
-      const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
-      user = authUser;
-      authSource = "auth_session";
-      diagnostics.authError = authErr || null;
-    }
-    
-    diagnostics.auth = {
-      source: authSource,
-      user: user ? { id: user.id, email: user.email } : null,
-    };
-
-    if (!user) {
-      return NextResponse.json({ error: "Not authenticated", diagnostics }, { status: 401 });
-    }
+    // Create service role client to bypass RLS for debugging
+    const serviceClient = createServiceRoleClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // 1. Fetch orgRole
-    const { data: orgRole, error: orgRoleErr } = await supabase
+    const { data: orgRole, error: orgRoleErr } = await serviceClient
       .from("user_organization_roles")
       .select(`
         team_id,
@@ -56,7 +39,7 @@ export async function GET(request: NextRequest) {
           settings
         )
       `)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     diagnostics.orgRoleQuery = {
@@ -78,7 +61,7 @@ export async function GET(request: NextRequest) {
     diagnostics.beforeFallback = { resolvedTeamId };
 
     if (!resolvedTeamId && orgRole?.organization_id) {
-      const { data: clubs, error: clubsErr } = await supabase
+      const { data: clubs, error: clubsErr } = await serviceClient
         .from("clubs")
         .select("id")
         .eq("organization_id", orgRole.organization_id);
@@ -90,7 +73,7 @@ export async function GET(request: NextRequest) {
 
       const clubIds = clubs?.map((c: any) => c.id) || [];
       if (clubIds.length > 0) {
-        const { data: firstTeam, error: firstTeamErr } = await supabase
+        const { data: firstTeam, error: firstTeamErr } = await serviceClient
           .from("teams")
           .select("id, name")
           .in("club_id", clubIds)
@@ -111,14 +94,7 @@ export async function GET(request: NextRequest) {
 
     diagnostics.final = { resolvedTeamId };
 
-    // 3. Fetch players
-    const players = await getSquadPlayers(resolvedTeamId || undefined);
-    diagnostics.players = {
-      count: players.length,
-      playersList: players.map(p => ({ id: p.id, name: p.first_name + " " + p.last_name, team: p.membership?.teams?.name }))
-    };
-
-    // 4. Fetch matches
+    // 3. Fetch matches
     if (resolvedTeamId) {
       const cleanClubName = clubName
         .replace(/\b(S\.?D\.?|C\.?D\.?|C\.?F\.?|U\.?D\.?|S\.?A\.?D\.?|Club|Deportivo|Sociedad|Deportiva)\b/gi, "")
@@ -134,6 +110,7 @@ export async function GET(request: NextRequest) {
         .limit(5);
 
       diagnostics.federationQuery = {
+        cleanClubName,
         searchPattern,
         success: !fedError,
         error: fedError || null,
