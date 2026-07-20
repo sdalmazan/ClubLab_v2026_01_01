@@ -269,6 +269,17 @@ export default function MatchesPage() {
     }
   }
 
+  // Open match detail modal on mount if matchId query param is present
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const mId = params.get("matchId");
+      if (mId) {
+        fetchMatchDetail(mId);
+      }
+    }
+  }, []);
+
   const handleSaveOverrides = async () => {
     if (!selectedMatchId) return;
     try {

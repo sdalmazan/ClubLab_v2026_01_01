@@ -443,11 +443,9 @@ export default async function DashboardPage({
                         </div>
                       )
                     ) : (
-                      <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2.5 shadow-md">
-                        <span className="text-xl font-black text-rose-500">
-                          {(nextMatch.match_opponent || "Rival").slice(0, 2).toUpperCase()}
-                        </span>
-                      </div>
+                      <span className="text-xl font-black text-rose-500">
+                        {(nextMatch.match_opponent || "Rival").slice(0, 2).toUpperCase()}
+                      </span>
                     )}
                   </div>
                   <span className="text-xs font-bold text-white leading-tight">
@@ -487,11 +485,9 @@ export default async function DashboardPage({
                         </div>
                       )
                     ) : (
-                      <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center p-2.5 shadow-md">
-                        <span className="text-xl font-black text-rose-500">
-                          {(nextMatch.match_opponent || "Rival").slice(0, 2).toUpperCase()}
-                        </span>
-                      </div>
+                      <span className="text-xl font-black text-rose-500">
+                        {(nextMatch.match_opponent || "Rival").slice(0, 2).toUpperCase()}
+                      </span>
                     )}
                   </div>
                   <span className="text-xs font-bold text-white leading-tight">
@@ -652,7 +648,11 @@ export default async function DashboardPage({
                   const label = resultType === "win" ? "V" : resultType === "draw" ? "E" : "D";
 
                   return (
-                    <div key={res.id || idx} className="flex items-center justify-between p-3 bg-white/2 hover:bg-white/4 border border-white/5 rounded-2xl transition-colors">
+                    <Link
+                      key={res.id || idx}
+                      href={`/matches?matchId=${res.id}`}
+                      className="flex items-center justify-between p-3 bg-white/2 hover:bg-white/4 border border-white/5 rounded-2xl transition-colors cursor-pointer"
+                    >
                       <div className="flex items-center gap-3">
                         <span className={`w-6 h-6 flex items-center justify-center text-[10px] font-black rounded-lg border ${colorClass}`}>
                           {label}
@@ -667,7 +667,7 @@ export default async function DashboardPage({
                       <span className="text-xs font-extrabold text-white bg-slate-950/60 px-2.5 py-1 rounded-lg border border-white/5">
                         {res.match_score || "- -"}
                       </span>
-                    </div>
+                    </Link>
                   );
                 })
               )}
