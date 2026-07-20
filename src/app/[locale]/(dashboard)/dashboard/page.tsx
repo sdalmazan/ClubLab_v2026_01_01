@@ -67,7 +67,7 @@ export default async function DashboardPage() {
         .from("teams")
         .select("id")
         .in("club_id", clubIds)
-        .order("name")
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       if (firstTeam) {

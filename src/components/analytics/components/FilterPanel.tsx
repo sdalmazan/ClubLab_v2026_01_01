@@ -696,6 +696,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
                 setTypedSearch(e.target.value);
                 if (e.target.value === "") setNameSearch(""); // Instant clear
               }}
+              onFocus={() => setShowSuggestions(true)}
               placeholder="Buscar (ej. Castillo, Almazán...)"
               className="w-full rounded-xl border border-slate-800 bg-slate-950 pl-9 pr-3 py-2 text-sm text-white placeholder-slate-700 focus:border-primary focus:outline-none"
             />

@@ -84,7 +84,7 @@ export default async function DashboardLayout({
           .from("teams")
           .select("id, name, category, season_id")
           .in("club_id", clubIds)
-          .order("name");
+          .order("created_at", { ascending: true });
         teams = teamsData ?? [];
 
         const { data: seasonsData } = await sb

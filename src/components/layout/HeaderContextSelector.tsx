@@ -41,7 +41,7 @@ export function HeaderContextSelector({
     router.refresh();
   };
 
-  const showTeamSelector = orgType === "academy";
+  const showTeamSelector = orgType === "academy" || teams.length > 1;
 
   return (
     <div className="flex items-center gap-2.5">

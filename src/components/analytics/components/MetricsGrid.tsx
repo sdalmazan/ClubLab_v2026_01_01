@@ -161,9 +161,9 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                   return (
                     <th
                       key={mId}
-                      className="group py-4 px-4 text-right font-bold text-slate-400 select-none hover:text-white transition-colors"
+                      className="group py-4 px-4 text-center font-bold text-slate-400 select-none hover:text-white transition-colors"
                     >
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-center gap-2">
                         {/* Discreet reorder arrows: Visible only on cell hover */}
                         {onShiftMetric && (
                           <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 mr-1 text-[8px] font-black text-slate-500 transition-opacity">
@@ -311,7 +311,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                       {selectedMetrics.map((mId) => {
                         const val = row.metrics[mId];
                         return (
-                          <td key={mId} className="py-3 px-4 text-right font-mono font-medium text-slate-300">
+                          <td key={mId} className="py-3 px-4 text-center font-mono font-medium text-slate-300">
                             {formatMetricValue(mId, val)}
                           </td>
                         );
@@ -340,7 +340,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                   </td>
 
                   {selectedMetrics.map((mId) => (
-                    <td key={mId} className="py-4 px-4 text-right font-mono text-primary bg-slate-900/5">
+                    <td key={mId} className="py-4 px-4 text-center font-mono text-primary bg-slate-900/5">
                       {formatMetricValue(mId, averages[mId] ?? 0)}
                     </td>
                   ))}
