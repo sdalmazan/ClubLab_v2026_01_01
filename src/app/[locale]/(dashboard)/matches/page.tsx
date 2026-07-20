@@ -1115,7 +1115,7 @@ export default function MatchesPage() {
                               LOCAL
                             </span>
                           </div>
-                          <div className="space-y-1 text-[11px] max-h-[500px] overflow-y-auto pr-1">
+                          <div className="space-y-1 text-[9px] max-h-[500px] overflow-y-auto pr-1">
                             {matchDetail.lineups
                               .filter((l: any) => l.team_name === matchDetail.match.home_team)
                               .map((l: any) => {
@@ -1152,7 +1152,7 @@ export default function MatchesPage() {
                               VISITANTE
                             </span>
                           </div>
-                          <div className="space-y-1 text-[11px] max-h-[500px] overflow-y-auto pr-1">
+                          <div className="space-y-1 text-[9px] max-h-[500px] overflow-y-auto pr-1">
                             {matchDetail.lineups
                               .filter((l: any) => l.team_name === matchDetail.match.away_team)
                               .map((l: any) => {
