@@ -1115,15 +1115,18 @@ export default function MatchesPage() {
                               LOCAL
                             </span>
                           </div>
-                          <div className="space-y-1 text-[11px] max-h-[300px] overflow-y-auto pr-1">
+                          <div className="space-y-1 text-[11px] max-h-[500px] overflow-y-auto pr-1">
                             {matchDetail.lineups
                               .filter((l: any) => l.team_name === matchDetail.match.home_team)
                               .map((l: any) => {
                                 const manualPos = overridePlayerPositions[l.player_name];
+                                const cardClass = l.is_starter
+                                  ? "bg-blue-500/15 border border-blue-500/25 text-blue-100 font-bold"
+                                  : "bg-blue-950/20 border border-blue-500/5 text-blue-450/70 opacity-75";
                                 return (
                                   <div
                                     key={l.id}
-                                    className="flex justify-between items-center py-1 px-1.5 rounded bg-blue-500/5 border border-blue-500/10 text-blue-300"
+                                    className={`flex justify-between items-center py-1 px-1.5 rounded transition-all ${cardClass}`}
                                   >
                                     <span>
                                       {l.shirt_number ? `${l.shirt_number}. ` : ""}
@@ -1149,15 +1152,18 @@ export default function MatchesPage() {
                               VISITANTE
                             </span>
                           </div>
-                          <div className="space-y-1 text-[11px] max-h-[300px] overflow-y-auto pr-1">
+                          <div className="space-y-1 text-[11px] max-h-[500px] overflow-y-auto pr-1">
                             {matchDetail.lineups
                               .filter((l: any) => l.team_name === matchDetail.match.away_team)
                               .map((l: any) => {
                                 const manualPos = overridePlayerPositions[l.player_name];
+                                const cardClass = l.is_starter
+                                  ? "bg-emerald-500/15 border border-emerald-500/25 text-emerald-100 font-bold"
+                                  : "bg-emerald-950/20 border border-emerald-500/5 text-emerald-455/75 opacity-75";
                                 return (
                                   <div
                                     key={l.id}
-                                    className="flex justify-between items-center py-1 px-1.5 rounded bg-emerald-500/5 border border-emerald-500/10 text-emerald-355"
+                                    className={`flex justify-between items-center py-1 px-1.5 rounded transition-all ${cardClass}`}
                                   >
                                     <span>
                                       {l.shirt_number ? `${l.shirt_number}. ` : ""}
@@ -1210,14 +1216,14 @@ export default function MatchesPage() {
                           No hay incidencias reportadas en esta categoría.
                         </div>
                       ) : (
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                        <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
                           {getFilteredMatchEvents().map((e: any, idx: number) => {
                             const isGoal = ["goal", "own_goal", "penalty_goal"].includes(e.event_type);
                             const isSub = e.event_type.includes("substitution");
                             const isHomeTeam = e.team_name === matchDetail.match.home_team;
                             const teamBorderColor = isHomeTeam
-                              ? "border-blue-500/25 bg-blue-500/5 text-blue-300"
-                              : "border-emerald-500/25 bg-emerald-500/5 text-emerald-355";
+                              ? "border-blue-500/20 bg-blue-500/5 text-blue-300"
+                              : "border-emerald-500/20 bg-emerald-500/5 text-emerald-355";
                             const isOwnGoal = e.event_type === "own_goal";
                             const isPenalty = e.event_type === "penalty_goal";
 
@@ -1231,10 +1237,10 @@ export default function MatchesPage() {
                             return (
                               <div
                                 key={idx}
-                                className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${teamBorderColor}`}
+                                className={`flex items-center gap-2 p-1.5 px-2.5 rounded-lg border transition-colors ${teamBorderColor}`}
                               >
                                 <span
-                                  className={`font-extrabold bg-slate-950/80 px-2 py-0.5 rounded text-[10px] ${
+                                  className={`font-extrabold bg-slate-950/80 px-1.5 py-0.5 rounded text-[9px] shrink-0 ${
                                     isHomeTeam ? "text-blue-400" : "text-emerald-455"
                                   }`}
                                 >
@@ -1246,8 +1252,8 @@ export default function MatchesPage() {
                                   <span
                                     className={
                                       isOwnGoal
-                                        ? "text-rose-500 text-sm filter drop-shadow-[0_0_4px_rgba(244,63,94,0.6)] font-bold"
-                                        : "text-emerald-400 text-sm filter drop-shadow-[0_0_4px_rgba(16,185,129,0.6)] font-bold"
+                                        ? "text-rose-500 text-xs filter drop-shadow-[0_0_3px_rgba(244,63,94,0.6)] font-bold shrink-0"
+                                        : "text-emerald-400 text-xs filter drop-shadow-[0_0_3px_rgba(16,185,129,0.6)] font-bold shrink-0"
                                     }
                                     title={isOwnGoal ? "Autogol" : isPenalty ? "Gol de Penalti" : "Gol"}
                                   >
@@ -1256,37 +1262,37 @@ export default function MatchesPage() {
                                 )}
                                 {e.event_type === "yellow_card" && (
                                   <span
-                                    className="w-2.5 h-3.5 rounded-xs inline-block shadow-md border"
+                                    className="w-2 h-3 rounded-xs inline-block shadow-sm border shrink-0"
                                     style={{ backgroundColor: "#eab308", borderColor: "#ca8a04" }}
                                     title="Tarjeta Amarilla"
                                   />
                                 )}
                                 {e.event_type === "red_card" && (
                                   <span
-                                    className="w-2.5 h-3.5 rounded-xs inline-block shadow-md border"
+                                    className="w-2 h-3 rounded-xs inline-block shadow-sm border shrink-0"
                                     style={{ backgroundColor: "#e11d48", borderColor: "#be123c" }}
                                     title="Tarjeta Roja"
                                   />
                                 )}
                                 {e.event_type === "yellow_red_card" && (
                                   <span
-                                    className="w-2.5 h-3.5 rounded-xs inline-block shadow-md border"
+                                    className="w-2 h-3 rounded-xs inline-block shadow-sm border shrink-0"
                                     style={{ backgroundColor: "#f97316", borderColor: "#ea580c" }}
                                     title="Doble Amarilla"
                                   />
                                 )}
                                 {isSub && (
                                   <span
-                                    className="text-sky-400 text-sm filter drop-shadow-[0_0_4px_rgba(56,189,248,0.6)]"
+                                    className="text-sky-400 text-xs filter drop-shadow-[0_0_3px_rgba(56,189,248,0.6)] shrink-0"
                                     title="Sustitución"
                                   >
                                     🔄
                                   </span>
                                 )}
 
-                                <div className="flex-1 leading-normal flex items-center gap-2 overflow-hidden">
+                                <div className="flex-1 leading-tight flex items-center gap-1.5 overflow-hidden text-[10px]">
                                   <span
-                                    className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                    className={`text-[7px] font-black uppercase px-1 py-0.2 rounded shrink-0 ${
                                       isHomeTeam
                                         ? "bg-blue-500/15 text-blue-400 border border-blue-500/25"
                                         : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
@@ -1295,23 +1301,23 @@ export default function MatchesPage() {
                                     {isHomeTeam ? "L" : "V"}
                                   </span>
                                   <div className="truncate">
-                                    <strong className="text-white">{e.player_name}</strong>
-                                    <span className="text-[10px] text-slate-500">
+                                    <strong className="text-white font-bold">{e.player_name}</strong>
+                                    <span className="text-[8px] text-slate-500">
                                       {" "}
                                       ({displayTeamName(e.team_name)})
                                     </span>
                                     {e.detail && (
-                                      <span className="text-slate-455 block text-[9px] font-bold mt-0.5">
+                                      <span className="text-slate-455 block text-[8px] font-bold mt-0.2">
                                         {e.detail}
                                       </span>
                                     )}
                                     {cardCls && (
-                                      <span className="text-[8px] uppercase tracking-wider font-extrabold bg-primary/10 border border-primary/20 text-primary px-1.5 py-0.2 rounded mt-0.5 inline-block">
+                                      <span className="text-[7px] uppercase tracking-wider font-extrabold bg-primary/10 border border-primary/20 text-primary px-1 py-0.2 rounded mt-0.2 inline-block">
                                         Motivo: {cardCls}
                                       </span>
                                     )}
                                     {assist && (
-                                      <span className="text-[8px] uppercase tracking-wider font-extrabold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-1.5 py-0.2 rounded mt-0.5 inline-block">
+                                      <span className="text-[7px] uppercase tracking-wider font-extrabold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-1 py-0.2 rounded mt-0.2 inline-block">
                                         Asistencia: {assist}
                                       </span>
                                     )}
@@ -1319,7 +1325,7 @@ export default function MatchesPage() {
                                 </div>
 
                                 {isGoal && e.score_home_after !== null && (
-                                  <span className="text-[10px] font-black text-slate-300 ml-auto bg-slate-950/80 px-2 py-0.5 rounded border border-white/5">
+                                  <span className="text-[9px] font-black text-slate-355 ml-auto bg-slate-950/80 px-1.5 py-0.5 rounded border border-white/5 shrink-0">
                                     {e.score_home_after} - {e.score_away_after}
                                   </span>
                                 )}
