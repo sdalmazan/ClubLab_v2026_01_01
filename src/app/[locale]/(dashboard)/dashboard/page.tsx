@@ -26,7 +26,14 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ debug?: string }>;
+}) {
+  const params = await searchParams;
+  const isDebug = params?.debug === "1";
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -55,6 +62,9 @@ export default async function DashboardPage() {
   const globalTeamId = cookieStore.get("cl_active_team_id")?.value;
   let resolvedTeamId = orgType === "club" ? "" : (globalTeamId || orgRole?.team_id || "");
 
+  let debugClubs: any = null;
+  let debugFirstTeam: any = null;
+
   // Fallback to the first team in the organization if no active team is selected yet
   if (!resolvedTeamId && orgRole?.organization_id) {
     const { data: clubs } = await supabase
@@ -62,6 +72,7 @@ export default async function DashboardPage() {
       .select("id")
       .eq("organization_id", orgRole.organization_id);
     
+    debugClubs = clubs;
     const clubIds = clubs?.map((c: any) => c.id) || [];
     if (clubIds.length > 0) {
       const { data: firstTeam } = await supabase
@@ -71,6 +82,8 @@ export default async function DashboardPage() {
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
+      
+      debugFirstTeam = firstTeam;
       if (firstTeam) {
         resolvedTeamId = firstTeam.id;
       }
@@ -143,13 +156,15 @@ export default async function DashboardPage() {
   // Fetch completed and upcoming matches from database
   let completedMatches: any[] = [];
   let nextMatch: any = null;
+  let searchPattern = "";
+  let fedError: any = null;
 
   if (resolvedTeamId) {
     const todayStr = new Date().toISOString().split("T")[0];
     const cleanClubName = clubName
       .replace(/\b(S\.?D\.?|C\.?D\.?|C\.?F\.?|U\.?D\.?|S\.?A\.?D\.?|Club|Deportivo|Sociedad|Deportiva)\b/gi, "")
       .trim();
-    const searchPattern = cleanClubName.replace(/[áéíóúÁÉÍÓÚ]/g, "%");
+    searchPattern = cleanClubName.replace(/[áéíóúÁÉÍÓÚ]/g, "%");
 
     console.log("[DashboardPage] resolvedTeamId:", resolvedTeamId);
     console.log("[DashboardPage] clubName:", clubName);
@@ -158,13 +173,15 @@ export default async function DashboardPage() {
     console.log("[DashboardPage] statsKey:", process.env.FEDERATION_SUPABASE_SERVICE_ROLE_KEY ? "DEFINED" : "MISSING");
 
     // 1. Fetch completed matches from Federation DB (stat_matches table) for this club in season 2025/2026
-    const { data: federationMatches, error: fedError } = await statsAdmin
+    const { data: federationMatches, error: queryErr } = await statsAdmin
       .from("stat_matches")
       .select("*")
       .or(`home_team.ilike.%${searchPattern}%,away_team.ilike.%${searchPattern}%`)
       .eq("season", "2025/2026")
       .order("matchday", { ascending: false })
       .limit(5);
+
+    fedError = queryErr;
 
     if (fedError) {
       console.error("[DashboardPage] statsAdmin query error:", fedError);
@@ -776,6 +793,34 @@ export default async function DashboardPage() {
         </div>
 
       </div>
+
+      {/* ── DIAGNOSTICS FLOATING BLOCK (only shown if ?debug=1) ── */}
+      {isDebug && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-lg w-full bg-slate-950 border border-rose-500/30 rounded-3xl p-5 shadow-2xl space-y-3 max-h-[80vh] overflow-y-auto font-mono text-[10px] text-slate-300">
+          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <span className="text-rose-400 font-bold text-xs">🛠️ Dashboard Diagnostics</span>
+            <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[9px] font-black uppercase">Debug Mode</span>
+          </div>
+          <div className="space-y-1">
+            <p><span className="text-slate-500">resolvedTeamId:</span> <span className="text-white font-bold">{resolvedTeamId || "null"}</span></p>
+            <p><span className="text-slate-500">clubName:</span> <span className="text-white">{clubName}</span></p>
+            <p><span className="text-slate-500">orgType:</span> <span className="text-white">{orgType}</span></p>
+            <p><span className="text-slate-500">searchPattern:</span> <span className="text-emerald-400">"{searchPattern || ""}"</span></p>
+            <p><span className="text-slate-500">completedMatches (count):</span> <span className="text-white font-bold">{completedMatches.length}</span></p>
+            <p><span className="text-slate-500">nextMatch:</span> <span className="text-white">{nextMatch ? "FOUND" : "null"}</span></p>
+            <p><span className="text-slate-500">playersCount:</span> <span className="text-white">{players.length}</span></p>
+          </div>
+          <div className="border-t border-white/5 pt-2 space-y-1.5">
+            <p className="text-[9px] text-slate-400 font-bold">DATABASE & RLS DICTIONARY:</p>
+            <p><span className="text-slate-500">orgRole:</span> {JSON.stringify({ ...orgRole, organizations: orgRole?.organizations ? { name: (orgRole.organizations as any).name, type: (orgRole.organizations as any).type } : null })}</p>
+            <p><span className="text-slate-500">clubs:</span> {JSON.stringify(debugClubs)}</p>
+            <p><span className="text-slate-500">firstTeam:</span> {JSON.stringify(debugFirstTeam)}</p>
+            <p><span className="text-slate-500">fedError:</span> {fedError ? JSON.stringify(fedError) : "null"}</p>
+            <p><span className="text-slate-500">statsUrl:</span> {process.env.NEXT_PUBLIC_FEDERATION_SUPABASE_URL ? "DEFINED" : "MISSING"}</p>
+            <p><span className="text-slate-500">statsKey:</span> {process.env.FEDERATION_SUPABASE_SERVICE_ROLE_KEY ? "DEFINED" : "MISSING"}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
