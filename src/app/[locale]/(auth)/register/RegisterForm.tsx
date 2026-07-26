@@ -164,20 +164,48 @@ function RegisterFormContent() {
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border p-8 animate-fade-in relative">
-      {invitationOrg && (
-        <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-          <MailCheck className="h-4 w-4 shrink-0" />
-          <span>Invitación oficial de: <strong>{invitationOrg}</strong></span>
+    <div className="bg-card rounded-2xl border border-border p-6 sm:p-8 animate-fade-in relative shadow-2xl">
+      {tokenParam ? (
+        <div className="space-y-4 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+            <MailCheck className="h-4 w-4" />
+            <span>Invitación Oficial de Club</span>
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white tracking-tight">
+              Te han invitado a unirte a {invitationOrg || "SD Almazán"}
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Crea tu contraseña y selecciona tu canal de notificaciones preferido para activar tu perfil.
+            </p>
+          </div>
+
+          {/* Tarjeta de Resumen de Invitación */}
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/30 space-y-3">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Club / Entidad</span>
+              <span className="text-xs font-extrabold text-white">{invitationOrg || "SD Almazán"}</span>
+            </div>
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Rol Asignado</span>
+              <span className="text-xs font-black text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                {role === "player" ? "⚽ Jugador / Futbolista" : role === "head_coach" ? "🧢 Entrenador" : "📋 Staff"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Correo de Alta</span>
+              <span className="text-xs font-medium text-slate-200">{email}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-white">Crea tu cuenta</h2>
+          <p className="text-sm text-slate-400 mt-1">
+            Empieza a gestionar tu club con ClubLab
+          </p>
         </div>
       )}
-
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-white">Crea tu cuenta</h2>
-        <p className="text-sm text-slate-400 mt-1">
-          {invitationOrg ? `Completa tu registro para unirte a ${invitationOrg}` : "Empieza a gestionar tu club con ClubLab"}
-        </p>
-      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" id="register-form">
         {/* Full name */}
@@ -465,9 +493,13 @@ function RegisterFormContent() {
           id="register-submit"
           type="submit"
           disabled={loading || !isPasswordValid || !passwordsMatch || !privacyAccepted}
-          className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-sm py-3 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
-          {loading ? "Creando cuenta..." : "Crear cuenta"}
+          {loading
+            ? "Activando cuenta..."
+            : tokenParam
+            ? `Completar Registro en ${invitationOrg || "SD Almazán"} →`
+            : "Crear cuenta"}
         </button>
       </form>
 
