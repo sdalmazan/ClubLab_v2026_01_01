@@ -1,17 +1,13 @@
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminPortalClient } from "@/components/layout/AdminPortalClient";
 
 export const dynamic = "force-dynamic";
 
-const supabaseAdmin = createSupabaseClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export default async function AdminPortalPage() {
+  const supabaseAdmin = createAdminClient();
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
