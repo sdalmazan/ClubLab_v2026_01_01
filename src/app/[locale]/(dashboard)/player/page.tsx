@@ -1,21 +1,64 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { HeroStatusCard } from "@/components/player/HeroStatusCard";
 import { WhatShouldIDoNowCard } from "@/components/player/WhatShouldIDoNowCard";
 import { WellnessCheckinModal } from "@/components/player/WellnessCheckinModal";
 import { CheckoutRpeModal } from "@/components/player/CheckoutRpeModal";
+import { ConfidentialInjuryModal } from "@/components/player/ConfidentialInjuryModal";
+import { PlayerInjuryReminderModal } from "@/components/player/PlayerInjuryReminderModal";
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
 import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { RecommendationCard } from "@/components/player/RecommendationCard";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
-import { Moon, HeartPulse, Zap, AlertCircle } from "lucide-react";
+import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle } from "lucide-react";
 
 export default function PlayerTodayPage() {
   const [summary, setSummary] = useState(getMockPlayerSummary());
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+
+  // Injury Reminder & Creation Modals
+  const [injuryReminderOpen, setInjuryReminderOpen] = useState(false);
+  const [addInjuryOpen, setAddInjuryOpen] = useState(false);
+
+  useEffect(() => {
+    // Check if player has already completed or acknowledged injury history
+    const isDone = localStorage.getItem("cl_player_injury_history_done");
+    const dismissedThisSession = sessionStorage.getItem("cl_player_injury_reminder_dismissed");
+
+    if (!isDone && !dismissedThisSession) {
+      const timer = setTimeout(() => {
+        setInjuryReminderOpen(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleCloseReminderLater = () => {
+    setInjuryReminderOpen(false);
+    sessionStorage.setItem("cl_player_injury_reminder_dismissed", "true");
+  };
+
+  const handleMarkAsClean = () => {
+    setInjuryReminderOpen(false);
+    localStorage.setItem("cl_player_injury_history_done", "true");
+  };
+
+  const handleOpenAddInjuryFromReminder = () => {
+    setInjuryReminderOpen(false);
+    setAddInjuryOpen(true);
+  };
+
+  const handleInjurySubmittedSuccess = () => {
+    setAddInjuryOpen(false);
+    localStorage.setItem("cl_player_injury_history_done", "true");
+    setSummary((prev) => ({
+      ...prev,
+      statusMessage: "Histórico lesional actualizado. Los servicios médicos han sido notificados.",
+    }));
+  };
 
   const handleCheckinSuccess = () => {
     setCheckinOpen(false);
@@ -43,6 +86,24 @@ export default function PlayerTodayPage() {
         status={summary.status}
         message={summary.statusMessage}
       />
+
+      {/* Quick Button: Add Injury / Medical Antecedent */}
+      <div className="flex items-center justify-between p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+        <div className="flex items-center gap-2.5">
+          <HeartPulse className="w-5 h-5 text-blue-400 shrink-0" />
+          <div>
+            <span className="text-xs font-bold text-foreground block">Histórico de Lesiones</span>
+            <span className="text-[10px] text-muted-foreground block">Registra antecedentes o molestias para el fisioterapeuta</span>
+          </div>
+        </div>
+        <button
+          onClick={() => setAddInjuryOpen(true)}
+          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all shrink-0 cursor-pointer"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          <span>Añadir</span>
+        </button>
+      </div>
 
       {/* "What Should I Do Now?" Dynamic Priority Card */}
       {summary.checkinPending ? (
@@ -136,6 +197,11 @@ export default function PlayerTodayPage() {
       <ProfileCompletionBar
         percentage={summary.completionPercentage}
         missingFields={summary.missingFields}
+        onCompleteField={(key) => {
+          if (key === "injury_history") {
+            setAddInjuryOpen(true);
+          }
+        }}
       />
 
       {/* Talks & Meetings Manager (Player Portal) */}
@@ -145,6 +211,21 @@ export default function PlayerTodayPage() {
         playerName={summary.player.first_name || "Jugador"}
         title="💬 Mis Charlas con el Entrenador"
         subtitle="Solicita o responde citas individuales con el míster y cuerpo técnico"
+      />
+
+      {/* Injury Reminder Modal */}
+      <PlayerInjuryReminderModal
+        isOpen={injuryReminderOpen}
+        onCloseLater={handleCloseReminderLater}
+        onOpenInjuryModal={handleOpenAddInjuryFromReminder}
+        onMarkAsClean={handleMarkAsClean}
+      />
+
+      {/* Confidential Injury Entry Modal */}
+      <ConfidentialInjuryModal
+        isOpen={addInjuryOpen}
+        onClose={() => setAddInjuryOpen(false)}
+        onSubmitSuccess={handleInjurySubmittedSuccess}
       />
 
       {/* Check-in & Check-out Modals */}
@@ -165,3 +246,4 @@ export default function PlayerTodayPage() {
     </div>
   );
 }
+
