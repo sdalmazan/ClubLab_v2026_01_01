@@ -54,6 +54,7 @@ interface NavItem {
 
 const NAV_MAIN: NavItem[] = [
   { href: "/dashboard", labelKey: "overview", icon: LayoutDashboard },
+  { href: "/player", labelKey: "player_portal", icon: User },
   {
     href: "/players",
     labelKey: "players",
@@ -134,8 +135,12 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   const filterItems = (items: NavItem[]) =>
     items.filter((item) => {
-      // Players never see staff navigation
+      // Players see dedicated player navigation
       if (user.role === "player") {
+        const allowedPlayerHrefs = ["/player", "/performance/routines", "/settings"];
+        return allowedPlayerHrefs.includes(item.href);
+      }
+      if (item.href === "/player" && user.role !== "player") {
         return false;
       }
       if (item.href === "/admin" && (user.email === "diecilo7@gmail.com" || user.role === "super_admin")) {

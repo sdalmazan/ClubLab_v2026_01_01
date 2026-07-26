@@ -244,6 +244,26 @@ export default function MatchesPage() {
     }
   }, [season, activeTab]);
 
+  // Auto-scroll to active matchday row in Partidos Propios (squad) tab
+  useEffect(() => {
+    if (activeTab === "squad" && matches.length > 0) {
+      const playedMatches = matches.filter(
+        (m) => m.home_score !== null && m.away_score !== null && Number(m.home_score) >= 0 && Number(m.away_score) >= 0
+      );
+      const activeJornada = playedMatches.length > 0
+        ? Math.min(34, Math.max(...playedMatches.map((m) => m.matchday)) + 1)
+        : 1;
+
+      const timer = setTimeout(() => {
+        const rowEl = document.getElementById(`match-row-j${activeJornada}`);
+        if (rowEl) {
+          rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, matches]);
+
   const handleMatchdayNavChange = (jornada: number) => {
     setNavMatchday(jornada);
     fetchStandings(jornada);
@@ -1780,10 +1800,10 @@ export default function MatchesPage() {
               <tbody className="divide-y divide-white/5 text-slate-300 font-medium">
                 {calculatedMatches.map((m) => {
                   const isHomeAlmazan = m.home_team.toLowerCase().includes("almazán") || m.home_team.toLowerCase().includes("almazan");
-                  const played = m.home_score !== null && m.away_score !== null;
+                  const played = m.home_score !== null && m.away_score !== null && Number(m.home_score) >= 0 && Number(m.away_score) >= 0;
 
                   return (
-                    <tr key={m.id} className="hover:bg-white/2 transition-colors">
+                    <tr key={m.id} id={`match-row-j${m.matchday}`} className="hover:bg-white/2 transition-colors">
                       <td className="px-4 py-3.5 text-center font-bold text-slate-400">Jornada {m.matchday}</td>
                       <td className={`px-4 py-3.5 font-bold whitespace-nowrap truncate max-w-[180px] ${isHomeAlmazan ? "text-emerald-450" : "text-white"}`}>
                         {displayTeamName(m.home_team)}

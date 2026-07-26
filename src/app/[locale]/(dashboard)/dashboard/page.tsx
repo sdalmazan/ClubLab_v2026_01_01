@@ -52,10 +52,11 @@ export default async function DashboardPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Retrieve active team context
+  // Retrieve active team context & role
   const { data: orgRole } = await supabase
     .from("user_organization_roles")
     .select(`
+      role,
       team_id,
       organization_id,
       organizations (
@@ -67,6 +68,17 @@ export default async function DashboardPage({
     `)
     .eq("user_id", user?.id)
     .single();
+
+  const userRole = roleOverride || orgRole?.role;
+  if (userRole === "player") {
+    redirect("/player");
+  }
+  if (userRole === "physical_coach") {
+    redirect("/performance/dashboard");
+  }
+  if (userRole === "physio") {
+    redirect("/injuries");
+  }
 
   const orgData = orgRole?.organizations as any;
   const clubName = orgData?.settings?.club_name || orgData?.name || "ClubLab";

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Shield, UserCheck, User, ShieldCheck, MailCheck } from "lucide-react";
+import { Shield, UserCheck, User, MailCheck, Check, X, Lock } from "lucide-react";
 import { PrivacyPolicyModal } from "@/components/auth/PrivacyPolicyModal";
 
 function RegisterFormContent() {
@@ -16,6 +16,7 @@ function RegisterFormContent() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(emailParam || "");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<"club_admin" | "head_coach" | "player">("club_admin");
   const [preferredChannel, setPreferredChannel] = useState<"whatsapp" | "email">("whatsapp");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -25,6 +26,16 @@ function RegisterFormContent() {
   const [invitationOrg, setInvitationOrg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+
+  // Password complexity rules
+  const hasMinLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  const isPasswordValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial;
+  const passwordsMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
 
   // Load invitation details if token present
   useEffect(() => {
@@ -52,14 +63,22 @@ function RegisterFormContent() {
       return;
     }
 
-    if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
+    if (!isPasswordValid) {
+      setError("La contraseña no cumple con los requisitos mínimos de seguridad.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden. Por favor, verifica ambas contraseñas.");
       return;
     }
 
     setLoading(true);
 
     const supabase = createClient();
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "https://clublab.vercel.app");
+    const nextPath = role === "player" ? "/player" : "/onboarding";
+
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -68,7 +87,7 @@ function RegisterFormContent() {
           full_name: fullName,
           role: role,
         },
-        emailRedirectTo: `${location.origin}/onboarding`,
+        emailRedirectTo: `${appBaseUrl}/api/auth/callback?next=${nextPath}&token=${encodeURIComponent(tokenParam || "")}&preferredChannel=${preferredChannel}&phone=${encodeURIComponent(phoneNumber || "")}`,
       },
     });
 
@@ -98,9 +117,50 @@ function RegisterFormContent() {
       }
     }
 
-    // Redirect to onboarding after registration
-    router.push("/onboarding");
-    router.refresh();
+    setLoading(false);
+
+    // If session exists (email confirmation disabled in Supabase), go to player/onboarding directly.
+    if (authData.session) {
+      router.push(nextPath);
+      router.refresh();
+    } else {
+      setSubmittedEmail(email);
+    }
+  }
+
+  // Verification Pending View
+  if (submittedEmail) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-8 animate-fade-in text-center space-y-5">
+        <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <MailCheck className="h-7 w-7" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-white">¡Verifica tu correo electrónico!</h2>
+          <p className="text-sm text-slate-300 mt-2 max-w-md mx-auto leading-relaxed">
+            Hemos enviado un correo de verificación a:
+            <br />
+            <strong className="text-emerald-400 font-semibold text-base">{submittedEmail}</strong>
+          </p>
+        </div>
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-400 text-left space-y-2">
+          <p className="font-semibold text-slate-300">Pasos para activar tu cuenta:</p>
+          <ol className="list-decimal list-inside space-y-1 text-slate-400">
+            <li>Revisa tu bandeja de entrada (y la carpeta de SPAM).</li>
+            <li>Haz clic en el enlace de confirmación en el email.</li>
+            <li>Accederás directamente a tu perfil sin errores.</li>
+          </ol>
+        </div>
+        <div className="pt-2 flex justify-center">
+          <Link
+            href="/login"
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm transition-all shadow-lg shadow-emerald-950/50"
+          >
+            Ir al inicio de sesión
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -115,7 +175,7 @@ function RegisterFormContent() {
       <div className="mb-6">
         <h2 className="text-xl font-bold text-white">Crea tu cuenta</h2>
         <p className="text-sm text-slate-400 mt-1">
-          Empieza a gestionar tu club con ClubLab
+          {invitationOrg ? `Completa tu registro para unirte a ${invitationOrg}` : "Empieza a gestionar tu club con ClubLab"}
         </p>
       </div>
 
@@ -140,55 +200,57 @@ function RegisterFormContent() {
           />
         </div>
 
-        {/* Role Selection */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            ¿Cómo usarás ClubLab?
-          </label>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => setRole("club_admin")}
-              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center ${
-                role === "club_admin"
-                  ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-950/20"
-                  : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-slate-200"
-              }`}
-            >
-              <Shield className="h-5 w-5 mb-1.5 text-emerald-500" />
-              <span className="text-xs font-bold block">Club / Academia</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 leading-tight">Admin corporativo</span>
-            </button>
+        {/* Role Selection — Hidden if invited via token */}
+        {!tokenParam && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              ¿Cómo usarás ClubLab?
+            </label>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setRole("club_admin")}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center ${
+                  role === "club_admin"
+                    ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-950/20"
+                    : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-slate-200"
+                }`}
+              >
+                <Shield className="h-5 w-5 mb-1.5 text-emerald-500" />
+                <span className="text-xs font-bold block">Club / Academia</span>
+                <span className="text-[10px] text-slate-500 mt-0.5 leading-tight">Admin corporativo</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setRole("head_coach")}
-              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center ${
-                role === "head_coach"
-                  ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-950/20"
-                  : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-slate-200"
-              }`}
-            >
-              <UserCheck className="h-5 w-5 mb-1.5 text-emerald-500" />
-              <span className="text-xs font-bold block">Entrenador</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 leading-tight">Uso individual</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setRole("head_coach")}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center ${
+                  role === "head_coach"
+                    ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-950/20"
+                    : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-slate-200"
+                }`}
+              >
+                <UserCheck className="h-5 w-5 mb-1.5 text-emerald-500" />
+                <span className="text-xs font-bold block">Entrenador</span>
+                <span className="text-[10px] text-slate-500 mt-0.5 leading-tight">Uso individual</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setRole("player")}
-              className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center ${
-                role === "player"
-                  ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-950/20"
-                  : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-slate-200"
-              }`}
-            >
-              <User className="h-5 w-5 mb-1.5 text-emerald-500" />
-              <span className="text-xs font-bold block">Jugador</span>
-              <span className="text-[10px] text-slate-500 mt-0.5 leading-tight">Perfil personal</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setRole("player")}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center ${
+                  role === "player"
+                    ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-950/20"
+                    : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-slate-200"
+                }`}
+              >
+                <User className="h-5 w-5 mb-1.5 text-emerald-500" />
+                <span className="text-xs font-bold block">Jugador</span>
+                <span className="text-[10px] text-slate-500 mt-0.5 leading-tight">Perfil personal</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Notification Channel Preference */}
         <div className="space-y-2 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
@@ -297,6 +359,74 @@ function RegisterFormContent() {
             className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
             placeholder="Mínimo 8 caracteres"
           />
+
+          {/* Password Validation Checklist */}
+          {password.length > 0 && (
+            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 text-[11px] space-y-1.5 text-slate-400 animate-fade-in mt-2">
+              <p className="font-semibold text-slate-300 text-[11px] mb-1">Requisitos de contraseña:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                <div className={`flex items-center gap-1.5 ${hasMinLength ? "text-emerald-400" : "text-slate-500"}`}>
+                  {hasMinLength ? <Check className="h-3.5 w-3.5 shrink-0" /> : <X className="h-3.5 w-3.5 shrink-0 text-slate-600" />}
+                  <span>Mínimo 8 caracteres</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasUpper ? "text-emerald-400" : "text-slate-500"}`}>
+                  {hasUpper ? <Check className="h-3.5 w-3.5 shrink-0" /> : <X className="h-3.5 w-3.5 shrink-0 text-slate-600" />}
+                  <span>Una mayúscula (A-Z)</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasLower ? "text-emerald-400" : "text-slate-500"}`}>
+                  {hasLower ? <Check className="h-3.5 w-3.5 shrink-0" /> : <X className="h-3.5 w-3.5 shrink-0 text-slate-600" />}
+                  <span>Una minúscula (a-z)</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasNumber ? "text-emerald-400" : "text-slate-500"}`}>
+                  {hasNumber ? <Check className="h-3.5 w-3.5 shrink-0" /> : <X className="h-3.5 w-3.5 shrink-0 text-slate-600" />}
+                  <span>Un número (0-9)</span>
+                </div>
+                <div className={`flex items-center gap-1.5 col-span-1 sm:col-span-2 ${hasSpecial ? "text-emerald-400" : "text-slate-500"}`}>
+                  {hasSpecial ? <Check className="h-3.5 w-3.5 shrink-0" /> : <X className="h-3.5 w-3.5 shrink-0 text-slate-600" />}
+                  <span>Un carácter especial (@, #, $, %, !, etc.)</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Confirm Password */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="register-confirm-password"
+            className="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+          >
+            Repetir Contraseña
+          </label>
+          <input
+            id="register-confirm-password"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className={`w-full rounded-xl bg-white/5 border px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${
+              confirmPassword.length > 0
+                ? passwordsMatch
+                  ? "border-emerald-500/50 focus:ring-emerald-500/50"
+                  : "border-red-500/50 focus:ring-red-500/50"
+                : "border-white/10 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+            }`}
+            placeholder="Repite tu contraseña"
+          />
+          {confirmPassword.length > 0 && (
+            <p className={`text-[11px] font-medium flex items-center gap-1 pt-0.5 ${passwordsMatch ? "text-emerald-400" : "text-red-400"}`}>
+              {passwordsMatch ? (
+                <>
+                  <Check className="h-3.5 w-3.5" /> Las contraseñas coinciden
+                </>
+              ) : (
+                <>
+                  <X className="h-3.5 w-3.5" /> Las contraseñas no coinciden
+                </>
+              )}
+            </p>
+          )}
         </div>
 
         {/* RGPD Privacy Policy Acceptance Checkbox */}
@@ -334,8 +464,8 @@ function RegisterFormContent() {
         <button
           id="register-submit"
           type="submit"
-          disabled={loading}
-          className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={loading || !isPasswordValid || !passwordsMatch || !privacyAccepted}
+          className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Creando cuenta..." : "Crear cuenta"}
         </button>

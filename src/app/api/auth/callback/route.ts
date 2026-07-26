@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendRegistrationConfirmationEmail } from "@/lib/email/mailer";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  let next = searchParams.get("next") ?? "/dashboard";
   const role = searchParams.get("role");
   const token = searchParams.get("token");
   const preferredChannel = searchParams.get("preferredChannel") ?? "whatsapp";
   const queryPhone = searchParams.get("phone");
 
+  // Force public base URL to prevent localhost:3000 redirects in production
+  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clublab.vercel.app";
+
   if (code) {
     const supabase = await createClient();
     
-    // Check if user is already logged in (e.g. double-request scenario)
+    // Check if user is already logged in
     const { data: { user: existingUser } } = await supabase.auth.getUser();
     let targetUser = existingUser;
 
@@ -29,7 +33,7 @@ export async function GET(request: Request) {
     if (targetUser) {
       const metadata = targetUser.user_metadata || {};
       const currentRole = metadata.role;
-      const assignedRole = role || currentRole || "club_admin";
+      const assignedRole = role || currentRole || "player";
 
       if (!currentRole && role) {
         await supabase.auth.updateUser({
@@ -37,18 +41,15 @@ export async function GET(request: Request) {
         });
       }
 
-      // Extract Google Profile Metadata (excluding avatar photo)
       const email = targetUser.email || metadata.email;
-      const fullName = metadata.full_name || metadata.name || [metadata.given_name, metadata.family_name].filter(Boolean).join(" ");
-      const firstName = metadata.given_name || fullName.split(" ")[0] || "Jugador";
-      const lastName = metadata.family_name || fullName.split(" ").slice(1).join(" ") || "";
+      const fullName = metadata.full_name || metadata.name || [metadata.given_name, metadata.family_name].filter(Boolean).join(" ") || "Jugador";
       const phoneNumber = queryPhone || metadata.phone_number || metadata.phone || null;
       const dateOfBirth = metadata.birthdate || metadata.birthday || metadata.date_of_birth || null;
 
       try {
         const adminSupabase = createAdminClient();
 
-        // 1. Record RGPD Consent for Google OAuth Signups
+        // 1. Record RGPD Consent
         const ipAddress = request.headers.get("x-forwarded-for") || "unknown";
         const userAgent = request.headers.get("user-agent") || "unknown";
 
@@ -65,18 +66,18 @@ export async function GET(request: Request) {
           }, { onConflict: "user_id,consent_type,version" });
 
         // 2. Process Invitation token if present
-        let invitation = null;
+        let invitation: any = null;
         if (token) {
           const { data: inv } = await adminSupabase
             .from("player_invitations")
-            .select("*")
+            .select("*, organizations(name)")
             .eq("token", token)
             .single();
           invitation = inv;
         } else if (email) {
           const { data: inv } = await adminSupabase
             .from("player_invitations")
-            .select("*")
+            .select("*, organizations(name)")
             .ilike("email", email.trim())
             .eq("status", "pending")
             .order("created_at", { ascending: false })
@@ -85,6 +86,13 @@ export async function GET(request: Request) {
           invitation = inv;
         }
 
+        const effectiveRole = invitation?.role || assignedRole;
+        if (effectiveRole === "player") {
+          next = "/player";
+        }
+
+        const orgName = (invitation as any)?.organizations?.name || "S.D. Almazán";
+
         if (invitation) {
           // Assign user_organization_role
           await adminSupabase
@@ -92,7 +100,7 @@ export async function GET(request: Request) {
             .upsert({
               user_id: targetUser.id,
               organization_id: invitation.organization_id,
-              role: invitation.role || assignedRole,
+              role: effectiveRole,
             }, { onConflict: "user_id,organization_id" });
 
           const playerUpdate: any = {
@@ -126,11 +134,20 @@ export async function GET(request: Request) {
               accepted_at: new Date().toISOString(),
             })
             .eq("id", invitation.id);
+
+          // 3. Send Registration Confirmation Notification via Email/WhatsApp preference
+          await sendRegistrationConfirmationEmail({
+            to: email,
+            recipientName: fullName,
+            orgName: orgName,
+            preferredChannel: preferredChannel,
+          });
+
         } else if (email) {
           // Fallback: search players table directly by email
           const { data: matchingPlayers } = await adminSupabase
             .from("players")
-            .select("id, organization_id")
+            .select("id, organization_id, organizations(name)")
             .ilike("email", email.trim());
 
           if (matchingPlayers && matchingPlayers.length > 0) {
@@ -154,19 +171,25 @@ export async function GET(request: Request) {
                 .upsert({
                   user_id: targetUser.id,
                   organization_id: p.organization_id,
-                  role: assignedRole,
+                  role: effectiveRole,
                 }, { onConflict: "user_id,organization_id" });
             }
+
+            await sendRegistrationConfirmationEmail({
+              to: email,
+              recipientName: fullName,
+              orgName: (matchingPlayers[0] as any)?.organizations?.name || "S.D. Almazán",
+              preferredChannel: preferredChannel,
+            });
           }
         }
       } catch (err: any) {
-        console.error("⚠️ Error processing Google OAuth metadata linking:", err.message);
+        console.error("⚠️ Error processing auth callback linking:", err.message);
       }
 
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${appBaseUrl}${next}`);
     }
   }
 
-  // Return the user to an error page or login with error param
-  return NextResponse.redirect(`${origin}/login?error=auth-callback-failed`);
+  return NextResponse.redirect(`${appBaseUrl}/login?error=auth-callback-failed`);
 }

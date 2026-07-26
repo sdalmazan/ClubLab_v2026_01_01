@@ -42,6 +42,7 @@
   },
   "nav": {
     "overview": "Inicio",
+    "player_portal": "Mi Portal",
     "players": "Jugadores",
     "teams": "Equipos",
     "training": "Entrenamiento",

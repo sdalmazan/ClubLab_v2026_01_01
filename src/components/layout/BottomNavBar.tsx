@@ -60,6 +60,12 @@ const NAV_TABS: NavTab[] = [
     href: "/dashboard",
   },
   {
+    id: "player_portal",
+    labelKey: "player_portal",
+    icon: Users,
+    href: "/player",
+  },
+  {
     id: "squad",
     labelKey: "players",
     icon: Users,
@@ -104,7 +110,12 @@ const MORE_ITEMS: SubItem[] = [
 // ─────────────────────────────────────────────────────────
 
 function canShowTab(tab: NavTab | SubItem, user: AuthUser): boolean {
-  if (user.role === "player") return false;
+  if (user.role === "player") {
+    const allowedPlayerHrefs = ["/player", "/performance/routines", "/settings"];
+    if (tab.href && allowedPlayerHrefs.includes(tab.href)) return true;
+    return false;
+  }
+  if (tab.href === "/player" && user.role !== "player") return false;
   if ("requiredRoles" in tab && tab.requiredRoles) {
     // Special admin bypass
     if (
