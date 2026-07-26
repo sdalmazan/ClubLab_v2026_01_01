@@ -37,22 +37,12 @@ function RegisterFormContent() {
   const isPasswordValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial;
   const passwordsMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
 
-  // Load invitation details if token present
+  // Auto-redirect to dedicated /invite page if token is present in /register
   useEffect(() => {
     if (tokenParam) {
-      fetch(`/api/organization/invitations?token=${encodeURIComponent(tokenParam)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.invitation) {
-            if (data.invitation.fullName) setFullName(data.invitation.fullName);
-            if (data.invitation.email) setEmail(data.invitation.email);
-            if (data.invitation.role) setRole(data.invitation.role);
-            if (data.invitation.organizationName) setInvitationOrg(data.invitation.organizationName);
-          }
-        })
-        .catch(() => {});
+      router.replace(`/invite?token=${encodeURIComponent(tokenParam)}${emailParam ? `&email=${encodeURIComponent(emailParam)}` : ""}`);
     }
-  }, [tokenParam]);
+  }, [tokenParam, emailParam, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

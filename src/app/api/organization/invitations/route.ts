@@ -128,7 +128,7 @@ export async function POST(request: Request) {
 
     // 3. Send email invite with registration URL containing token
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://clublab.vercel.app";
-    const invitationUrl = `${appUrl}/es/invite?token=${invitation.token}&email=${encodeURIComponent(email)}`;
+    const invitationUrl = `${appUrl}/invite?token=${invitation.token}&email=${encodeURIComponent(email)}`;
 
     const roleName = role === "player" ? "Jugador" : role === "head_coach" ? "Entrenador" : "Staff Técnico";
 
