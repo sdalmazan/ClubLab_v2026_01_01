@@ -1,82 +1,11 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import fs from "fs";
-import path from "path";
+const inMemoryLogs = new Map<string, WhatsAppLogRecord>();
 
-/**
- * Helper to normalize and sanitize phone numbers for WhatsApp API.
- * Removes spaces, dashes, dots, parentheses, and automatically prepends '34' (Spain) if a 9-digit mobile number is entered.
- */
-export function normalizePhoneNumber(phone: string): { cleanPhone: string; digitsOnly: string } {
-  if (!phone) return { cleanPhone: "", digitsOnly: "" };
-
-  const rawDigits = phone.replace(/\D/g, "");
-  let digitsOnly = rawDigits;
-  if (rawDigits.length === 9 && (rawDigits.startsWith("6") || rawDigits.startsWith("7"))) {
-    digitsOnly = `34${rawDigits}`;
-  }
-
-  const cleanPhone = `+${digitsOnly}`;
-  return { cleanPhone, digitsOnly };
+function writeToLocalLog(record: WhatsAppLogRecord) {
+  inMemoryLogs.set(record.wamid, record);
 }
 
-export interface WhatsAppLogRecord {
-  wamid: string;
-  waba_id?: string;
-  phone_number_id?: string;
-  recipient_phone: string;
-  template_name?: string;
-  language?: string;
-  initial_status: string;
-  current_status: string;
-  error_code?: number | null;
-  error_title?: string | null;
-  error_message?: string | null;
-  error_details?: string | null;
-  created_at: string;
-  updated_at: string;
-  sent_at?: string | null;
-  delivered_at?: string | null;
-  read_at?: string | null;
-  failed_at?: string | null;
-  raw_initial_response?: any;
-  raw_last_webhook_event?: any;
-}
-
-const LOCAL_LOG_FILE = path.join(process.cwd(), "scratch", "whatsapp_logs.json");
-
-function ensureScratchDir() {
-  const dir = path.join(process.cwd(), "scratch");
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-function writeToLocalLogFile(record: WhatsAppLogRecord) {
-  try {
-    ensureScratchDir();
-    let logs: Record<string, WhatsAppLogRecord> = {};
-    if (fs.existsSync(LOCAL_LOG_FILE)) {
-      const content = fs.readFileSync(LOCAL_LOG_FILE, "utf8");
-      logs = JSON.parse(content || "{}");
-    }
-    logs[record.wamid] = record;
-    fs.writeFileSync(LOCAL_LOG_FILE, JSON.stringify(logs, null, 2), "utf8");
-  } catch (err) {
-    console.error("[Local Log Write Error]", err);
-  }
-}
-
-function readFromLocalLogFile(wamid: string): WhatsAppLogRecord | null {
-  try {
-    if (fs.existsSync(LOCAL_LOG_FILE)) {
-      const content = fs.readFileSync(LOCAL_LOG_FILE, "utf8");
-      const logs: Record<string, WhatsAppLogRecord> = JSON.parse(content || "{}");
-      return logs[wamid] || null;
-    }
-  } catch (err) {
-    console.error("[Local Log Read Error]", err);
-  }
-  return null;
+function readFromLocalLog(wamid: string): WhatsAppLogRecord | null {
+  return inMemoryLogs.get(wamid) || null;
 }
 
 /**
@@ -107,7 +36,7 @@ export async function recordWhatsAppDispatch(params: {
   };
 
   // 1. Write to local fallback file
-  writeToLocalLogFile(record);
+  writeToLocalLog(record);
 
   // 2. Persist to Supabase if table exists
   try {
@@ -161,7 +90,7 @@ export async function updateWhatsAppMessageStatus(params: {
   const now = new Date().toISOString();
   const eventTime = params.timestamp ? new Date(parseInt(params.timestamp) * 1000).toISOString() : now;
 
-  let existing = readFromLocalLogFile(params.wamid);
+  let existing = readFromLocalLog(params.wamid);
 
   // Try DB first if available
   try {
@@ -231,8 +160,8 @@ export async function updateWhatsAppMessageStatus(params: {
     }
   }
 
-  // Save to local file
-  writeToLocalLogFile(existing);
+  // Save to local in-memory log
+  writeToLocalLog(existing);
 
   // Save to DB
   try {
@@ -281,7 +210,7 @@ export async function getWhatsAppMessageStatus(wamid: string): Promise<WhatsAppL
     // Fall back to local log file
   }
 
-  return readFromLocalLogFile(wamid);
+  return readFromLocalLog(wamid);
 }
 
 export interface SendWhatsAppOTPParams {
