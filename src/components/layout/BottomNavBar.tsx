@@ -111,17 +111,18 @@ const MORE_ITEMS: SubItem[] = [
 // ─────────────────────────────────────────────────────────
 
 function canShowTab(tab: NavTab | SubItem, user: AuthUser): boolean {
-  if (user.role === "player") {
+  const userRoleStr = user.role as string;
+  if (userRoleStr === "player") {
     const allowedPlayerHrefs = ["/player", "/performance/routines", "/settings"];
     if (tab.href && allowedPlayerHrefs.includes(tab.href)) return true;
     return false;
   }
-  if (tab.href === "/player" && user.role !== "player") return false;
+  if (tab.href === "/player" && userRoleStr !== "player") return false;
   if ("requiredRoles" in tab && tab.requiredRoles) {
     // Special admin bypass
     if (
       (tab as NavTab).id === "academy" &&
-      (user.email === "diecilo7@gmail.com" || user.role === "super_admin")
+      (user.email === "diecilo7@gmail.com" || userRoleStr === "super_admin")
     ) return true;
     if (!tab.requiredRoles.includes(user.role)) return false;
   }

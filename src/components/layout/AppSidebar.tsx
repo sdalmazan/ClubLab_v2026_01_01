@@ -136,27 +136,28 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   const filterItems = (items: NavItem[]) =>
     items.filter((item) => {
+      const userRoleStr = user.role as string;
       // Players see dedicated player navigation
-      if (user.role === "player") {
+      if (userRoleStr === "player") {
         const allowedPlayerHrefs = ["/player", "/performance/routines", "/settings"];
         return allowedPlayerHrefs.includes(item.href);
       }
-      if (item.href === "/player" && user.role !== "player") {
+      if (item.href === "/player" && userRoleStr !== "player") {
         return false;
       }
-      if (item.href === "/admin" && (user.email === "diecilo7@gmail.com" || user.role === "super_admin")) {
+      if (item.href === "/admin" && (user.email === "diecilo7@gmail.com" || userRoleStr === "super_admin")) {
         return true;
       }
       if (item.href === "/academy" && (
-        user.role === "academy_coordinator" ||
-        user.role === "academy_director" ||
-        user.role === "club_admin" ||
-        user.role === "sporting_director" ||
-        user.role === "super_admin"
+        userRoleStr === "academy_coordinator" ||
+        userRoleStr === "academy_director" ||
+        userRoleStr === "club_admin" ||
+        userRoleStr === "sporting_director" ||
+        userRoleStr === "super_admin"
       )) {
         return true;
       }
-      if (user.role === "physio") {
+      if (userRoleStr === "physio") {
         const allowedPhysioHrefs = ["/injuries", "/training", "/matches", "/settings"];
         return allowedPhysioHrefs.includes(item.href);
       }
