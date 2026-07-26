@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmailAlert } from "@/lib/email/mailer";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -27,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Load other staff members in the same organization
+    // Load target staff members in the same organization
     let query = supabase
       .from("user_organization_roles")
       .select("user_id")
@@ -55,11 +57,45 @@ export async function POST(request: Request) {
         metadata: { sessionId, blockType }
       }));
 
+      // 1. Insert in-app notification records
       const { error: notifError } = await supabase
         .from("notifications")
         .insert(notificationsData);
 
       if (notifError) throw notifError;
+
+      // 2. Fetch auth user emails and dispatch replicated emails
+      try {
+        const adminSupabase = createAdminClient();
+        const targetUserIds = staffMembers.map((sm) => sm.user_id);
+        const { data: usersList } = await adminSupabase.auth.admin.listUsers();
+
+        if (usersList?.users) {
+          const actionUrl = `/es/dashboard/training`;
+
+          for (const member of staffMembers) {
+            const authUser = usersList.users.find((u) => u.id === member.user_id);
+            if (authUser?.email) {
+              const recipientName = authUser.user_metadata?.full_name || authUser.email.split("@")[0];
+              
+              // Asynchronously trigger email sending
+              sendEmailAlert({
+                to: authUser.email,
+                recipientName,
+                title,
+                body,
+                actionUrl,
+                actionText: "Ir a la Sesión de Entrenamiento"
+              }).catch((err) => {
+                console.error(`[Alert Email Error] Failed for ${authUser.email}:`, err);
+              });
+            }
+          }
+        }
+      } catch (emailError: any) {
+        console.error("[Alert Email Dispatch Warning]", emailError.message);
+        // Non-blocking: alert row is saved regardless
+      }
     }
 
     return NextResponse.json({ success: true, count: staffMembers?.length ?? 0 });
@@ -68,3 +104,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+

@@ -24,6 +24,8 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { formatToDDMMAAAA } from "@/lib/utils";
 import { SESSION_TYPE_LABELS, LOAD_LEVEL_LABELS, type SessionType, type LoadLevel } from "@/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "Planificación — ClubLab",
@@ -33,17 +35,18 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const SESSION_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  training: { bg: "corp-badge-bg", text: "corp-text", border: "corp-badge-border" },
-  individual: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20" },
-  match: { bg: "bg-sky-500/10", text: "text-sky-400", border: "border-sky-500/20" },
+  training: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20" },
+  individual: { bg: "bg-sky-500/10", text: "text-sky-400", border: "border-sky-500/20" },
+  match: { bg: "bg-rose-500/10", text: "text-rose-400", border: "border-rose-500/20" },
+  rest: { bg: "bg-slate-500/10", text: "text-slate-400", border: "border-slate-500/20" },
 };
 
 const LOAD_COLORS: Record<LoadLevel, string> = {
-  low: "corp-text border-[var(--corp-border)] bg-[var(--corp-bg)]",
-  medium: "text-amber-400 border-amber-500/20 bg-amber-500/5",
-  medium_high: "text-orange-400 border-orange-500/20 bg-orange-500/5",
-  high: "text-rose-400 border-rose-500/20 bg-rose-500/5",
-  recovery: "text-indigo-400 border-indigo-500/20 bg-indigo-500/5",
+  low: "text-muted-foreground border-border bg-muted/30",
+  medium: "text-amber-400/90 border-amber-500/20 bg-amber-500/5",
+  medium_high: "text-orange-400/90 border-orange-500/20 bg-orange-500/5",
+  high: "text-rose-400/90 border-rose-500/20 bg-rose-500/5",
+  recovery: "text-indigo-400/90 border-indigo-500/20 bg-indigo-500/5",
 };
 
 export default async function TrainingPage({
@@ -94,45 +97,29 @@ export default async function TrainingPage({
   return (
     <div className="flex flex-col gap-6">
       {/* ── HEADER ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Planificación</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
-            Planifica sesiones de entrenamiento, asigna ejercicios y divide equipos.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link
-            href="/training/preseason"
-            className="flex items-center gap-2 rounded-xl border border-orange-500/30 hover:border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/15 text-orange-300 text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
-          >
-            <Sunrise className="h-4 w-4" />
-            Vista Pretemporada
+      <PageHeader
+        title="Planificación"
+        description="Planifica sesiones de entrenamiento, asigna ejercicios y distribuye tareas."
+      >
+        <div className="flex gap-2 flex-wrap items-center">
+          <Link href="/training/preseason" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <Sunrise className="size-4 mr-1.5 text-orange-400" />
+            Pretemporada
           </Link>
-          <Link
-            href="/training/exercises"
-            className="flex items-center gap-2 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
-          >
-            <BookOpen className="h-4 w-4 text-slate-400" />
-            Biblioteca Tareas
+          <Link href="/training/exercises" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <BookOpen className="size-4 mr-1.5 text-muted-foreground" />
+            Tareas
           </Link>
-          <Link
-            href="/training/templates"
-            className="flex items-center gap-2 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
-          >
-            <BookOpen className="h-4 w-4 text-slate-400" />
-            Biblioteca Sesiones
+          <Link href="/training/templates" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <BookOpen className="size-4 mr-1.5 text-muted-foreground" />
+            Plantillas
           </Link>
-          <Link
-            href="/training/new"
-            id="new-session-btn"
-            className="btn-corporate flex items-center gap-2 rounded-xl text-white text-sm font-semibold px-4 py-2.5 transition-all shadow-lg"
-          >
-            <Plus className="h-4 w-4" />
-            Nueva sesión
+          <Link href="/training/new" className={buttonVariants({ size: "sm" })}>
+            <Plus className="size-4 mr-1.5" />
+            Nueva Sesión
           </Link>
         </div>
-      </div>
+      </PageHeader>
 
       {/* ── FILTERS (Academy mode only) ── */}
       {orgType === "academy" && teams.length > 1 && (
@@ -180,7 +167,7 @@ export default async function TrainingPage({
             </h2>
 
             {upcomingSessions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 glass-card rounded-2xl border border-white/5 bg-white/2">
+              <div className="flex flex-col items-center justify-center py-10 bg-muted/50 rounded-lg border border-white/5 bg-white/2">
                 <p className="text-slate-400 text-sm italic">No hay sesiones planificadas</p>
                 <Link
                   href="/training/new"
@@ -201,7 +188,7 @@ export default async function TrainingPage({
                   return (
                     <div
                       key={session.id}
-                      className="glass-card rounded-2xl border border-white/10 p-5 bg-white/2 hover:bg-white/5 transition-all flex items-start justify-between gap-4 flex-wrap"
+                      className="bg-muted/50 rounded-lg border border-white/10 p-5 bg-white/2 hover:bg-white/5 transition-all flex items-start justify-between gap-4 flex-wrap"
                     >
                       <div className="space-y-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -300,7 +287,7 @@ export default async function TrainingPage({
                   return (
                     <div
                       key={session.id}
-                      className="glass-card rounded-xl border border-white/5 p-4 bg-white/1 hover:bg-white/3 transition-all flex items-center justify-between gap-4"
+                      className="bg-muted/50 rounded-lg border border-white/5 p-4 bg-white/1 hover:bg-white/3 transition-all flex items-center justify-between gap-4"
                     >
                       <div className="flex items-center gap-3 overflow-hidden">
                         <span
@@ -342,7 +329,7 @@ export default async function TrainingPage({
         <div className="space-y-6">
           
           {/* Templates Library Card */}
-          <div className="glass-card rounded-2xl border border-white/10 p-5 bg-gradient-to-br from-white/5 to-white/0 flex flex-col gap-4">
+          <div className="bg-muted/50 rounded-lg border border-white/10 p-5 bg-gradient-to-br from-white/5 to-white/0 flex flex-col gap-4">
             <div className="corp-badge flex h-10 w-10 items-center justify-center rounded-xl">
               <BookOpen className="h-5 w-5" />
             </div>
@@ -370,43 +357,21 @@ export default async function TrainingPage({
             </div>
           </div>
 
-          {/* Preseason Planner Card */}
-          <div className="glass-card rounded-2xl border border-orange-500/20 p-5 bg-gradient-to-br from-orange-500/5 to-amber-500/5 flex flex-col gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15 text-orange-400 border border-orange-500/20">
-              <Sunrise className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-extrabold text-white">Planning de Pretemporada</h3>
-              <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                Vista rápida de toda la pretemporada semana a semana. Planifica entrenamientos, descansos, amistosos y jornadas de liga.
-              </p>
-            </div>
-            <div className="border-t border-orange-500/10 pt-4">
-              <Link
-                href="/training/preseason"
-                className="flex items-center justify-between text-xs font-bold text-orange-300 hover:text-orange-200 transition-colors"
-              >
-                <span>Abrir Vista Pretemporada</span>
-                <ChevronRight className="h-4 w-4 text-orange-500" />
-              </Link>
-            </div>
-          </div>
-
           {/* Quick Stats/Summary */}
-          <div className="glass-card rounded-2xl border border-white/10 p-5 bg-white/2 flex flex-col gap-3">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+          <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase">
               Resumen Semanal
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <div className="border border-white/5 bg-white/1 rounded-xl p-3">
-                <p className="text-slate-400 text-[10px] uppercase font-bold">Sesiones</p>
-                <p className="text-lg font-black text-white mt-1">
+              <div className="border border-border/50 bg-muted/30 rounded-lg p-3">
+                <p className="text-muted-foreground text-[11px] font-medium">Sesiones</p>
+                <p className="text-lg font-semibold text-foreground mt-0.5">
                   {sessions.filter(s => s.session_type === "training").length}
                 </p>
               </div>
-              <div className="border border-white/5 bg-white/1 rounded-xl p-3">
-                <p className="text-slate-400 text-[10px] uppercase font-bold">Partidos</p>
-                <p className="text-lg font-black text-sky-400 mt-1">
+              <div className="border border-border/50 bg-muted/30 rounded-lg p-3">
+                <p className="text-muted-foreground text-[11px] font-medium">Partidos</p>
+                <p className="text-lg font-semibold text-foreground mt-0.5">
                   {sessions.filter(s => s.session_type === "match").length}
                 </p>
               </div>

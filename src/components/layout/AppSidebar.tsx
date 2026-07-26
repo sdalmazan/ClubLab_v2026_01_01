@@ -9,6 +9,7 @@ import {
   Activity,
   HeartPulse,
   Trophy,
+  Binoculars,
   GraduationCap,
   Settings,
   ShieldCheck,
@@ -63,7 +64,7 @@ const NAV_MAIN: NavItem[] = [
     href: "/training",
     labelKey: "training",
     icon: CalendarDays,
-    requiredPermission: "create_session",
+    requiredPermission: "view_session_library",
   },
   {
     href: "/performance",
@@ -84,11 +85,15 @@ const NAV_MAIN: NavItem[] = [
     requiredPermission: "view_matches",
   },
   {
+    href: "/scouting",
+    labelKey: "scouting",
+    icon: Binoculars,
+    requiredPermission: "view_scouting",
+  },
+  {
     href: "/academy",
     labelKey: "academy",
     icon: GraduationCap,
-    requiredPermission: "access_academy_dashboard",
-    requiredFeature: "academy_dashboard",
   },
 ];
 
@@ -129,6 +134,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   const filterItems = (items: NavItem[]) =>
     items.filter((item) => {
+      // Players never see staff navigation
+      if (user.role === "player") {
+        return false;
+      }
       if (item.href === "/admin" && (user.email === "diecilo7@gmail.com" || user.role === "super_admin")) {
         return true;
       }
@@ -141,6 +150,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
       )) {
         return true;
       }
+      if (user.role === "physio") {
+        const allowedPhysioHrefs = ["/injuries", "/training", "/matches", "/settings"];
+        return allowedPhysioHrefs.includes(item.href);
+      }
       if (item.requiredPermission && !can(user, item.requiredPermission))
         return false;
       if (item.requiredFeature && !checkFeature(user, item.requiredFeature))
@@ -152,124 +165,112 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const advancedItems = filterItems(NAV_ADVANCED);
   const systemItems = filterItems(NAV_SYSTEM);
 
-  const initials = user.email.split("@")[0].slice(0, 2).toUpperCase();
+  const initials = user.email ? user.email.split("@")[0].slice(0, 2).toUpperCase() : "CL";
 
   return (
-    <Sidebar variant="sidebar" collapsible="icon" className="hidden md:flex">
-      {/* ── HEADER ── */}
-      <SidebarHeader className="px-4 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center py-5 transition-all duration-200">
+    <Sidebar variant="sidebar" collapsible="icon" className="hidden md:flex border-r border-border/40">
+      {/* ── HEADER — Club Identity ── */}
+      <SidebarHeader className="px-4 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center py-4 transition-all duration-200">
         <Link href="/dashboard" className="flex items-center gap-3 group">
           {user.club_logo_url ? (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white border border-white/10 p-1 shadow-lg shadow-black/40 overflow-hidden transition-all">
-              <img src={user.club_logo_url} className="h-full w-full object-contain animate-fade-in" alt="Escudo" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card border border-border p-1 overflow-hidden transition-all">
+              <img src={user.club_logo_url} className="h-full w-full object-contain" alt="Escudo" />
             </div>
           ) : (
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-lg transition-all group-hover:scale-105"
-              style={{
-                background: `linear-gradient(135deg, var(--primary, #10b981) 0%, var(--color-accent-500, #3b82f6) 100%)`,
-                boxShadow: `0 4px 10px -2px rgba(0, 0, 0, 0.4), 0 0 8px var(--primary)`
-              }}
-            >
-              <Dumbbell className="h-4 w-4 text-white" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20 transition-all">
+              <Dumbbell className="h-4 w-4" />
             </div>
           )}
           <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-extrabold tracking-tight text-white leading-none truncate max-w-[130px]" title={user.club_name ?? "ClubLab"}>
+            <span className="text-sm font-semibold tracking-tight text-foreground leading-tight truncate max-w-[130px]" title={user.club_name ?? "ClubLab"}>
               {user.club_name ?? "ClubLab"}
             </span>
-            <span className="text-[9px] text-slate-500 font-semibold tracking-widest uppercase mt-0.5">
-              {user.club_name ? "ClubLab" : "v2026"}
+            <span className="text-[10px] text-muted-foreground font-medium mt-0.5">
+              {user.role === "super_admin" ? "Super Admin" : "Cuerpo Técnico"}
             </span>
           </div>
         </Link>
       </SidebarHeader>
 
-      <SidebarSeparator className="mx-4 group-data-[collapsible=icon]:mx-2 transition-all duration-200" />
+      <SidebarSeparator className="mx-4 group-data-[collapsible=icon]:mx-2 opacity-50" />
 
-      <SidebarContent className="px-2 py-2 group-data-[collapsible=icon]:px-0">
+      <SidebarContent className="px-2 py-3 group-data-[collapsible=icon]:px-0 space-y-4">
         {/* Main navigation */}
         <SidebarGroup className="group-data-[collapsible=icon]:px-0">
           <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    isActive={isActive(item.href)}
-                    tooltip={t(item.labelKey as any)}
-                    render={
-                      <Link href={item.href} className="flex items-center gap-3">
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span>{t(item.labelKey as any)}</span>
-                        {item.badge && (
-                          <Badge
-                            variant="secondary"
-                            className="ml-auto text-[10px] px-1.5 py-0"
-                          >
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </Link>
-                    }
-                  />
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Advanced — Academy */}
-        {advancedItems.length > 0 && (
-          <SidebarGroup className="group-data-[collapsible=icon]:px-0">
-            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest text-slate-600 px-2">
-              Avanzado
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {advancedItems.map((item) => (
+            <SidebarMenu className="space-y-1">
+              {mainItems.map((item) => {
+                const active = isActive(item.href);
+                return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
-                      isActive={isActive(item.href)}
+                      isActive={active}
                       tooltip={t(item.labelKey as any)}
                       render={
-                        <Link href={item.href} className="flex items-center gap-3">
-                          <item.icon className="h-4 w-4 shrink-0" />
+                        <Link 
+                          href={item.href} 
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-md transition-colors",
+                            active 
+                              ? "bg-primary/10 text-primary font-semibold border-l-2 border-primary rounded-l-none" 
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
                           <span>{t(item.labelKey as any)}</span>
-                          <ChevronRight className="ml-auto h-3 w-3 text-slate-600" />
+                          {item.badge && (
+                            <Badge
+                              variant="secondary"
+                              className="ml-auto text-[10px] px-1.5 py-0"
+                            >
+                              {item.badge}
+                            </Badge>
+                          )}
                         </Link>
                       }
                     />
                   </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-        {/* System */}
-        <SidebarGroup className="mt-auto group-data-[collapsible=icon]:px-0">
+        {/* System navigation */}
+        <SidebarGroup className="mt-auto group-data-[collapsible=icon]:px-0 pt-4">
           <SidebarGroupContent>
-            <SidebarMenu>
-              {systemItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    isActive={isActive(item.href)}
-                    tooltip={t(item.labelKey as any)}
-                    render={
-                      <Link href={item.href} className="flex items-center gap-3">
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        <span>{t(item.labelKey as any)}</span>
-                      </Link>
-                    }
-                  />
-                </SidebarMenuItem>
-              ))}
+            <SidebarMenu className="space-y-1">
+              {systemItems.map((item) => {
+                const active = isActive(item.href);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      isActive={active}
+                      tooltip={t(item.labelKey as any)}
+                      render={
+                        <Link 
+                          href={item.href} 
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-md transition-colors",
+                            active 
+                              ? "bg-primary/10 text-primary font-semibold border-l-2 border-primary rounded-l-none" 
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                          <span>{t(item.labelKey as any)}</span>
+                        </Link>
+                      }
+                    />
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarSeparator className="mx-4 group-data-[collapsible=icon]:mx-2 transition-all duration-200" />
+      <SidebarSeparator className="mx-4 group-data-[collapsible=icon]:mx-2 opacity-50" />
 
       {/* ── FOOTER — User info ── */}
       <SidebarFooter className="px-4 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center py-4 transition-all duration-200">

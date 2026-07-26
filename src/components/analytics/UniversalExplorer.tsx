@@ -9,7 +9,9 @@ import {
   Printer,
   ChevronRight,
   ChevronLeft,
-  Search
+  Search,
+  History,
+  AlertCircle
 } from "lucide-react";
 import {
   exploreAction,
@@ -17,6 +19,7 @@ import {
   saveSavedViewAction,
   deleteSavedViewAction,
   getScoutingOpportunitiesAction,
+  getTeamLeaguePositionAction,
 } from "@/features/analysis/actions";
 import { getEntityConfig } from "@/features/analysis/entities";
 import { FilterEngine } from "@/features/analysis/engines/filter";
@@ -37,6 +40,7 @@ interface UniversalExplorerProps {
   organizationId: string;
   activeSeasonName: string;
   userRole: string;
+  defaultCompetition?: string;
 }
 
 /**
@@ -49,6 +53,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
   organizationId,
   activeSeasonName,
   userRole,
+  defaultCompetition = "Tercera Federación - Grupo 8",
 }) => {
   // 1. TABS STATE
   const [entityType, setEntityType] = useState<EntityType>("player");
@@ -56,7 +61,10 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
   // 2. QUERY & EXPLORER STATE
   const [filters, setFilters] = useState<FilterGroup>({
     condition: "AND",
-    rules: [{ field: "season", operator: "eq", value: activeSeasonName }]
+    rules: [
+      { field: "season", operator: "eq", value: activeSeasonName },
+      { field: "competition", operator: "eq", value: defaultCompetition }
+    ]
   });
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string | undefined>(undefined);
@@ -78,6 +86,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
 
   // 5. REPORT BUILDER STATE
   const [showReportModal, setShowReportModal] = useState(false);
+  const [isComparisonMode, setIsComparisonMode] = useState(false);
 
   // 6. EXTRA STATE FOR PROFILE DETAILS & CLUB CONTEXT
   const [profilePlayerName, setProfilePlayerName] = useState<string | null>(null);
@@ -93,6 +102,117 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
   const [isCompareSearching, setIsCompareSearching] = useState(false);
   const [showCompareSuggestions, setShowCompareSuggestions] = useState(false);
   const compareSearchRef = useRef<HTMLDivElement>(null);
+  const [activeSeasonSelectorPlayerId, setActiveSeasonSelectorPlayerId] = useState<string | null>(null);
+  const [playerSeasonsList, setPlayerSeasonsList] = useState<ExplorerRow[]>([]);
+  const [loadingPlayerSeasons, setLoadingPlayerSeasons] = useState(false);
+  const [seasonPositions, setSeasonPositions] = useState<Record<string, number | null>>({});
+  const [compareWithPlayerHistory, setCompareWithPlayerHistory] = useState(false);
+  const [playerHistoryAverages, setPlayerHistoryAverages] = useState<Record<string, number> | null>(null);
+  const [loadingHistoryAverages, setLoadingHistoryAverages] = useState(false);
+  const [categoryMaxValues, setCategoryMaxValues] = useState<Record<string, number>>({});
+  const [loadingCategoryMaxValues, setLoadingCategoryMaxValues] = useState(false);
+
+  const getComparisonData = () => {
+    if (!explorerData || selectedRowIds.length === 0) return null;
+
+    const allCandidates = [...(explorerData?.rows || []), ...scoutingRows];
+    const uniqueCandidatesMap = new Map<string, ExplorerRow>();
+    for (const r of allCandidates) {
+      uniqueCandidatesMap.set(String(r.id), r);
+    }
+
+    const selectedRows = selectedRowIds
+      .map((id) => uniqueCandidatesMap.get(String(id)))
+      .filter((r): r is ExplorerRow => r !== undefined);
+
+    if (selectedRows.length === 0) return null;
+    
+    let compareMetrics = selectedMetrics;
+    if (entityType === "player") {
+      const primaryPos = manualComparePosition || selectedRows[0]?.details?.position || "midfielder";
+      if (primaryPos === "goalkeeper") {
+        compareMetrics = ["cleanSheetRatio", "goalsConceded90", "concededGoalsRatio", "minutes", "matches", "cardPoints"].filter(id => MetricRegistry.get(id) !== undefined);
+      } else if (primaryPos === "back") {
+        compareMetrics = ["cleanSheetRatio", "goalsConceded90", "goals", "minutes", "matches", "cardPoints"].filter(id => MetricRegistry.get(id) !== undefined);
+      } else if (primaryPos === "midfielder") {
+        compareMetrics = ["impact", "minutes", "goals", "goals90", "matches", "yellowCards"].filter(id => MetricRegistry.get(id) !== undefined);
+      } else {
+        compareMetrics = ["goals", "goals90", "dependency", "impact", "minutes", "matches"].filter(id => MetricRegistry.get(id) !== undefined);
+      }
+    }
+    
+    const maxValues: Record<string, number> = {};
+    for (const mId of compareMetrics) {
+      if (categoryMaxValues[mId] !== undefined) {
+        maxValues[mId] = categoryMaxValues[mId];
+      } else {
+        // Fallback to compared candidate rows if league-wide maxes aren't loaded yet
+        const values = selectedRows.map((r) => Number(r.metrics[mId])).filter((v) => !isNaN(v));
+        if (compareWithAverage && leagueAverages && leagueAverages[mId] !== undefined) {
+          values.push(Number(leagueAverages[mId]));
+        }
+        if (compareWithPlayerHistory && playerHistoryAverages && playerHistoryAverages[mId] !== undefined) {
+          values.push(Number(playerHistoryAverages[mId]));
+        }
+        maxValues[mId] = Math.max(...values, 1);
+      }
+    }
+
+    const radarLabels = compareMetrics.map((mId) => ({
+      key: mId,
+      label: MetricRegistry.get(mId)?.name || mId,
+    }));
+
+    const radarDatasets = selectedRows.map((row, idx) => {
+      const normalizedValues: Record<string, number> = {};
+      for (const mId of compareMetrics) {
+        const val = Number(row.metrics[mId]) || 0;
+        normalizedValues[mId] = parseFloat(((val / maxValues[mId]) * 100).toFixed(1));
+      }
+
+      const colors = ["var(--primary)", "#06b6d4", "#6366f1", "#f59e0b", "#ec4899", "#8b5cf6"];
+      return {
+        label: `${row.name} (${row.details?.team_name || ""}) (${row.details?.season || ""})`,
+        values: normalizedValues,
+        color: colors[idx % colors.length],
+      };
+    });
+
+    if (compareWithAverage && leagueAverages) {
+      const avgNormalizedValues: Record<string, number> = {};
+      for (const mId of compareMetrics) {
+        const val = Number(leagueAverages[mId]) || 0;
+        avgNormalizedValues[mId] = parseFloat(((val / maxValues[mId]) * 100).toFixed(1));
+      }
+      radarDatasets.push({
+        label: "Media de la Liga",
+        values: avgNormalizedValues,
+        color: "#6b7280",
+      });
+    }
+
+    if (compareWithPlayerHistory && playerHistoryAverages && selectedRows.length > 0) {
+      const historyNormalizedValues: Record<string, number> = {};
+      for (const mId of compareMetrics) {
+        const val = Number(playerHistoryAverages[mId]) || 0;
+        historyNormalizedValues[mId] = parseFloat(((val / maxValues[mId]) * 100).toFixed(1));
+      }
+      radarDatasets.push({
+        label: `Media Histórica (${selectedRows[0]?.name})`,
+        values: historyNormalizedValues,
+        color: "#10b981",
+      });
+    }
+
+    return {
+      labels: radarLabels,
+      datasets: radarDatasets,
+      rawEntities: selectedRows,
+      compareMetrics,
+    };
+  };
+
+  const compData = getComparisonData();
 
   // Auto-close comparison modal if all players are removed
   useEffect(() => {
@@ -142,6 +262,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
           metrics: [],
           page: 1,
           pageSize: 100,
+          organizationId,
         });
         setMyTeamPlayers(res.rows.map(r => ({
           id: r.id,
@@ -175,18 +296,22 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
     const timer = setTimeout(async () => {
       setIsCompareSearching(true);
       try {
+        const targetSeason = selectedRowIds.length > 0
+          ? (scoutingRows.find(r => r.id === selectedRowIds[0])?.details?.season || explorerData?.rows.find(r => r.id === selectedRowIds[0])?.details?.season || activeSeasonName)
+          : activeSeasonName;
         const res = await exploreAction({
           entityType: "player",
           filters: {
             condition: "AND",
             rules: [
-              { field: "season", operator: "eq", value: activeSeasonName },
+              { field: "season", operator: "eq", value: targetSeason },
               { field: "player_name", operator: "like", value: compareSearchQuery.trim() }
             ]
           },
           metrics: [],
           page: 1,
           pageSize: 15,
+          organizationId,
         });
         setCompareSearchSuggestions(res.rows);
       } catch (err) {
@@ -196,7 +321,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [compareSearchQuery, activeSeasonName]);
+  }, [compareSearchQuery, activeSeasonName, selectedRowIds[0], organizationId]);
 
   // ============================================================
   // LOAD CAPABILITIES & PRESERVE FILTERS ON TAB CHANGE
@@ -220,7 +345,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
       : [
           { field: "season", operator: "eq" as const, value: activeSeasonName },
           ...(entityType === "player" || entityType === "team"
-            ? [{ field: "competition", operator: "eq" as const, value: "Tercera Federación - Grupo 8" }]
+            ? [{ field: "competition", operator: "eq" as const, value: defaultCompetition }]
             : [])
         ];
 
@@ -281,6 +406,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
         sortOrder,
         page,
         pageSize,
+        organizationId,
       });
 
       setExplorerData(result);
@@ -380,7 +506,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
     
     setSelectedRowIds(compareIds);
     setManualComparePosition(
-      positionCategory === "gk" || positionCategory === "df" ? "back" : positionCategory === "mc" ? "midfielder" : "striker"
+      positionCategory === "gk" ? "goalkeeper" : positionCategory === "df" ? "back" : positionCategory === "mc" ? "midfielder" : "striker"
     );
     setShowCompareModal(true);
   };
@@ -408,85 +534,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
     setSortOrder("desc");
   };
 
-  // ============================================================
-  // PREPARE COMPARISON RADAR DATA
-  // ============================================================
-  const getComparisonData = () => {
-    if (!explorerData || selectedRowIds.length === 0) return null;
 
-    const allCandidates = [...(explorerData?.rows || []), ...scoutingRows];
-    const uniqueCandidatesMap = new Map<string, ExplorerRow>();
-    for (const r of allCandidates) {
-      uniqueCandidatesMap.set(String(r.id), r);
-    }
-
-    const selectedRows = selectedRowIds
-      .map((id) => uniqueCandidatesMap.get(String(id)))
-      .filter((r): r is ExplorerRow => r !== undefined);
-
-    if (selectedRows.length === 0) return null;
-    
-    let compareMetrics = selectedMetrics;
-    if (entityType === "player") {
-      const primaryPos = manualComparePosition || selectedRows[0]?.details?.position || "midfielder";
-      if (primaryPos === "goalkeeper" || primaryPos === "back") {
-        compareMetrics = ["cleanSheetRatio", "goalsConceded90", "concededGoalsRatio", "minutes", "matches", "redCards"].filter(id => MetricRegistry.get(id) !== undefined);
-      } else if (primaryPos === "midfielder") {
-        compareMetrics = ["impact", "minutes", "goals", "goals90", "yellowCards"].filter(id => MetricRegistry.get(id) !== undefined);
-      } else {
-        compareMetrics = ["goals", "goals90", "dependency", "impact", "minutes"].filter(id => MetricRegistry.get(id) !== undefined);
-      }
-    }
-    
-    const maxValues: Record<string, number> = {};
-    const allRowsForMax = Array.from(uniqueCandidatesMap.values());
-    for (const mId of compareMetrics) {
-      const values = allRowsForMax.map((r) => Number(r.metrics[mId])).filter((v) => !isNaN(v));
-      maxValues[mId] = Math.max(...values, 1);
-    }
-
-    const radarLabels = compareMetrics.map((mId) => ({
-      key: mId,
-      label: MetricRegistry.get(mId)?.name || mId,
-    }));
-
-    const radarDatasets = selectedRows.map((row, idx) => {
-      const normalizedValues: Record<string, number> = {};
-      for (const mId of compareMetrics) {
-        const val = Number(row.metrics[mId]) || 0;
-        normalizedValues[mId] = parseFloat(((val / maxValues[mId]) * 100).toFixed(1));
-      }
-
-      const colors = ["var(--primary)", "#06b6d4", "#6366f1", "#f59e0b", "#ec4899", "#8b5cf6"];
-      return {
-        label: row.name,
-        values: normalizedValues,
-        color: colors[idx % colors.length],
-      };
-    });
-
-    if (compareWithAverage && leagueAverages) {
-      const averageNormalizedValues: Record<string, number> = {};
-      for (const mId of compareMetrics) {
-        const val = Number(leagueAverages[mId]) || 0;
-        averageNormalizedValues[mId] = parseFloat(((val / maxValues[mId]) * 100).toFixed(1));
-      }
-      radarDatasets.push({
-        label: "Media de la Liga",
-        values: averageNormalizedValues,
-        color: "#94a3b8",
-      });
-    }
-
-    return {
-      labels: radarLabels,
-      datasets: radarDatasets,
-      rawEntities: selectedRows,
-      compareMetrics,
-    };
-  };
-
-  const compData = getComparisonData();
 
   // Dynamically resolve real league averages when comparing with average
   useEffect(() => {
@@ -514,6 +562,7 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
           metrics: config.metrics,
           page: 1,
           pageSize: 1,
+          organizationId,
         });
         setLeagueAverages(res.averages);
       } catch (err) {
@@ -524,6 +573,202 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
     }
     loadLeagueAverages();
   }, [compareWithAverage, selectedRowIds, compData?.rawEntities, entityType]);
+
+  // Load other historical seasons of a player for multi-season comparison
+  useEffect(() => {
+    async function loadPlayerSeasons() {
+      if (!activeSeasonSelectorPlayerId) {
+        setPlayerSeasonsList([]);
+        return;
+      }
+      const ent = compData?.rawEntities.find(e => e.id === activeSeasonSelectorPlayerId);
+      if (!ent) return;
+
+      setLoadingPlayerSeasons(true);
+      try {
+        const config = getEntityConfig(entityType);
+        const res = await exploreAction({
+          entityType: "player",
+          filters: {
+            condition: "AND",
+            rules: [{ field: "player_name", operator: "eq", value: ent.name }]
+          },
+          metrics: config.metrics,
+          page: 1,
+          pageSize: 20,
+          organizationId,
+        });
+
+        // Sort seasons: descending (newest first)
+        const sorted = [...res.rows].sort((a, b) => {
+          const sA = String(a.details?.season || "");
+          const sB = String(b.details?.season || "");
+          return sB.localeCompare(sA, undefined, { numeric: true });
+        });
+
+        setPlayerSeasonsList(sorted);
+
+        // Fetch standings / positions for each season concurrently
+        const positions: Record<string, number | null> = {};
+        await Promise.all(
+          sorted.map(async (row) => {
+            const team = row.details?.team_name;
+            const season = row.details?.season;
+            const comp = row.details?.competition;
+            if (team && season && comp) {
+              const pos = await getTeamLeaguePositionAction(team, season, comp);
+              positions[row.id] = pos;
+            }
+          })
+        );
+        setSeasonPositions(positions);
+      } catch (err) {
+        console.warn("Could not load other seasons:", err);
+      } finally {
+        setLoadingPlayerSeasons(false);
+      }
+    }
+    loadPlayerSeasons();
+  }, [activeSeasonSelectorPlayerId, entityType]);
+
+  // Load player historical averages across all their seasons
+  useEffect(() => {
+    async function loadPlayerHistoryAverages() {
+      if (!compareWithPlayerHistory || !selectedRowIds.length || !compData?.rawEntities?.[0]) {
+        setPlayerHistoryAverages(null);
+        return;
+      }
+      const target = compData.rawEntities[0];
+      setLoadingHistoryAverages(true);
+      try {
+        const config = getEntityConfig(entityType);
+        const res = await exploreAction({
+          entityType: "player",
+          filters: {
+            condition: "AND",
+            rules: [{ field: "player_name", operator: "eq", value: target.name }]
+          },
+          metrics: config.metrics,
+          page: 1,
+          pageSize: 20,
+          organizationId,
+        });
+
+        const averages: Record<string, number> = {};
+        for (const mId of config.metrics) {
+          const vals = res.rows.map(r => Number(r.metrics[mId])).filter(v => !isNaN(v));
+          const sum = vals.reduce((s, v) => s + v, 0);
+          averages[mId] = vals.length > 0 ? parseFloat((sum / vals.length).toFixed(2)) : 0;
+        }
+        setPlayerHistoryAverages(averages);
+      } catch (err) {
+        console.warn("Could not load player history averages:", err);
+      } finally {
+        setLoadingHistoryAverages(false);
+      }
+    }
+    loadPlayerHistoryAverages();
+  }, [compareWithPlayerHistory, selectedRowIds, compData?.rawEntities, entityType]);
+
+  // Load maximum values for the category (league and season) excluding players with <40% matches
+  useEffect(() => {
+    async function loadCategoryMaxValues() {
+      if (!showCompareModal || !compData?.rawEntities?.[0]) {
+        setCategoryMaxValues({});
+        return;
+      }
+      const target = compData.rawEntities[0];
+      const season = target.details?.season;
+      const competition = target.details?.competition;
+      if (!season || !competition) return;
+
+      setLoadingCategoryMaxValues(true);
+      try {
+        const config = getEntityConfig(entityType);
+        // Load all players in the league
+        const res = await exploreAction({
+          entityType: "player",
+          filters: {
+            condition: "AND",
+            rules: [
+              { field: "season", operator: "eq", value: season },
+              { field: "competition", operator: "eq", value: competition }
+            ]
+          },
+          metrics: config.metrics,
+          page: 1,
+          pageSize: 1000,
+          organizationId,
+        });
+
+        const currentPos = manualComparePosition || target.details?.position || "midfielder";
+        
+        // Filter players by broad position group
+        const posPlayers = res.rows.filter(r => {
+          const pos = r.details?.position || "midfielder";
+          if (currentPos === "goalkeeper") return pos === "goalkeeper";
+          if (currentPos === "back") return pos === "back";
+          if (currentPos === "midfielder") return pos === "midfielder";
+          return pos === "striker" || pos === "forward" || pos === "winger";
+        });
+
+        // Exclude players with less than 40% matches
+        const maxMatches = posPlayers.length > 0
+          ? Math.max(...posPlayers.map(p => Number(p.metrics.matches) || 0), 1)
+          : 1;
+        const matchesThreshold = maxMatches * 0.4;
+        const qualifiedPlayers = posPlayers.filter(p => (Number(p.metrics.matches) || 0) >= matchesThreshold);
+
+        // Compute maximum values
+        const maxs: Record<string, number> = {};
+        const allMetricsToCalculate = Array.from(new Set([...config.metrics, "cardPoints"]));
+        for (const mId of allMetricsToCalculate) {
+          const comparedVals = compData.rawEntities.map((r) => Number(r.metrics[mId])).filter((v) => !isNaN(v));
+          if (compareWithAverage && leagueAverages && leagueAverages[mId] !== undefined) {
+            comparedVals.push(Number(leagueAverages[mId]));
+          }
+          if (compareWithPlayerHistory && playerHistoryAverages && playerHistoryAverages[mId] !== undefined) {
+            comparedVals.push(Number(playerHistoryAverages[mId]));
+          }
+
+          const categoryVals = qualifiedPlayers.map(p => Number(p.metrics[mId])).filter(v => !isNaN(v));
+          const allVals = [...comparedVals, ...categoryVals];
+          maxs[mId] = allVals.length > 0 ? Math.max(...allVals, 1) : 1;
+        }
+
+        setCategoryMaxValues(maxs);
+      } catch (err) {
+        console.warn("Could not load category max values:", err);
+      } finally {
+        setLoadingCategoryMaxValues(false);
+      }
+    }
+    loadCategoryMaxValues();
+  }, [
+    showCompareModal,
+    compData?.rawEntities?.[0]?.id,
+    manualComparePosition,
+    compareWithAverage,
+    leagueAverages,
+    compareWithPlayerHistory,
+    playerHistoryAverages,
+    entityType,
+    organizationId
+  ]);
+
+  const handlePrint = () => {
+    const originalTitle = document.title;
+    const names = compData?.rawEntities?.map(ent => ent.name.trim()) || [];
+    const formattedNames = names.slice(0, 2).join("_");
+    const printTitle = `ClubLab Comparativa - ${formattedNames}`;
+    
+    document.title = printTitle;
+    window.print();
+    
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
+  };
 
   // ============================================================
   // SAVED VIEWS
@@ -657,26 +902,41 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
 
         {/* Dynamic Action Buttons */}
         <div className="flex items-center gap-2">
-          {selectedRowIds.length >= 2 && (
+          {isComparisonMode ? (
+            <>
+              <button
+                disabled={selectedRowIds.length < 2}
+                onClick={() => {
+                  setManualComparePosition(null);
+                  setShowCompareModal(true);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-primary px-4.5 py-2.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none"
+              >
+                <Zap className="h-4 w-4" />
+                <span>Confirmar Comparativa ({selectedRowIds.length})</span>
+              </button>
+              <button
+                onClick={() => {
+                  setIsComparisonMode(false);
+                  setSelectedRowIds([]);
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 px-4.5 py-2.5 text-xs font-bold text-slate-400 hover:text-white transition-all active:scale-[0.98]"
+              >
+                <span>Cancelar</span>
+              </button>
+            </>
+          ) : (
             <button
               onClick={() => {
-                setManualComparePosition(null);
-                setShowCompareModal(true);
+                setIsComparisonMode(true);
+                setSelectedRowIds([]);
               }}
-              className="flex items-center gap-1.5 rounded-xl bg-primary px-4.5 py-2.5 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.98] transition-all"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 px-4.5 py-2.5 text-xs font-bold text-slate-350 hover:bg-slate-900 hover:text-white transition-all active:scale-[0.98]"
             >
-              <Zap className="h-4 w-4" />
-              <span>Comparar Seleccionados ({selectedRowIds.length})</span>
+              <Zap className="h-4 w-4 text-primary" />
+              <span>Comparar</span>
             </button>
           )}
-
-          <button
-            onClick={() => setShowReportModal(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 px-4.5 py-2.5 text-xs font-bold text-slate-300 hover:bg-slate-900 transition-all"
-          >
-            <FileText className="h-4 w-4 text-slate-400" />
-            <span>Exportar Informe Layout</span>
-          </button>
         </div>
       </div>
 
@@ -775,13 +1035,25 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
 
           {/* Metrics Grid Area */}
           {loading ? (
-            <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/80 text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="text-sm font-semibold tracking-wide">Cargando datos estadísticos...</p>
+            <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-6 text-center text-slate-400 shadow-xl">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm font-bold tracking-wide text-white animate-pulse">Cargando datos...</p>
+              <p className="text-xs text-slate-400">Buscando y procesando información en la base de datos de scouting...</p>
             </div>
           ) : (
             <>
+              {explorerData && explorerData.rows.length === 0 && (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-200 flex flex-col items-center justify-center gap-2 text-center my-2 shadow-lg">
+                  <AlertCircle className="h-7 w-7 text-amber-400 shrink-0" />
+                  <p className="text-sm font-bold">Esta temporada ({activeSeasonName}) todavía no tiene información registrada</p>
+                  <p className="text-xs text-amber-300/80 max-w-lg">
+                    Los datos estadísticos de partidos disputados se van actualizando semanalmente. Puedes cambiar el filtro de temporada a <strong>2025/2026</strong> o anteriores en el panel de filtros para consultar el historial completo de rendimiento.
+                  </p>
+                </div>
+              )}
+
               <MetricsGrid
+
                 entityType={entityType}
                 rows={explorerData?.rows || []}
                 averages={explorerData?.averages || {}}
@@ -801,6 +1073,8 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
                 }}
                 onPlayerClick={handleOpenPlayerProfile}
                 onShiftMetric={handleShiftMetric}
+                clubName={clubName}
+                isComparisonMode={isComparisonMode}
               />
 
               {/* Pagination footer */}
@@ -852,18 +1126,18 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
 
       {/* 3. COMPARISON MODAL */}
       {showCompareModal && compData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 print:p-0 print:bg-white print:relative print:z-auto">
+        <div className="compare-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 print:p-0 print:bg-white print:relative print:z-auto">
           <div id="compare-modal-content" className="w-full max-w-4xl rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl print:border-none print:shadow-none print:bg-slate-950 print:text-white print:max-w-full">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4 no-print">
               <div className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-primary animate-pulse" />
-                <h3 className="text-base font-bold text-white uppercase tracking-wider">Comparativa Universal</h3>
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">Comparador de rendimiento</h3>
               </div>
 
               <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => window.print()}
+                  onClick={handlePrint}
                   className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 px-3.5 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-all active:scale-[0.98]"
                 >
                   <Printer className="h-3.5 w-3.5 text-primary" />
@@ -880,8 +1154,8 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
 
             {/* Print Header */}
             <div className="hidden print:block border-b border-slate-800 pb-3 mb-4">
-              <h3 className="text-base font-black uppercase text-white tracking-wider">ClubLab - Comparativa Estadísticas</h3>
-              <p className="text-[10px] text-slate-400 mt-0.5">Informe compilado automáticamente el {new Date().toLocaleDateString()}</p>
+              <h3 className="text-base font-black uppercase text-white tracking-wider">ClubLab - Comparador de rendimiento</h3>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-bold">Creado el día {new Date().toLocaleDateString("es-ES")}</p>
             </div>
 
             {/* Compared Players Badges & Quick selector */}
@@ -892,10 +1166,26 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
                 return (
                   <div
                     key={ent.id}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/40 pl-2.5 pr-1.5 py-1 text-xs font-semibold text-white"
+                    className="relative flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/40 pl-2.5 pr-1.5 py-1 text-xs font-semibold text-white animate-fade-in"
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-                    <span>{ent.name}</span>
+                    <span>{ent.name} ({ent.details?.season})</span>
+                              {entityType === "player" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveSeasonSelectorPlayerId(
+                            activeSeasonSelectorPlayerId === ent.id ? null : ent.id
+                          );
+                        }}
+                        className="ml-2 flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-0.5 text-[9px] font-bold text-slate-400 hover:border-primary hover:text-primary transition-all active:scale-[0.97]"
+                        title="Comparar con otras temporadas de este jugador"
+                      >
+                        <History className="h-2.5 w-2.5 text-primary/80" />
+                        <span>+ Temp.</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => setSelectedRowIds(prev => prev.filter(id => id !== ent.id))}
                       className="ml-1 text-slate-500 hover:text-red-400 p-0.5 rounded transition-all"
@@ -903,6 +1193,77 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
+
+                    {activeSeasonSelectorPlayerId === ent.id && (
+                      <div className="absolute top-[34px] left-0 w-60 rounded-xl border border-slate-800 bg-slate-950 shadow-2xl z-60 max-h-56 overflow-y-auto premium-scrollbar divide-y divide-slate-900 no-print">
+                        {loadingPlayerSeasons ? (
+                          <div className="px-3 py-2.5 text-xxs text-slate-500 italic text-center flex items-center justify-center gap-1.5">
+                            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                            <span>Cargando temporadas...</span>
+                          </div>
+                        ) : (
+                          playerSeasonsList
+                            .filter(row => row.id !== ent.id)
+                            .map(row => {
+                              const pos = seasonPositions[row.id];
+                              const posText = pos ? `${pos}º` : "—";
+                              const isAlreadyCompared = selectedRowIds.includes(row.id);
+                              return (
+                                <div
+                                  key={row.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // REPLACE ACTIVE BADGE SEASON
+                                    setScoutingRows(prev => {
+                                      if (!prev.some(r => r.id === row.id)) {
+                                        return [...prev, row];
+                                      }
+                                      return prev;
+                                    });
+                                    setSelectedRowIds(prev => prev.map(id => id === ent.id ? row.id : id));
+                                    setActiveSeasonSelectorPlayerId(null);
+                                  }}
+                                  className="px-3.5 py-2.5 hover:bg-slate-900/60 transition-colors cursor-pointer text-xxs font-medium flex items-center justify-between border-b border-slate-900 last:border-none"
+                                >
+                                  <div className="flex flex-col gap-0.5 flex-1 min-w-0 pr-2">
+                                    <div className="flex justify-between text-white font-bold">
+                                      <span>Temporada {row.details?.season}</span>
+                                      {pos && <span className="text-primary text-[10px]">{posText} pos.</span>}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 truncate">
+                                      {row.details?.team_name}
+                                    </div>
+                                    <div className="text-[9px] text-slate-500 truncate">
+                                      {row.details?.competition || "Liga"}
+                                    </div>
+                                  </div>
+                                  
+                                  {!isAlreadyCompared && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // ADD AS ADDITIONAL SEASON SERIES
+                                        setScoutingRows(prev => {
+                                          if (!prev.some(r => r.id === row.id)) {
+                                            return [...prev, row];
+                                          }
+                                          return prev;
+                                        });
+                                        setSelectedRowIds(prev => Array.from(new Set([...prev, row.id])));
+                                        setActiveSeasonSelectorPlayerId(null);
+                                      }}
+                                      className="shrink-0 px-2 py-1 rounded bg-slate-900 hover:bg-primary border border-slate-800 hover:border-primary text-slate-400 hover:text-white transition-all text-[9px] font-bold"
+                                      title="Comparar también con esta temporada (añadir serie)"
+                                    >
+                                      +
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -918,6 +1279,21 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
                   }`}
                 >
                   <span>{compareWithAverage ? "✓ Con Media de la Liga" : "+ Comparar con Media de la Liga"}</span>
+                </button>
+              )}
+
+              {/* Toggle Comparar con la media histórica del jugador */}
+              {entityType === "player" && compData.rawEntities.length > 0 && (
+                <button
+                  onClick={() => setCompareWithPlayerHistory(prev => !prev)}
+                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-1 text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
+                    compareWithPlayerHistory
+                      ? "bg-slate-900 border-primary text-primary"
+                      : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <History className="h-3.5 w-3.5" />
+                  <span>{compareWithPlayerHistory ? "✓ Con Media Histórica" : "+ Comparar con Media Histórica"}</span>
                 </button>
               )}
 
@@ -1018,10 +1394,12 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
                 <span className="text-xxs font-bold text-slate-500 uppercase tracking-widest pl-2 mr-2">
                   Tipo de Comparación:
                 </span>
-                {(["back", "midfielder", "striker"] as const).map((posKey) => {
+                {(["goalkeeper", "back", "midfielder", "striker"] as const).map((posKey) => {
                   const label =
-                    posKey === "back"
-                      ? "Defensa / Portero"
+                    posKey === "goalkeeper"
+                      ? "Portero"
+                      : posKey === "back"
+                      ? "Defensa"
                       : posKey === "midfielder"
                       ? "Centrocampista"
                       : "Delantero / Extremo";
@@ -1029,7 +1407,9 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
                     manualComparePosition || compData.rawEntities[0]?.details?.position || "midfielder";
                   
                   const groupKey =
-                    primaryPos === "goalkeeper" || primaryPos === "back"
+                    primaryPos === "goalkeeper"
+                      ? "goalkeeper"
+                      : primaryPos === "back"
                       ? "back"
                       : primaryPos === "midfielder"
                       ? "midfielder"
@@ -1058,7 +1438,14 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center print:flex print:flex-col print:gap-8">
               {/* Radar Chart */}
               <div className="print:w-full print:max-w-md print:mx-auto print:bg-slate-950 print:p-4 print:rounded-2xl">
-                <RadarChart labels={compData.labels} datasets={compData.datasets} />
+                {showCompareModal && compData?.rawEntities?.[0]?.details?.season && compData?.rawEntities?.[0]?.details?.competition && Object.keys(categoryMaxValues).length === 0 ? (
+                  <div className="flex h-[300px] flex-col items-center justify-center gap-2 text-slate-400">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <p className="text-xs font-semibold tracking-wide">Ajustando límites de la categoría...</p>
+                  </div>
+                ) : (
+                  <RadarChart labels={compData.labels} datasets={compData.datasets} />
+                )}
               </div>
 
               {/* Grid details */}
@@ -1106,6 +1493,18 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
                             </span>
                           </div>
                         )}
+
+                        {compareWithPlayerHistory && playerHistoryAverages && (
+                          <div className="flex items-center gap-1.5 flex-1">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: "#10b981" }} />
+                            <span className="text-xs text-slate-500 truncate max-w-[120px] print:text-slate-400">Media Hist.:</span>
+                            <span className="text-xs font-bold text-white">
+                              {playerHistoryAverages[mId] !== undefined
+                                ? (def.formatType === "percentage" ? `${playerHistoryAverages[mId]}%` : def.formatType === "duration" ? `${playerHistoryAverages[mId]}m` : playerHistoryAverages[mId])
+                                : "—"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1119,27 +1518,57 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
       {/* Print style block */}
       <style>{`
         @media print {
+          @page {
+            margin: 0 !important;
+            size: auto;
+          }
+          body, html, main, .sidebar-inset, #root, #__next {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            overflow: hidden !important;
+            background: #020617 !important;
+          }
           header, nav, aside, button, .no-print, [data-sidebar], .sidebar-inset > header {
             display: none !important;
           }
-          body, html, main, .sidebar-inset, .print-container {
-            background: #020617 !important;
-            color: white !important;
-          }
           body * {
             visibility: hidden;
+          }
+          .compare-modal-overlay, .compare-modal-overlay * {
+            visibility: visible;
+          }
+          .compare-modal-overlay {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: #020617 !important;
+            z-index: 9999999 !important;
           }
           #compare-modal-content, #compare-modal-content * {
             visibility: visible;
           }
           #compare-modal-content {
-            position: absolute;
-            left: 0;
-            top: 0;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
             width: 100% !important;
+            margin: 0 !important;
+            padding: 24px !important;
             background: #020617 !important;
             color: white !important;
             border: none !important;
+            box-shadow: none !important;
+            z-index: 99999999 !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+            page-break-before: avoid !important;
           }
         }
       `}</style>

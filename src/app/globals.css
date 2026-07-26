@@ -26,6 +26,27 @@
   --color-surface-700: oklch(21% 0.04 265);
   --color-surface-600: oklch(26% 0.05 265);
 
+  /* Semantic tokens mapping for Tailwind v4 */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
   /* Fonts */
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 
@@ -60,6 +81,21 @@
   --ring: oklch(70% 0.18 162);
   --radius: 0.75rem;
 
+  /* Radius scale */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  /* Shadow scale */
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.15);
+  --shadow-md: 0 4px 12px oklch(0% 0 0 / 0.25);
+
+  /* Semantic status colors */
+  --success: oklch(75% 0.16 162);
+  --success-foreground: oklch(97% 0.005 265);
+  --warning: oklch(80% 0.15 85);
+  --warning-foreground: oklch(25% 0.05 85);
+
   /* Sidebar */
   --sidebar-background: oklch(13% 0.03 265);
   --sidebar-foreground: oklch(82% 0.02 265);
@@ -88,7 +124,6 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
-    background-color: oklch(10% 0.02 265);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -124,32 +159,8 @@
   to   { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 oklch(70% 0.18 162 / 0); }
-  50%       { box-shadow: 0 0 12px 3px oklch(70% 0.18 162 / 0.2); }
-}
-
 .animate-fade-in      { animation: fade-in 0.3s ease-out forwards; }
 .animate-slide-in-left { animation: slide-in-left 0.3s ease-out forwards; }
-.animate-pulse-glow   { animation: pulse-glow 2s ease-in-out infinite; }
-
-/* ============================================================
-   Glass morphism
-   ============================================================ */
-
-.glass {
-  background: oklch(13% 0.03 265 / 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid oklch(26% 0.05 265 / 0.8);
-}
-
-.glass-card {
-  background: oklch(17% 0.03 265 / 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid oklch(26% 0.05 265 / 0.6);
-}
 
 /* ============================================================
    Status colours
@@ -162,67 +173,6 @@
 .status-bg-green  { background: oklch(80% 0.16 162 / 0.1); border-color: oklch(80% 0.16 162 / 0.3); }
 .status-bg-yellow { background: oklch(82% 0.17 87 / 0.1);  border-color: oklch(82% 0.17 87 / 0.3); }
 .status-bg-red    { background: oklch(72% 0.20 27 / 0.1);  border-color: oklch(72% 0.20 27 / 0.3); }
-
-/* ============================================================
-   Typography utilities
-   ============================================================ */
-
-.text-gradient {
-  color: var(--primary, oklch(80% 0.16 162));
-}
-
-.text-gradient-brand {
-  color: var(--primary, oklch(70% 0.18 162));
-}
-
-/* ============================================================
-   Custom Premium Tooltips
-   ============================================================ */
-.tooltip-container {
-  position: relative;
-  display: inline-flex;
-}
-
-.tooltip-text {
-  visibility: hidden;
-  position: absolute;
-  bottom: 135%;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  background: oklch(13% 0.03 265 / 0.95);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #ffffff;
-  text-align: center;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid oklch(26% 0.05 265 / 0.8);
-  font-size: 10px;
-  font-weight: 650;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 50;
-  box-shadow: 0 4px 14px oklch(10% 0.02 265 / 0.6);
-  pointer-events: none;
-}
-
-.tooltip-text::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  margin-left: -5px;
-  border-width: 5px;
-  border-style: solid;
-  border-color: oklch(26% 0.05 265 / 0.8) transparent transparent transparent;
-}
-
-.tooltip-container:hover .tooltip-text {
-  visibility: visible;
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
 
 /* ============================================================
    Mobile safe area (iOS notch / home indicator)
@@ -241,48 +191,6 @@
    Usan --primary (inyectado por el layout del equipo).
    Fallback: esmeralda ClubLab para auth/onboarding.
    ============================================================ */
-
-/* Botón primario CTA (gradiente corporativo) */
-.btn-corporate {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--primary, #10b981) 80%, #000),
-    var(--primary, #10b981)
-  );
-  color: var(--primary-foreground, #ffffff);
-  transition: filter 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--primary, #10b981) 45%, transparent);
-}
-.btn-corporate:hover:not(:disabled) {
-  filter: brightness(1.14);
-  box-shadow: 0 6px 22px -4px color-mix(in srgb, var(--primary, #10b981) 55%, transparent);
-}
-.btn-corporate:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-/* Botón sólido corporativo (sin gradiente) */
-.btn-corporate-solid {
-  background-color: var(--primary, #10b981);
-  color: var(--primary-foreground, #ffffff);
-  transition: filter 0.15s ease;
-}
-.btn-corporate-solid:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-.btn-corporate-solid:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-/* Badge / chip corporativo (fondo sutil) */
-.corp-badge {
-  background: color-mix(in srgb, var(--primary, #10b981) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary, #10b981) 28%, transparent);
-  color: var(--primary, #10b981);
-}
 
 /* Texto con acento corporativo */
 .corp-text {
@@ -329,6 +237,35 @@
 /* accent-color para inputs range/checkbox */
 .corp-accent {
   accent-color: var(--primary, #10b981);
+}
+
+/* ============================================================
+   Temporary compatibility: btn-corporate / corp-badge
+   Clean versions using semantic tokens (no gradients/heavy shadows).
+   TODO: Migrate raw elements to <Button variant="corporate"> / <Badge variant="corporate">
+   ============================================================ */
+
+.btn-corporate,
+.btn-corporate-solid {
+  background-color: var(--primary, #10b981);
+  color: var(--primary-foreground, #ffffff);
+  transition: opacity 0.15s ease;
+}
+.btn-corporate:hover:not(:disabled),
+.btn-corporate-solid:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.btn-corporate:disabled,
+.btn-corporate-solid:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.corp-badge {
+  background: color-mix(in srgb, var(--primary, #10b981) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary, #10b981) 25%, transparent);
+  color: var(--primary, #10b981);
 }
 
 /* Premium scrollbar utility */

@@ -39,7 +39,7 @@ export function PlayerPositionsMap({
   });
 
   return (
-    <div className="glass-card rounded-2xl p-5 flex flex-col gap-4">
+    <div className="bg-muted/50 rounded-lg p-5 flex flex-col gap-4">
       <div className="flex items-center justify-between border-b border-white/5 pb-3">
         <h2 className="text-sm font-semibold text-white flex items-center gap-2">
           <Target className="h-4 w-4 text-emerald-500" />
@@ -76,7 +76,7 @@ export function PlayerPositionsMap({
           </div>
 
           {showMap && (
-            <div className="max-w-[220px] mx-auto w-full border border-white/5 rounded-2xl overflow-hidden shadow-2xl bg-slate-950/60 p-2 animate-fade-in">
+            <div className="max-w-[220px] mx-auto w-full border border-border rounded-xl overflow-hidden shadow-md bg-muted p-2 animate-fade-in">
               <FieldMap assignments={playerAssignments} />
             </div>
           )}

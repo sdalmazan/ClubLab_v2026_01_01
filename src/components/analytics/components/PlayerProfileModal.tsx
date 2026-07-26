@@ -455,6 +455,18 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
             </div>
           )}
         </div>
+
+        {/* Modal Sticky Footer with clear Exit Button */}
+        <div className="bg-slate-900 px-6 py-3 border-t border-slate-800 flex justify-end shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-all cursor-pointer shadow flex items-center gap-1.5"
+          >
+            <X className="h-4 w-4" />
+            <span>Cerrar Ficha</span>
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -265,7 +265,7 @@ export function TemplateForm({
       )}
 
       {/* ── SECCIÓN 1: DATOS BÁSICOS ── */}
-      <div className="glass rounded-2xl p-6 space-y-6">
+      <div className="bg-card rounded-lg border border-border p-6 space-y-6">
         <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
           <PenTool className="h-5 w-5 corp-icon" />
           Datos Generales de la Plantilla
@@ -426,7 +426,7 @@ export function TemplateForm({
         </div>
 
         {exercises.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 border border-dashed border-white/10 rounded-2xl bg-white/2 glass-card">
+          <div className="flex flex-col items-center justify-center py-16 border border-dashed border-border/50 rounded-lg bg-muted/50">
             <CalendarDays className="h-8 w-8 text-slate-500 mb-2 animate-pulse" />
             <p className="text-sm text-slate-400 font-semibold mb-2">No has añadido ningún ejercicio a la plantilla</p>
             <button
@@ -444,7 +444,7 @@ export function TemplateForm({
               return (
                 <div
                   key={ex.exercise_id + "-" + index}
-                  className="glass rounded-2xl border border-white/10 p-5 bg-white/2 space-y-5"
+                  className="bg-card rounded-lg border border-border p-5 space-y-5"
                 >
                   {/* Exercise Header */}
                   <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-3">
@@ -682,7 +682,7 @@ export function TemplateForm({
       {/* ── MODAL: EXERCISE SELECTOR ── */}
       {isLibraryOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass w-full max-w-lg rounded-3xl border border-white/10 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl animate-fade-in">
+          <div className="bg-popover w-full max-w-lg rounded-xl border border-border flex flex-col max-h-[80vh] overflow-hidden shadow-md animate-fade-in">
             <div className="p-5 border-b border-white/5 flex items-center justify-between">
               <h3 className="text-base font-extrabold text-white">Biblioteca de Ejercicios</h3>
               <button
@@ -743,7 +743,7 @@ export function TemplateForm({
       {/* ── MODAL: PIZARRA TÁCTICA ── */}
       {whiteboardExerciseIndex !== null && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass w-full max-w-4xl rounded-3xl border border-white/10 flex flex-col max-h-[95vh] overflow-hidden shadow-2xl">
+          <div className="bg-popover w-full max-w-4xl rounded-xl border border-border flex flex-col max-h-[95vh] overflow-hidden shadow-md">
             <div className="p-5 border-b border-white/5 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-white">Pizarra Táctica</h3>

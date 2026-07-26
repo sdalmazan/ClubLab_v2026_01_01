@@ -72,44 +72,52 @@ export class AnalysisDataProvider {
    * Filters applied via PostgREST push-down for efficient server-side filtering.
    */
   static async getFederatedMatches(options?: GetFederatedMatchesOptions) {
-    let query = statsAdmin.from("stat_matches").select("*");
+    const buildQuery = () => {
+      let query = statsAdmin.from("stat_matches").select("*");
 
-    if (options?.seasons && options.seasons.length > 0) {
-      query = query.in("season", options.seasons);
-    }
-    if (options?.competitions && options.competitions.length > 0) {
-      query = query.in("competition", options.competitions);
-    }
-    if (options?.matchday !== undefined) {
-      query = query.eq("matchday", options.matchday);
-    }
-
-    // Generic filter push-down via FilterEngine
-    if (options?.filters) {
-      let filteredDbRules = [...options.filters.rules];
-      
-      // Intercept and push down coach name searches to PostgreSQL JSONB operators
-      const coachRule = options.filters.rules.find(
-        (r: any) => !r.rules && r.field === "coach_name"
-      ) as FilterRule | undefined;
-      
-      if (coachRule && coachRule.value) {
-        const coachVal = String(coachRule.value).trim();
-        const words = coachVal.split(/\s+/).filter(Boolean);
-        for (const w of words) {
-          const pat = w.replace(/[aeiouáéíóúü]/gi, "_").replace(/[^a-zA-Z0-9_]/g, "");
-          query = query.or(`local_staff->>coach.ilike.%${pat}%,visitor_staff->>coach.ilike.%${pat}%`);
-        }
-        filteredDbRules = filteredDbRules.filter((r: any) => r.field !== "coach_name");
+      const seasonVals = options?.seasons || (options?.filters ? FilterEngine.extractValues(options.filters, "season") : []);
+      if (seasonVals.length > 0) {
+        const expandedSeasons = Array.from(new Set(seasonVals.flatMap((s: any) => {
+          const str = String(s);
+          return [str, str.replace("-", "/"), str.replace("/", "-")];
+        })));
+        query = query.in("season", expandedSeasons);
+      }
+      if (options?.competitions && options.competitions.length > 0) {
+        query = query.in("competition", options.competitions);
+      }
+      if (options?.matchday !== undefined) {
+        query = query.eq("matchday", options.matchday);
       }
 
-      const cleanedFilters = {
-        ...options.filters,
-        rules: filteredDbRules,
-      };
+      // Generic filter push-down via FilterEngine
+      if (options?.filters) {
+        let filteredDbRules = options.filters.rules.filter((r: any) => r.field !== "season");
+        
+        // Intercept and push down coach name searches to PostgreSQL JSONB operators
+        const coachRule = options.filters.rules.find(
+          (r: any) => !r.rules && r.field === "coach_name"
+        ) as FilterRule | undefined;
+        
+        if (coachRule && coachRule.value) {
+          const coachVal = String(coachRule.value).trim();
+          const words = coachVal.split(/\s+/).filter(Boolean);
+          for (const w of words) {
+            const pat = w.replace(/[aeiouáéíóúü]/gi, "_").replace(/[^a-zA-Z0-9_]/g, "");
+            query = query.or(`local_staff->>coach.ilike.%${pat}%,visitor_staff->>coach.ilike.%${pat}%`);
+          }
+          filteredDbRules = filteredDbRules.filter((r: any) => r.field !== "coach_name");
+        }
 
-      query = FilterEngine.applyToQuery(query, cleanedFilters);
-    }
+        const cleanedFilters = {
+          ...options.filters,
+          rules: filteredDbRules,
+        };
+
+        query = FilterEngine.applyToQuery(query, cleanedFilters);
+      }
+      return query;
+    };
 
     // Query all matching records in pages of 1000 to bypass PostgREST limit
     let allMatches: any[] = [];
@@ -118,7 +126,7 @@ export class AnalysisDataProvider {
     let hasMoreMatches = true;
 
     while (hasMoreMatches) {
-      const { data, error } = await query.range(fromMatch, fromMatch + matchLimit - 1);
+      const { data, error } = await buildQuery().range(fromMatch, fromMatch + matchLimit - 1);
       if (error) throw error;
       if (!data || data.length === 0) {
         hasMoreMatches = false;
@@ -259,103 +267,111 @@ export class AnalysisDataProvider {
    * Uses embedded joins on stat_matches to retrieve league competitions natively.
    */
   static async getFederatedPlayerInfluence(options?: GetFederatedPlayerInfluenceOptions) {
-    let query = statsAdmin
-      .from("v_player_season_stats")
-      .select("*");
+    const buildQuery = () => {
+      let query = statsAdmin
+        .from("v_player_season_stats")
+        .select("*");
 
-    // Filter by season
-    const seasonFilter = options?.filters?.rules.find((r: any) => r.field === "season") as FilterRule | undefined;
-    if (seasonFilter) {
-      if (seasonFilter.operator === "in") {
-        query = query.in("season", seasonFilter.value);
-      } else {
-        query = query.eq("season", seasonFilter.value);
+      // Filter by season
+      const seasonFilter = options?.filters?.rules.find((r: any) => r.field === "season") as FilterRule | undefined;
+      if (seasonFilter && seasonFilter.value) {
+        const rawVals = Array.isArray(seasonFilter.value) ? seasonFilter.value : [seasonFilter.value];
+        const expandedVals = Array.from(new Set(rawVals.flatMap((s: any) => {
+          const str = String(s);
+          return [str, str.replace("-", "/"), str.replace("/", "-")];
+        })));
+        query = query.in("season", expandedVals);
+      } else if (options?.seasons && options.seasons.length > 0) {
+        const expandedVals = Array.from(new Set(options.seasons.flatMap((s: any) => {
+          const str = String(s);
+          return [str, str.replace("-", "/"), str.replace("/", "-")];
+        })));
+        query = query.in("season", expandedVals);
       }
-    } else if (options?.seasons && options.seasons.length > 0) {
-      query = query.in("season", options.seasons);
-    }
 
-    // Filter by competition
-    const compFilter = options?.filters?.rules.find((r: any) => r.field === "competition") as FilterRule | undefined;
-    if (compFilter) {
-      if (compFilter.operator === "in") {
-        query = query.in("competition", compFilter.value);
-      } else {
-        query = query.eq("competition", compFilter.value);
+      // Filter by competition
+      const compFilter = options?.filters?.rules.find((r: any) => r.field === "competition") as FilterRule | undefined;
+      if (compFilter) {
+        if (compFilter.operator === "in") {
+          query = query.in("competition", compFilter.value);
+        } else {
+          query = query.eq("competition", compFilter.value);
+        }
       }
-    }
 
-    if (options?.playerNames && options.playerNames.length > 0) {
-      query = query.in("player_name", options.playerNames);
-    }
-    if (options?.teamNames && options.teamNames.length > 0) {
-      const resolvedTeams = options.teamNames.map((t) =>
-        t === "S.D. Almazán" ? "C.D. Almazán" : t
-      );
-      query = query.in("team_name", resolvedTeams);
-    }
-
-    // Push down search filters using PostgreSQL ilike + vowel wildcards to be accent-safe
-    const nameFilter = options?.filters?.rules.find((r: any) => r.field === "player_name") as FilterRule | undefined;
-    if (nameFilter && nameFilter.value) {
-      const cleanSearch = String(nameFilter.value).trim();
-      const words = cleanSearch.split(/\s+/).filter(Boolean);
-      for (const w of words) {
-        const pat = w.replace(/[aeiouáéíóúü]/gi, "_").replace(/[^a-zA-Z0-9_]/g, "");
-        query = query.ilike("player_name", `%${pat}%`);
+      if (options?.playerNames && options.playerNames.length > 0) {
+        query = query.in("player_name", options.playerNames);
       }
-    }
-    const teamFilter = options?.filters?.rules.find((r: any) => r.field === "team_name" || r.field === "current_team") as FilterRule | undefined;
-    if (teamFilter && teamFilter.value) {
-      const cleanTeam = String(teamFilter.value).trim();
-      const words = cleanTeam.split(/\s+/).filter(Boolean);
-      for (const w of words) {
-        const pat = w.replace(/[aeiouáéíóúü]/gi, "_").replace(/[^a-zA-Z0-9_]/g, "");
-        query = query.ilike("team_name", `%${pat}%`);
+      if (options?.teamNames && options.teamNames.length > 0) {
+        const resolvedTeams = options.teamNames.map((t) =>
+          t === "S.D. Almazán" ? "C.D. Almazán" : t
+        );
+        query = query.in("team_name", resolvedTeams);
       }
-    }
 
-    // Clean and map filters before pushing to database query
-    let dbFilters = options?.filters;
-    if (dbFilters) {
-      const dbFieldMap: Record<string, string> = {
-        goals: "goals",
-        goals90: "goals_90",
-        minutes: "minutes",
-        starts: "starts",
-        matches: "matches",
-        impact: "impact",
-        dependency: "dependency",
-        yellowCards: "yellow_cards",
-        redCards: "red_cards",
-        cleanSheetRatio: "clean_sheet_ratio",
-        goalsConceded90: "goals_conceded_90",
-        revulsiveImpact: "revulsive_impact",
-        concededGoalsRatio: "conceded_goals_ratio",
-      };
+      // Push down search filters using PostgreSQL ilike + vowel wildcards to be accent-safe
+      const nameFilter = options?.filters?.rules.find((r: any) => r.field === "player_name") as FilterRule | undefined;
+      if (nameFilter && nameFilter.value) {
+        const cleanSearch = String(nameFilter.value).trim();
+        const words = cleanSearch.split(/\s+/).filter(Boolean);
+        for (const w of words) {
+          const pat = w.replace(/[aeiouáéíóúü]/gi, "_").replace(/[^a-zA-Z0-9_]/g, "");
+          query = query.ilike("player_name", `%${pat}%`);
+        }
+      }
+      const teamFilter = options?.filters?.rules.find((r: any) => r.field === "team_name" || r.field === "current_team") as FilterRule | undefined;
+      if (teamFilter && teamFilter.value) {
+        const cleanTeam = String(teamFilter.value).trim();
+        const words = cleanTeam.split(/\s+/).filter(Boolean);
+        for (const w of words) {
+          const pat = w.replace(/[aeiouáéíóúü]/gi, "_").replace(/[^a-zA-Z0-9_]/g, "");
+          query = query.ilike("team_name", `%${pat}%`);
+        }
+      }
 
-      const mappedRules = dbFilters.rules.map((rule: any) => {
-        if ("condition" in rule) return rule;
-        const field = rule.field;
-        const mappedField = dbFieldMap[field] || field;
-        return {
-          ...rule,
-          field: mappedField,
+      // Clean and map filters before pushing to database query
+      let dbFilters = options?.filters;
+      if (dbFilters) {
+        const dbFieldMap: Record<string, string> = {
+          goals: "goals",
+          goals90: "goals_90",
+          minutes: "minutes",
+          starts: "starts",
+          matches: "matches",
+          impact: "impact",
+          dependency: "dependency",
+          yellowCards: "yellow_cards",
+          redCards: "red_cards",
+          cleanSheetRatio: "clean_sheet_ratio",
+          goalsConceded90: "goals_conceded_90",
+          revulsiveImpact: "revulsive_impact",
+          concededGoalsRatio: "conceded_goals_ratio",
         };
-      });
 
-      const cleanedRules = mappedRules.filter((r: any) => 
-        r.rules || // keep groups
-        !(r.field.includes("name") || r.field === "competition" || r.field === "season" || r.field === "team_name" || r.field === "current_team")
-      );
+        const mappedRules = dbFilters.rules.map((rule: any) => {
+          if ("condition" in rule) return rule;
+          const field = rule.field;
+          const mappedField = dbFieldMap[field] || field;
+          return {
+            ...rule,
+            field: mappedField,
+          };
+        });
 
-      dbFilters = {
-        ...dbFilters,
-        rules: cleanedRules,
-      };
+        const cleanedRules = mappedRules.filter((r: any) => 
+          r.rules || // keep groups
+          !(r.field.includes("name") || r.field === "competition" || r.field === "season" || r.field === "team_name" || r.field === "current_team")
+        );
 
-      query = FilterEngine.applyToQuery(query, dbFilters);
-    }
+        dbFilters = {
+          ...dbFilters,
+          rules: cleanedRules,
+        };
+
+        query = FilterEngine.applyToQuery(query, dbFilters);
+      }
+      return query;
+    };
 
     // Query all matching records in pages of 1000 to bypass PostgREST limit
     let allData: any[] = [];
@@ -364,7 +380,7 @@ export class AnalysisDataProvider {
     let hasMore = true;
 
     while (hasMore) {
-      const { data, error } = await query.range(from, from + limit - 1);
+      const { data, error } = await buildQuery().range(from, from + limit - 1);
       if (error) throw error;
       if (!data || data.length === 0) {
         hasMore = false;

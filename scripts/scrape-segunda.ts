@@ -25,11 +25,6 @@ async function main() {
 
   // Definir los grupos y temporadas de Segunda Federación a scrapear
   const targets = [
-    { season: "2025/2026", competition: "Segunda Federación - Grupo 1" },
-    { season: "2025/2026", competition: "Segunda Federación - Grupo 2" },
-    { season: "2025/2026", competition: "Segunda Federación - Grupo 3" },
-    { season: "2025/2026", competition: "Segunda Federación - Grupo 4" },
-    { season: "2025/2026", competition: "Segunda Federación - Grupo 5" },
     { season: "2024/2025", competition: "Segunda Federación - Grupo 1" },
     { season: "2024/2025", competition: "Segunda Federación - Grupo 2" },
     { season: "2024/2025", competition: "Segunda Federación - Grupo 3" },

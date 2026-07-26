@@ -25,18 +25,23 @@ export async function POST(req: NextRequest) {
       userId = user.id;
       userEmail = user.email;
 
-      // Fetch user's active organization_id
+      // Fetch user's role to exclude super_admin tracking
       const { data: orgRole } = await supabase
         .from("user_organization_roles")
-        .select("organization_id")
+        .select("organization_id, role")
         .eq("user_id", user.id)
         .limit(1)
         .single();
 
       if (orgRole) {
         organizationId = orgRole.organization_id;
+        if (orgRole.role === "super_admin" || userEmail?.toLowerCase() === "diecilo7@gmail.com") {
+          // Bypassed for super_admin account as requested: only track real users
+          return NextResponse.json({ success: true, bypassed: "super_admin" });
+        }
       }
     }
+
 
     if (type === "page_view" && path) {
       // Filter out system assets or API tracking

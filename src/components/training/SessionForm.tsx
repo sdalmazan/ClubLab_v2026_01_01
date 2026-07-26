@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
+  Eye,
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,8 @@ import { FieldMap } from "@/components/players/FieldMap";
 import { TaskWhiteboard, type WhiteboardData } from "./TaskWhiteboard";
 import { TacticalConceptsSelector } from "./TacticalConceptsSelector";
 import { MuscleGroupsSelector } from "./MuscleGroupsSelector";
-import { CustomTooltip } from "../ui/custom-tooltip";
+import { TACTICAL_CONCEPTS, MUSCLE_GROUPS } from "@/lib/exercise-taxonomy";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "../ui/tooltip";
 import type { PlayerWithMembership } from "@/services/players";
 import type { ExerciseLibraryItem } from "@/services/tasks";
 import type { SessionTemplate, SessionType, LoadLevel, MicrocycleDay, PositionKey } from "@/types";
@@ -151,13 +153,70 @@ export function SessionForm({
   }, []);
 
   // Blocks show/hide states
+  const [showBlock0, setShowBlock0] = useState(false);
   const [showWarmupBlock, setShowWarmupBlock] = useState(true);
   const [showCooldownBlock, setShowCooldownBlock] = useState(true);
-  const [activeBlockType, setActiveBlockType] = useState<'warmup' | 'main' | 'cooldown'>('main');
+  const [activeBlockType, setActiveBlockType] = useState<'block0' | 'warmup' | 'main' | 'cooldown'>('main');
+
+  // Year filter for session navigator & preview modal state
+  const [navYear, setNavYear] = useState<string>("all");
+  const [previewSessionModalData, setPreviewSessionModalData] = useState<any | null>(null);
+
+  // Single task clipboard state (Cross-session copy/paste)
+  const [copiedSingleTask, setCopiedSingleTask] = useState<any | null>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("cl_copied_single_exercise");
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return null;
+  });
 
   // Sidebar with past sessions
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pastSessions, setPastSessions] = useState<any[]>([]);
+
+  // Fetch group training sessions for chronological navigator (oldest to newest)
+  useEffect(() => {
+    async function loadPastSessions() {
+      if (!teamId) return;
+      try {
+        const supabase = createClient();
+        let query = supabase
+          .from("training_sessions")
+          .select(`
+            id,
+            title,
+            date,
+            session_type,
+            microcycle_day,
+            session_total_seq,
+            exercises:session_exercises(
+              *,
+              exercise:exercises(*)
+            )
+          `)
+          .eq("team_id", teamId)
+          .eq("session_type", "training")
+          .order("date", { ascending: true });
+
+        if (navYear !== "all") {
+          query = query
+            .gte("date", `${navYear}-01-01`)
+            .lte("date", `${navYear}-12-31`);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        if (data) setPastSessions(data);
+      } catch (err) {
+        console.error("Error loading past sessions:", err);
+      }
+    }
+    loadPastSessions();
+  }, [teamId, navYear]);
 
   // Alerts sending state
   const [alertSending, setAlertSending] = useState<Record<string, boolean>>({});
@@ -250,7 +309,15 @@ export function SessionForm({
 
   // New: Facilities management
   const [facilities, setFacilities] = useState<any[]>([]);
-  const [selectedFacilityIds, setSelectedFacilityIds] = useState<string[]>(initialData?.facility_ids ?? []);
+  const [selectedFacilityIds, setSelectedFacilityIds] = useState<string[]>(() => {
+    if (initialData?.facility_ids && initialData.facility_ids.length > 0) {
+      return initialData.facility_ids;
+    }
+    if (organizationSettings?.default_facility_id) {
+      return [organizationSettings.default_facility_id];
+    }
+    return [];
+  });
 
   useEffect(() => {
     async function loadFacilities() {
@@ -301,8 +368,20 @@ export function SessionForm({
     loadPastSessions();
   }, [teamId]);
 
-  // Copy/paste exercise clipboard
   const [copiedExercise, setCopiedExercise] = useState<any | null>(null);
+  const [hasCopiedBlock, setHasCopiedBlock] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setHasCopiedBlock(!!localStorage.getItem("cl_copied_block_exercises"));
+    }
+  }, []);
+
+  // Accordion panel expansion states
+  const [isGeneralDataExpanded, setIsGeneralDataExpanded] = useState(true);
+  const [isConvocatoriaExpanded, setIsConvocatoriaExpanded] = useState(false);
+  const [isObjectivesExpanded, setIsObjectivesExpanded] = useState(false);
+  const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
 
   // Whiteboard modal state
   const [whiteboardExerciseIndex, setWhiteboardExerciseIndex] = useState<number | null>(null);
@@ -371,13 +450,13 @@ export function SessionForm({
     });
   }, [squadPlayers, organizationSettings, teamId]);
 
-  // 2. Attendance State (Default: all players present, unless marked injured)
-  const [attendance, setAttendance] = useState<Record<string, { status: any; notes: string }>>(() => {
+  // 2. Attendance State (Default: all players present, unless marked injured/readaptation)
+  const [attendance, setAttendance] = useState<Record<string, { status: "present" | "partial" | "readaptation" | "injured" | "absent"; notes: string }>>(() => {
     if (initialData?.attendance) {
       const records: Record<string, { status: any; notes: string }> = {};
       initialData.attendance.forEach((att: any) => {
         records[att.player_id] = {
-          status: att.status,
+          status: att.status ?? "present",
           notes: att.notes ?? "",
         };
       });
@@ -387,11 +466,21 @@ export function SessionForm({
     const defaultRecords: Record<string, { status: any; notes: string }> = {};
     activeSquadPlayers.forEach((p) => {
       const activeInjury = p.active_injury;
-      const isInjured = activeInjury && activeInjury.status === "active";
-      defaultRecords[p.id] = {
-        status: isInjured ? "injured" : "present",
-        notes: isInjured && activeInjury ? `Lesión: ${activeInjury.body_part} (${activeInjury.severity})` : "",
-      };
+      let status: "present" | "partial" | "readaptation" | "injured" | "absent" = "present";
+      let notes = "";
+
+      if (activeInjury) {
+        const injStatus = (activeInjury.status || "").toLowerCase();
+        if (injStatus.includes("readap") || injStatus.includes("rehab")) {
+          status = "readaptation";
+          notes = `Readaptación: ${activeInjury.body_part || "Muscular"}`;
+        } else if (injStatus === "active" || injStatus === "injured") {
+          status = "injured";
+          notes = `Lesión: ${activeInjury.body_part || "General"}`;
+        }
+      }
+
+      defaultRecords[p.id] = { status, notes };
     });
     return defaultRecords;
   });
@@ -459,7 +548,7 @@ export function SessionForm({
   }, [activeSquadPlayers, organizationSettings, teamId]);
 
   const attendanceStatuses = useMemo(() => {
-    const statuses: Record<string, "present" | "absent" | "injured" | "rest" | "other"> = {};
+    const statuses: Record<string, "present" | "partial" | "readaptation" | "injured" | "absent" | "rest" | "other"> = {};
     activeSquadPlayers.forEach((p) => {
       statuses[p.id] = attendance[p.id]?.status ?? "present";
     });
@@ -469,9 +558,11 @@ export function SessionForm({
   const handleTogglePlayerAttendance = (playerId: string) => {
     setAttendance((prev) => {
       const current = prev[playerId]?.status ?? "present";
-      let next: "present" | "absent" | "injured";
-      if (current === "present") next = "absent";
-      else if (current === "absent") next = "injured";
+      let next: "present" | "partial" | "readaptation" | "injured" | "absent";
+      if (current === "present") next = "partial";
+      else if (current === "partial") next = "readaptation";
+      else if (current === "readaptation") next = "injured";
+      else if (current === "injured") next = "absent";
       else next = "present";
       
       return {
@@ -555,6 +646,7 @@ export function SessionForm({
   const [newExTitle, setNewExTitle] = useState("");
   const [newExCategory, setNewExCategory] = useState("General");
   const [newExDifficulty, setNewExDifficulty] = useState("intermediate");
+  const [newExScope, setNewExScope] = useState("coach");
   const [newExDesc, setNewExDesc] = useState("");
   const [creatingExLoading, setCreatingExLoading] = useState(false);
 
@@ -573,6 +665,7 @@ export function SessionForm({
           title: newExTitle.trim(),
           category: newExCategory,
           difficulty: newExDifficulty,
+          library_scope: newExScope,
           description: newExDesc.trim(),
         }),
       });
@@ -588,6 +681,7 @@ export function SessionForm({
         title: data.title,
         category: data.category,
         difficulty: data.difficulty,
+        library_scope: data.library_scope,
         description: data.description,
       } as any);
 
@@ -595,6 +689,7 @@ export function SessionForm({
       setNewExTitle("");
       setNewExCategory("General");
       setNewExDifficulty("intermediate");
+      setNewExScope("coach");
       setNewExDesc("");
       setIsCreatingExercise(false);
     } catch (err: any) {
@@ -723,6 +818,7 @@ export function SessionForm({
         objective_notes: "",
       },
     ]);
+    setExpandedExercises(prev => ({ ...prev, [item.id]: true }));
     setIsLibraryOpen(false);
   };
 
@@ -743,27 +839,92 @@ export function SessionForm({
     setExercises(copy);
   };
 
-  // Copy exercise to clipboard
+  // Copy exercise to global clipboard & React state
   const copyExercise = (index: number) => {
     const ex = exercises[index];
-    setCopiedExercise({ ...ex, exercise_id: ex.exercise_id + '_copy_' + Date.now() });
+    const taskToCopy = {
+      ...ex,
+      exercise_id: (ex.exercise_id || "task").split('_copy_')[0] + '_copy_' + Date.now(),
+    };
+    if (typeof window !== "undefined") {
+      localStorage.setItem("cl_copied_single_exercise", JSON.stringify(taskToCopy));
+    }
+    setCopiedExercise(taskToCopy);
+    setCopiedSingleTask(taskToCopy);
   };
 
-  // Paste exercise from clipboard
-  const pasteExercise = () => {
-    if (!copiedExercise) return;
+  // Paste exercise from clipboard into active/target block
+  const pasteExercise = (targetBlock?: 'block0' | 'warmup' | 'main' | 'cooldown') => {
+    const taskToPaste = copiedSingleTask || copiedExercise;
+    if (!taskToPaste) return;
+
+    const blockTypeToUse = targetBlock || activeBlockType || 'main';
     const pastedEx = {
-      ...copiedExercise,
-      exercise_id: copiedExercise.exercise_id.split('_copy_')[0] + '_copy_' + Date.now(),
+      ...taskToPaste,
+      exercise_id: (taskToPaste.exercise_id || "task").split('_copy_')[0] + '_copy_' + Date.now(),
+      block_type: blockTypeToUse,
       group_setup: {
-        ...copiedExercise.group_setup,
-        groups: (copiedExercise.group_setup?.groups ?? []).map((g: any) => ({
+        ...(taskToPaste.group_setup || {}),
+        groups: ((taskToPaste.group_setup || {}).groups ?? []).map((g: any) => ({
           name: g.name,
           players: [],
         })),
       },
     };
-    setExercises([...exercises, pastedEx]);
+    setExercises(prev => [...prev, pastedEx]);
+    setExpandedExercises(prev => ({ ...prev, [pastedEx.exercise_id]: true }));
+  };
+
+  const copyBlockExercises = (blockType: 'warmup' | 'main' | 'cooldown') => {
+    const blockExercises = exercises.filter(ex => {
+      if (blockType === 'warmup') return ex.block_type === 'warmup';
+      if (blockType === 'cooldown') return ex.block_type === 'cooldown';
+      return !ex.block_type || ex.block_type === 'main';
+    });
+    
+    if (blockExercises.length === 0) {
+      alert("No hay tareas en este bloque para copiar.");
+      return;
+    }
+
+    localStorage.setItem("cl_copied_block_exercises", JSON.stringify(blockExercises));
+    setHasCopiedBlock(true);
+    alert(`Se han copiado ${blockExercises.length} tareas del bloque al portapapeles.`);
+  };
+
+  const pasteBlockExercises = (targetBlockType: 'warmup' | 'main' | 'cooldown') => {
+    const raw = localStorage.getItem("cl_copied_block_exercises");
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+
+      const newPasted = parsed.map((ex: any, idx: number) => {
+        return {
+          ...ex,
+          exercise_id: (ex.exercise_id || "ex").split('_copy_')[0].split('_dup_')[0] + '_copy_' + (Date.now() + idx),
+          block_type: targetBlockType,
+          group_setup: {
+            ...ex.group_setup,
+            groups: (ex.group_setup?.groups ?? []).map((g: any) => ({
+              name: g.name,
+              players: [],
+            })),
+          },
+        };
+      });
+
+      setExercises(prev => [...prev, ...newPasted]);
+      setExpandedExercises(prev => {
+        const next = { ...prev };
+        newPasted.forEach((ex: any) => { next[ex.exercise_id] = true; });
+        return next;
+      });
+      alert(`Se han pegado ${newPasted.length} tareas en este bloque.`);
+    } catch (e) {
+      console.error("Error pasting block:", e);
+    }
   };
 
   // Duplicate exercise in-place
@@ -783,6 +944,7 @@ export function SessionForm({
     const newExercises = [...exercises];
     newExercises.splice(index + 1, 0, duplicated);
     setExercises(newExercises);
+    setExpandedExercises(prev => ({ ...prev, [duplicated.exercise_id]: true }));
   };
 
   // Update specific exercise field state
@@ -794,6 +956,9 @@ export function SessionForm({
       return ex;
     });
     setExercises(updated);
+    if (field === "facility_id" && value && !selectedFacilityIds.includes(value)) {
+      setSelectedFacilityIds(prev => [...prev, value]);
+    }
   };
 
   // Attendance handlers
@@ -903,6 +1068,7 @@ export function SessionForm({
         transition_rest_min: gs.transition_rest_min ?? 2,
         rules: gs.rules ?? "",
         objective_notes: gs.objective_notes ?? "",
+        facility_id: gs.facility_id ?? null,
       };
     });
     setExercises(imported);
@@ -941,6 +1107,7 @@ export function SessionForm({
           transition_rest_min: gs.transition_rest_min ?? 2,
           rules: gs.rules ?? "",
           objective_notes: gs.objective_notes ?? "",
+          facility_id: gs.facility_id ?? null,
         };
       });
     setExercises(prev => [...prev.filter(ex => ex.block_type !== targetBlockType), ...toImport]);
@@ -972,8 +1139,10 @@ export function SessionForm({
       transition_rest_min: gs.transition_rest_min ?? 2,
       rules: gs.rules ?? "",
       objective_notes: gs.objective_notes ?? "",
+      facility_id: gs.facility_id ?? null,
     };
     setExercises(prev => [...prev, newItem]);
+    setExpandedExercises(prev => ({ ...prev, [newItem.exercise_id]: true }));
   };
 
   // Save session form
@@ -1016,6 +1185,7 @@ export function SessionForm({
         transition_rest_min: ex.transition_rest_min,
         rules: ex.rules,
         objective_notes: ex.objective_notes,
+        facility_id: ex.facility_id || null,
       };
 
       return {
@@ -1098,13 +1268,14 @@ export function SessionForm({
     setShowExitConfirmModal(true);
   };
 
-  const labelClass = "block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5";
+  const labelClass = "block text-xs font-medium text-muted-foreground mb-1.5";
   const inputClass =
-    "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-650 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all";
+    "w-full rounded-lg bg-background border border-border px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all";
   const selectClass =
-    "w-full rounded-xl bg-slate-900 border border-white/10 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all cursor-pointer";
+    "w-full rounded-lg bg-background border border-border px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer";
 
   // Filter tasks by block type
+  const block0Exercises = exercises.filter(ex => ex.block_type === 'block0');
   const warmupExercises = exercises.filter(ex => ex.block_type === 'warmup');
   const mainExercises = exercises.filter(ex => !ex.block_type || ex.block_type === 'main');
   const cooldownExercises = exercises.filter(ex => ex.block_type === 'cooldown');
@@ -1129,6 +1300,107 @@ export function SessionForm({
               <span>Cerrar</span>
             </button>
           </div>
+
+          {/* ── BARRA NAVEGADORA DE SESIONES (CRONOLÓGICA DE IZQ A DER - SOLO ENTRENAMIENTOS GRUPALES) ── */}
+          {pastSessions.length > 0 && (
+            <div className="bg-card rounded-lg border border-border p-4 space-y-3 no-print shadow-md">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 corp-icon text-emerald-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Navegador Cronológico de Sesiones (Entrenamientos Grupales)
+                  </span>
+                </div>
+
+                {/* Year / Season Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Temporada / Año:</span>
+                  <select
+                    value={navYear}
+                    onChange={(e) => setNavYear(e.target.value)}
+                    className="text-[10px] bg-slate-900 border border-white/10 text-white rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer font-bold"
+                  >
+                    <option value="all">Todas las Sesiones</option>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                {pastSessions.map((s, idx) => {
+                  const isCurrent = s.id === initialData?.id;
+                  const mdLabel = s.microcycle_day || "MD-1";
+                  const mdColor =
+                    mdLabel === "MD"
+                      ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                      : mdLabel.includes("-1") || mdLabel.includes("-2")
+                      ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                      : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+
+                  const sessionTitle = s.title || `Sesión ${s.session_total_seq || (idx + 1)}`;
+
+                  return (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        "flex flex-col justify-between p-3 rounded-xl border min-w-[210px] max-w-[230px] shrink-0 transition-all space-y-2.5",
+                        isCurrent
+                          ? "bg-emerald-500/10 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30"
+                          : "bg-white/3 border-white/10 hover:border-white/20 hover:bg-white/5"
+                      )}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={cn("text-[9px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider", mdColor)}>
+                            {mdLabel}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            {new Date(s.date).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "2-digit" })}
+                          </span>
+                        </div>
+                        <p className="text-xs font-extrabold text-white truncate" title={sessionTitle}>
+                          {sessionTitle}
+                        </p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {(s.exercises || []).length} tareas en sesión
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 pt-1.5 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (s.id !== initialData?.id) {
+                              router.push(`/training/${s.id}/edit`);
+                            }
+                          }}
+                          className={cn(
+                            "flex-1 text-[9.5px] font-bold py-1 rounded transition-colors text-center cursor-pointer",
+                            isCurrent
+                              ? "bg-emerald-500 text-slate-950 font-extrabold"
+                              : "bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 border border-white/5"
+                          )}
+                        >
+                          {isCurrent ? "Editando" : "Ir a Sesión"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewSessionModalData(s)}
+                          className="px-2 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 text-[9.5px] font-bold cursor-pointer flex items-center gap-1"
+                          title="Ver preview táctica de la sesión con dibujos"
+                        >
+                          <Eye className="h-3 w-3" />
+                          <span>Preview</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <style dangerouslySetInnerHTML={{ __html: `
             input[type="date"]::-webkit-calendar-picker-indicator,
             input[type="time"]::-webkit-calendar-picker-indicator {
@@ -1157,28 +1429,52 @@ export function SessionForm({
           )}
 
           {/* ── DATOS GENERALES ── */}
-          <div className="glass rounded-2xl p-6 space-y-6">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
-                <PenTool className="h-5 w-5 corp-icon" />
-                Datos Generales de la Sesión
-              </h2>
-              
-              {/* Toggle past sessions sidebar button */}
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer select-none",
-                  isSidebarOpen
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300 shadow-sm"
-                    : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+          <div className="bg-card rounded-lg border border-border overflow-hidden transition-all duration-300">
+            {/* Header Accordion Toggle */}
+            <div 
+              onClick={() => setIsGeneralDataExpanded(!isGeneralDataExpanded)}
+              className="p-5 flex items-center justify-between gap-4 cursor-pointer select-none border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <PenTool className="h-5 w-5 corp-icon text-emerald-400 shrink-0" />
+                <h2 className="text-base font-extrabold text-white tracking-tight truncate">
+                  Datos Generales de la Sesión
+                </h2>
+                {!isGeneralDataExpanded && (
+                  <span className="text-[10px] bg-emerald-500/15 text-emerald-300 px-2 py-0.5 rounded font-bold truncate max-w-[200px]">
+                    {title || "Sin título"} • {date}
+                  </span>
                 )}
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-                <span>{isSidebarOpen ? "Cerrar Historial" : "Historial Copiar/Pegar"}</span>
-              </button>
+              </div>
+              
+              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                {/* Toggle past sessions sidebar button */}
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer select-none",
+                    isSidebarOpen
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300 shadow-sm"
+                      : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                  )}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  <span>{isSidebarOpen ? "Cerrar Historial" : "Historial Copiar/Pegar"}</span>
+                </button>
+
+                <div 
+                  onClick={() => setIsGeneralDataExpanded(!isGeneralDataExpanded)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white cursor-pointer transition-all"
+                >
+                  <ChevronRight className={cn("h-5 w-5 transition-transform duration-200", isGeneralDataExpanded && "rotate-90")} />
+                </div>
+              </div>
             </div>
+
+            {/* Collapsible Content */}
+            {isGeneralDataExpanded && (
+              <div className="p-6 space-y-6 animate-in fade-in duration-200">
 
             {/* Template Quick Import */}
             {!isEdit && templates.length > 0 && (
@@ -1242,137 +1538,9 @@ export function SessionForm({
               </div>
             </div>
 
-            {/* Date, Duration, Type */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="session-date" className={labelClass}>Fecha</label>
-                  <div className="relative">
-                    <input
-                      id="session-date"
-                      type="date"
-                      required
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className={cn(inputClass, "pl-10")}
-                    />
-                    <CalendarDays className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="session-time" className={labelClass}>Hora</label>
-                  <div className="relative">
-                    <input
-                      id="session-time"
-                      type="time"
-                      required
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className={cn(inputClass, "pl-10")}
-                    />
-                    <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label htmlFor="session-duration" className={labelClass}>Duración Total (min)</label>
-                <input
-                  id="session-duration"
-                  type="number"
-                  required
-                  readOnly
-                  placeholder="Calculado"
-                  value={durationMin}
-                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-emerald-400 font-bold focus:outline-none"
-                />
-              </div>
-              <div>
-                <label htmlFor="session-type" className={labelClass}>Tipo de Sesión</label>
-                <select
-                  id="session-type"
-                  value={sessionType}
-                  onChange={(e) => setSessionType(e.target.value as SessionType)}
-                  className={selectClass}
-                >
-                  <option value="training" className="bg-slate-900">Entrenamiento Grupal</option>
-                  <option value="individual" className="bg-slate-900">Entrenamiento Individual</option>
-                  <option value="match" className="bg-slate-900">Partido</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Sequential Metrics Metadata Bar */}
-            {initialData?.metrics && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-white/2 border border-white/5 rounded-2xl p-4 mt-2">
-                <div>
-                  <span className="block text-[10px] font-black uppercase text-slate-500 tracking-wider">Mesociclo</span>
-                  <span className="text-sm font-bold text-white mt-1 block">{initialData.metrics.meso || "—"}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] font-black uppercase text-slate-500 tracking-wider">Microciclo (Semana)</span>
-                  <span className="text-sm font-bold text-white mt-1 block">Semana {initialData.metrics.micro || "—"}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] font-black uppercase text-slate-500 tracking-wider">Orden Semana</span>
-                  <span className="text-sm font-bold text-white mt-1 block">{initialData.metrics.orden_semana || "—"}ª Sesión</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] font-black uppercase text-slate-500 tracking-wider">Sesión Absoluta</span>
-                  <span className="text-sm font-bold text-emerald-400 mt-1 block">Sesión #{initialData.metrics.total_sesiones || "—"}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Día de Microciclo eliminado (cálculo automático) */}
-
-            {/* Load, Intensity */}
-            {sessionType !== "match" && (
-              <div className={cn("grid grid-cols-1 gap-4", showIntensity ? "sm:grid-cols-2" : "")}>
-                <div>
-                  <label htmlFor="session-load" className={labelClass}>Carga Planificada</label>
-                  <select
-                    id="session-load"
-                    value={plannedLoad}
-                    onChange={(e) => setPlannedLoad(e.target.value as LoadLevel)}
-                    className={selectClass}
-                  >
-                    <option value="" className="bg-slate-900">Sin carga</option>
-                    <option value="recovery" className="bg-slate-900">Recuperación</option>
-                    <option value="low" className="bg-slate-900">Baja</option>
-                    <option value="medium" className="bg-slate-900">Media</option>
-                    <option value="medium_high" className="bg-slate-900">Media-Alta</option>
-                    <option value="high" className="bg-slate-900">Alta</option>
-                  </select>
-                </div>
-                {showIntensity && (
-                  <div>
-                    <label htmlFor="session-intensity" className={labelClass}>Intensidad Percibida (RPE)</label>
-                    <select
-                      id="session-intensity"
-                      value={plannedIntensity}
-                      onChange={(e) => setPlannedIntensity(e.target.value)}
-                      className={selectClass}
-                    >
-                      <option value="" className="bg-slate-900">Seleccionar RPE (1-10)</option>
-                      <option value="1" className="bg-slate-900">1 - Muy Fácil (Esfuerzo mínimo)</option>
-                      <option value="2" className="bg-slate-900">2 - Fácil (Paseo)</option>
-                      <option value="3" className="bg-slate-900">3 - Moderado (Ritmo cómodo)</option>
-                      <option value="4" className="bg-slate-900">4 - Algo Duro (Respiración más rápida)</option>
-                      <option value="5" className="bg-slate-900">5 - Duro (Conversación difícil)</option>
-                      <option value="6" className="bg-slate-900">6 - Bastante Duro</option>
-                      <option value="7" className="bg-slate-900">7 - Muy Duro (Esfuerzo vigoroso)</option>
-                      <option value="8" className="bg-slate-900">8 - Extremadamente Duro</option>
-                      <option value="9" className="bg-slate-900">9 - Casi Máximo (Sin aliento)</option>
-                      <option value="10" className="bg-slate-900">10 - Máximo Esfuerzo (Extenuante)</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Facilities */}
-            <div className="space-y-1.5 pt-2">
-              <label className={labelClass}>Instalaciones / Campos Asignados</label>
+            {/* Facilities / Campos Multiselector */}
+            <div className="space-y-1.5 pt-1">
+              <label className={labelClass}>Instalaciones / Campos de la Sesión (Multiselección)</label>
               <div className="flex flex-wrap gap-2">
                 {facilities.map((fac) => {
                   const isSelected = selectedFacilityIds.includes(fac.id);
@@ -1388,83 +1556,277 @@ export function SessionForm({
                         }
                       }}
                       className={cn(
-                        "px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                        "px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5",
                         isSelected
-                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-sm"
                           : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
                       )}
                     >
-                      {fac.name} ({fac.type === "field" ? "Campo" : fac.type === "gym" ? "Gimnasio" : "Instalación"})
+                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", isSelected ? "bg-emerald-400" : "bg-slate-500")} />
+                      <span>{fac.name}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Dynamic Physical & Tactical Objectives */}
-            {sessionType !== "match" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-white/5 pt-4">
-                <div className="space-y-1.5">
-                  <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Objetivos Tácticos de la Sesión
-                  </span>
-                  <TacticalConceptsSelector
-                    value={sessionTacticalConcepts}
-                    onChange={setSessionTacticalConcepts}
+            {/* Date, Time, Load, Duration, Type, Intensity */}
+            <div className={cn("grid gap-3", showIntensity ? "grid-cols-2 md:grid-cols-6" : "grid-cols-2 md:grid-cols-5")}>
+              <div>
+                <label htmlFor="session-date" className={labelClass}>Fecha</label>
+                <div className="relative">
+                  <input
+                    id="session-date"
+                    type="date"
+                    required
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={cn(inputClass, "pl-9 text-xs")}
                   />
+                  <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                 </div>
-                <div className="space-y-1.5">
-                  <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Objetivos Físicos de la Sesión
-                  </span>
-                  <MuscleGroupsSelector
-                    value={sessionMuscleGroups}
-                    onChange={setSessionMuscleGroups}
+              </div>
+              <div>
+                <label htmlFor="session-time" className={labelClass}>Hora</label>
+                <div className="relative">
+                  <input
+                    id="session-time"
+                    type="time"
+                    required
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className={cn(inputClass, "pl-9 text-xs")}
                   />
+                  <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="session-load" className={labelClass}>Carga Planificada</label>
+                <select
+                  id="session-load"
+                  value={plannedLoad}
+                  onChange={(e) => setPlannedLoad(e.target.value as LoadLevel)}
+                  className={cn(selectClass, "text-xs")}
+                >
+                  <option value="" className="bg-slate-900">Sin carga</option>
+                  <option value="recovery" className="bg-slate-900">Recuperación</option>
+                  <option value="low" className="bg-slate-900">Baja</option>
+                  <option value="medium" className="bg-slate-900">Media</option>
+                  <option value="medium_high" className="bg-slate-900">Media-Alta</option>
+                  <option value="high" className="bg-slate-900">Alta</option>
+                </select>
+              </div>
+              {showIntensity && (
+                <div>
+                  <label htmlFor="session-intensity" className={labelClass}>Intensidad Percibida (RPE)</label>
+                  <select
+                    id="session-intensity"
+                    value={plannedIntensity}
+                    onChange={(e) => setPlannedIntensity(e.target.value)}
+                    className={cn(selectClass, "text-xs")}
+                  >
+                    <option value="" className="bg-slate-900">RPE (1-10)</option>
+                    <option value="1" className="bg-slate-900">1 - Muy Fácil</option>
+                    <option value="2" className="bg-slate-900">2 - Fácil</option>
+                    <option value="3" className="bg-slate-900">3 - Moderado</option>
+                    <option value="4" className="bg-slate-900">4 - Algo Duro</option>
+                    <option value="5" className="bg-slate-900">5 - Duro</option>
+                    <option value="6" className="bg-slate-900">6 - Bastante Duro</option>
+                    <option value="7" className="bg-slate-900">7 - Muy Duro</option>
+                    <option value="8" className="bg-slate-900">8 - Extremadamente Duro</option>
+                    <option value="9" className="bg-slate-900">9 - Casi Máximo</option>
+                    <option value="10" className="bg-slate-900">10 - Máximo</option>
+                  </select>
+                </div>
+              )}
+              <div>
+                <label htmlFor="session-duration" className={labelClass}>Duración Total (min)</label>
+                <input
+                  id="session-duration"
+                  type="number"
+                  required
+                  readOnly
+                  placeholder="Calculado"
+                  value={durationMin}
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-emerald-450 font-bold focus:outline-none"
+                />
+              </div>
+              <div className="col-span-2 md:col-span-1">
+                <label htmlFor="session-type" className={labelClass}>Tipo de Sesión</label>
+                <select
+                  id="session-type"
+                  value={sessionType}
+                  onChange={(e) => setSessionType(e.target.value as SessionType)}
+                  className={cn(selectClass, "text-xs")}
+                >
+                  <option value="training" className="bg-slate-900">Entrenamiento Grupal</option>
+                  <option value="individual" className="bg-slate-900">Entrenamiento Individual</option>
+                  <option value="match" className="bg-slate-900">Partido</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Sequential Metrics Metadata Bar */}
+            {initialData?.metrics && (
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white/3 border border-white/5 rounded-xl px-4 py-2 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Mesociclo:</span>
+                  <span className="font-bold text-white">{initialData.metrics.meso || "—"}</span>
+                </div>
+                <div className="hidden sm:block h-3 w-px bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Microciclo:</span>
+                  <span className="font-bold text-white">Semana {initialData.metrics.micro || "—"}</span>
+                </div>
+                <div className="hidden sm:block h-3 w-px bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Orden Semana:</span>
+                  <span className="font-bold text-white">{initialData.metrics.orden_semana || "—"}ª Sesión</span>
+                </div>
+                <div className="hidden sm:block h-3 w-px bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Sesión Absoluta:</span>
+                  <span className="font-bold text-emerald-400">Sesión #{initialData.metrics.total_sesiones || "—"}</span>
                 </div>
               </div>
             )}
 
-            {/* Notes */}
-            <div>
-              <label htmlFor="session-notes" className={labelClass}>Observaciones / Notas Manuales</label>
-              <textarea
-                id="session-notes"
-                rows={3}
-                placeholder="Añadir observaciones sobre el clima, organización o foco general."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-          </div>
+            {/* Dynamic Physical & Tactical Objectives */}
+            {sessionType !== "match" && (
+              <div className="border-t border-white/5 pt-4">
+                <div 
+                  onClick={() => setIsObjectivesExpanded(!isObjectivesExpanded)}
+                  className="flex items-center justify-between cursor-pointer select-none text-xs font-bold text-slate-400 uppercase tracking-wider pb-2 hover:text-white transition-colors"
+                >
+                  <span className="flex items-center gap-1.5">
+                    🎯 Objetivos de la Sesión ({sessionTacticalConcepts.length + sessionMuscleGroups.length} seleccionados)
+                  </span>
+                  <ChevronRight className={cn("h-4 w-4 transition-transform duration-200", isObjectivesExpanded && "rotate-90")} />
+                </div>
+                
+                {!isObjectivesExpanded && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {sessionTacticalConcepts.map(cKey => {
+                      const concept = TACTICAL_CONCEPTS.find(c => c.key === cKey);
+                      return concept ? (
+                        <span key={cKey} className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-full px-2.5 py-0.5 font-bold">
+                          {concept.label}
+                        </span>
+                      ) : null;
+                    })}
+                    {sessionMuscleGroups.map(mKey => {
+                      const muscle = MUSCLE_GROUPS.find(m => m.key === mKey);
+                      return muscle ? (
+                        <span key={mKey} className="text-[9px] bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-full px-2.5 py-0.5 font-bold">
+                          {muscle.label}
+                        </span>
+                      ) : null;
+                    })}
+                    {sessionTacticalConcepts.length === 0 && sessionMuscleGroups.length === 0 && (
+                      <span className="text-[10px] text-slate-500 italic font-medium ml-1">Ningún objetivo seleccionado</span>
+                    )}
+                  </div>
+                )}
 
-          {/* ── CONVOCATORIA Y ASISTENCIA ── */}
-          <div className="glass rounded-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
-                <Users className="h-5 w-5 corp-icon" />
-                Convocatoria y Asistencia ({stats.present} / {stats.total} convocados)
-              </h2>
-              
-              {/* Quick Actions */}
-              <div className="flex items-center gap-2">
+                {isObjectivesExpanded && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 animate-in fade-in duration-200">
+                    <div className="space-y-1.5">
+                      <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider">
+                        Objetivos Tácticos de la Sesión
+                      </span>
+                      <TacticalConceptsSelector
+                        value={sessionTacticalConcepts}
+                        onChange={setSessionTacticalConcepts}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="block text-[10px] font-bold text-slate-455 uppercase tracking-wider">
+                        Objetivos Físicos de la Sesión
+                      </span>
+                      <MuscleGroupsSelector
+                        value={sessionMuscleGroups}
+                        onChange={setSessionMuscleGroups}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notes */}
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="session-notes" className={labelClass}>Observaciones / Notas Manuales</label>
+                <textarea
+                  id="session-notes"
+                  rows={3}
+                  placeholder="Añadir observaciones sobre el clima, organización o foco general."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex justify-end border-t border-white/5 pt-3">
                 <button
                   type="button"
-                  onClick={selectAllAvailable}
-                  className="rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[10px] font-bold px-3 py-2 transition-all cursor-pointer"
+                  onClick={() => setIsGeneralDataExpanded(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold transition-all cursor-pointer select-none"
                 >
-                  Convocar Disponibles
-                </button>
-                <button
-                  type="button"
-                  onClick={deselectAll}
-                  className="rounded-lg bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] font-bold px-3 py-2 transition-all cursor-pointer"
-                >
-                  Deseleccionar Todos
+                  <ChevronUp className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Listo / Contraer Datos Generales</span>
                 </button>
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+          {/* ── CONVOCATORIA Y ASISTENCIA ── */}
+          <div className="bg-card rounded-lg border border-border overflow-hidden transition-all duration-300">
+            {/* Header Accordion Toggle */}
+            <div 
+              onClick={() => setIsConvocatoriaExpanded(!isConvocatoriaExpanded)}
+              className="p-5 flex items-center justify-between gap-4 cursor-pointer select-none border-b border-white/5 hover:bg-white/[0.02] transition-colors flex-wrap"
+            >
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 corp-icon text-emerald-400" />
+                <h2 className="text-base font-extrabold text-white tracking-tight">
+                  Convocatoria y Asistencia ({stats.present} / {stats.total} convocados)
+                </h2>
+              </div>
+              
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                {isConvocatoriaExpanded && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={selectAllAvailable}
+                      className="rounded-lg bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[10px] font-bold px-3 py-1.5 transition-all cursor-pointer"
+                    >
+                      Convocar Disponibles
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deselectAll}
+                      className="rounded-lg bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-455 text-[10px] font-bold px-3 py-1.5 transition-all cursor-pointer"
+                    >
+                      Deseleccionar Todos
+                    </button>
+                  </div>
+                )}
+
+                <div 
+                  onClick={() => setIsConvocatoriaExpanded(!isConvocatoriaExpanded)}
+                  className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white cursor-pointer transition-all"
+                >
+                  <ChevronRight className={cn("h-5 w-5 transition-transform duration-200", isConvocatoriaExpanded && "rotate-90")} />
+                </div>
+              </div>
+            </div>
+
+            {/* Collapsible Content */}
+            {isConvocatoriaExpanded && (
+              <div className="p-6 space-y-4 animate-in fade-in duration-200">
 
             {/* Statistics Cards */}
             <div className="grid grid-cols-3 gap-3">
@@ -1498,34 +1860,108 @@ export function SessionForm({
               </p>
             </div>
 
-            {/* Notes/Observations list for absent and injured players */}
+            {/* Full Squad Roster Grid (No Scroll - 5 Color-Coded Statuses) */}
+            <div className="space-y-3 mt-4 pt-4 border-t border-white/5">
+              <div className="flex items-center justify-between">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Listado de Convocatoria (Haz clic o selecciona el estado)
+                </span>
+                <span className="text-[9px] text-slate-500 italic">
+                  🟩 Disponible | 🟨 Parte Sesión | 🟧 Readaptación | 🟥 Lesionado | ⬜ Ausente
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                {activeSquadPlayers.map((p) => {
+                  const currentStatus = attendance[p.id]?.status ?? "present";
+                  
+                  const badgeStyle =
+                    currentStatus === "present"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : currentStatus === "partial"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                      : currentStatus === "readaptation"
+                      ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                      : currentStatus === "injured"
+                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                      : "bg-slate-500/10 text-slate-400 border-slate-500/20 opacity-60";
+
+                  const statusLabel =
+                    currentStatus === "present"
+                      ? "Disponible"
+                      : currentStatus === "partial"
+                      ? "Parte Sesión"
+                      : currentStatus === "readaptation"
+                      ? "Readaptación"
+                      : currentStatus === "injured"
+                      ? "Lesionado"
+                      : "Ausente";
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="p-2.5 rounded-xl bg-white/2 border border-white/5 flex flex-col justify-between space-y-2 hover:border-white/10 transition-all"
+                    >
+                      <span className="text-xs font-bold text-white truncate" title={`${p.first_name} ${p.last_name}`}>
+                        {p.first_name} {p.last_name}
+                      </span>
+
+                      <div className="flex items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePlayerAttendance(p.id)}
+                          className={cn(
+                            "text-[8.5px] font-extrabold px-2 py-0.5 rounded border transition-all cursor-pointer truncate",
+                            badgeStyle
+                          )}
+                          title="Haz clic para alternar estado"
+                        >
+                          {statusLabel}
+                        </button>
+
+                        <select
+                          value={currentStatus}
+                          onChange={(e) => handleAttendanceChange(p.id, e.target.value as any)}
+                          className="text-[8px] bg-slate-900 border border-white/10 text-slate-300 rounded px-1 py-0.5 focus:outline-none cursor-pointer"
+                        >
+                          <option value="present">Disponible (Verde)</option>
+                          <option value="partial">Parte Sesión (Amarillo)</option>
+                          <option value="readaptation">Readaptación (Naranja)</option>
+                          <option value="injured">Lesionado (Rojo)</option>
+                          <option value="absent">Ausente (Gris)</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Notes/Observations list for non-present players */}
             {activeSquadPlayers.some(p => (attendance[p.id]?.status ?? "present") !== "present") && (
               <div className="space-y-3 mt-4 pt-4 border-t border-white/5">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Observaciones (Ausencias y Lesiones)</span>
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Observaciones de Convocatoria (Motivos y Lesiones)</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {activeSquadPlayers
                     .filter(p => (attendance[p.id]?.status ?? "present") !== "present")
                     .map(p => {
                       const att = attendance[p.id] || { status: "absent", notes: "" };
+                      const labelText =
+                        att.status === "injured" ? "Lesionado" :
+                        att.status === "readaptation" ? "Readaptación" :
+                        att.status === "partial" ? "Parte de Sesión" : "Ausente";
+
                       return (
                         <div key={p.id} className="flex items-center gap-2 bg-white/2 border border-white/5 rounded-xl p-2.5">
                           <div className="min-w-0 flex-1">
                             <span className="text-xs font-bold text-white block truncate">{p.first_name} {p.last_name}</span>
-                            <span className="text-[9px] text-purple-400 font-extrabold uppercase">{att.status === "injured" ? "Lesionado" : "Ausente"}</span>
+                            <span className="text-[9px] text-amber-400 font-extrabold uppercase">{labelText}</span>
                           </div>
                           <input
                             type="text"
                             placeholder="Motivo / Notas"
                             value={att.notes}
-                            onChange={(e) => {
-                              setAttendance(prev => ({
-                                ...prev,
-                                [p.id]: {
-                                  status: prev[p.id]?.status ?? "absent",
-                                  notes: e.target.value
-                                }
-                              }));
-                            }}
+                            onChange={(e) => handleAttendanceNotes(p.id, e.target.value)}
                             className="bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none w-[160px] sm:w-[200px]"
                           />
                         </div>
@@ -1534,11 +1970,24 @@ export function SessionForm({
                 </div>
               </div>
             )}
+            {/* Collapse button at the bottom of Convocatoria */}
+            <div className="flex justify-end border-t border-white/5 pt-3 mt-4">
+              <button
+                type="button"
+                onClick={() => setIsConvocatoriaExpanded(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold transition-all cursor-pointer select-none"
+              >
+                <ChevronUp className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Listo / Contraer Convocatoria</span>
+              </button>
+            </div>
           </div>
+        )}
+      </div>
 
           {/* ── PLAN DE PARTIDO (Solo para partido) ── */}
           {sessionType === "match" && (
-            <div className="glass rounded-2xl p-6 space-y-4">
+            <div className="bg-card rounded-lg border border-border p-6 space-y-4">
               <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
                 <Users className="h-5 w-5 corp-icon" />
                 Plan de Partido (Alineación y ABP)
@@ -1554,11 +2003,149 @@ export function SessionForm({
           )}
 
           {/* ── EXERCISES TIMELINE BUILDER ── */}
-          {sessionType !== "match" && (
+          {sessionType === "individual" ? (
+            /* SIMPLIFIED INDIVIDUAL SESSION CONFIGURATION */
+            <div className="bg-card rounded-lg p-5 border border-border space-y-4">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                <div>
+                  <h3 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 corp-text" />
+                    Plan de Entrenamiento Individual ({exercises.length} tareas)
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Configuración simplificada de trabajo individual específico por jugador (series, repeticiones, cargas y descansos sin división en 4 bloques).
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveBlockType("main");
+                    setLibraryTab("main");
+                    setIsLibraryOpen(true);
+                  }}
+                  className="rounded-xl btn-corporate text-white text-xs font-bold px-3.5 py-2 transition-all cursor-pointer flex items-center gap-1.5 shadow"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Añadir Tarea / Rutina
+                </button>
+              </div>
+
+              {exercises.length === 0 ? (
+                <div className="py-8 text-center border border-dashed border-white/10 rounded-xl bg-black/10 flex flex-col items-center justify-center space-y-2">
+                  <Sparkles className="h-6 w-6 text-slate-500 opacity-50" />
+                  <p className="text-xs text-slate-400 font-medium">No hay tareas asignadas a la sesión individual</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveBlockType("main");
+                      setLibraryTab("main");
+                      setIsLibraryOpen(true);
+                    }}
+                    className="text-xs font-bold corp-text hover:underline cursor-pointer"
+                  >
+                    + Seleccionar tareas o rutinas de la biblioteca
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {exercises.map((ex) => renderExerciseCard(ex))}
+                </div>
+              )}
+            </div>
+          ) : sessionType !== "match" ? (
             <div className="space-y-6">
+              {/* Block 0: PRE-SESSION (Vídeo / Fuerza / Activación Previa) */}
+              {!showBlock0 ? (
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-dashed border-purple-500/20 bg-purple-500/5 transition-all">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
+                    <div>
+                      <span className="text-xs font-extrabold text-purple-300 block">
+                        Bloque 0: Vídeo / Trabajo de Fuerza / Activación Previa (Oculto)
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Actívalo para incluir sesiones de vídeo, gimnasio o calentamiento previo.
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBlock0(true)}
+                    className="text-[10.5px] font-extrabold text-purple-300 hover:text-white bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg px-3 py-1.5 transition-all cursor-pointer shadow flex items-center gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Activar Bloque 0</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-card rounded-lg p-5 border border-purple-500/30 space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2 flex-wrap gap-2">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                        Bloque 0: Vídeo / Fuerza / Activación Previa ({block0Exercises.length} tareas)
+                      </h3>
+                      <p className="text-[10px] text-slate-500 mt-0.5">Vídeo táctico previo, trabajo de fuerza en gimnasio o activación individual.</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!copiedSingleTask}
+                        onClick={() => pasteExercise('block0')}
+                        className={cn(
+                          "rounded-lg text-[10px] font-extrabold px-2.5 py-1.5 transition-all flex items-center gap-1 border shadow",
+                          copiedSingleTask
+                            ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30 cursor-pointer"
+                            : "bg-white/5 text-slate-500 border-white/10 opacity-50 cursor-not-allowed"
+                        )}
+                        title={copiedSingleTask ? `Pegar "${copiedSingleTask.title}"` : "Copia una tarea primero para pegarla aquí"}
+                      >
+                        <Copy className="h-3 w-3" />
+                        <span>📋 Pegar Tarea {copiedSingleTask ? `(${copiedSingleTask.title})` : ""}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveBlockType("block0");
+                          setLibraryTab("strength");
+                          setIsLibraryOpen(true);
+                        }}
+                        className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-bold px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Añadir
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowBlock0(false)}
+                        className="rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-[10px] font-bold px-2 py-1.5 border border-white/5 transition-all cursor-pointer"
+                        title="Ocultar Bloque 0"
+                      >
+                        Ocultar
+                      </button>
+                    </div>
+                  </div>
+
+                  {block0Exercises.length === 0 && (
+                    <div className="py-3 text-center border border-dashed border-white/5 rounded-xl bg-black/5 flex items-center justify-center">
+                      <p className="text-[11px] text-slate-500 italic font-medium">No hay tareas de vídeo o activación en el Bloque 0</p>
+                    </div>
+                  )}
+
+                  {/* Render Block 0 Exercises */}
+                  <div className="space-y-4">
+                    {block0Exercises.map((ex) => renderExerciseCard(ex))}
+                  </div>
+                </div>
+              )}
+
               {/* Block A: WARM-UP (Calentamiento) */}
               {showWarmupBlock && (
-                <div className="glass rounded-2xl p-5 border border-white/10 bg-white/2 space-y-4">
+                <div className="bg-card rounded-lg p-5 border border-border space-y-4">
                   <div className="flex items-center justify-between border-b border-white/5 pb-2 flex-wrap gap-2">
                     <div>
                       <h3 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
@@ -1569,6 +2156,22 @@ export function SessionForm({
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!copiedSingleTask}
+                        onClick={() => pasteExercise('warmup')}
+                        className={cn(
+                          "rounded-lg text-[10px] font-extrabold px-2.5 py-1.5 transition-all flex items-center gap-1 border shadow",
+                          copiedSingleTask
+                            ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30 cursor-pointer"
+                            : "bg-white/5 text-slate-500 border-white/10 opacity-50 cursor-not-allowed"
+                        )}
+                        title={copiedSingleTask ? `Pegar "${copiedSingleTask.title}"` : "Copia una tarea primero para pegarla aquí"}
+                      >
+                        <Copy className="h-3 w-3" />
+                        <span>📋 Pegar Tarea {copiedSingleTask ? `(${copiedSingleTask.title})` : ""}</span>
+                      </button>
+
                       {/* Send Alert Button if empty */}
                       {warmupExercises.length === 0 && (
                         <div className="relative inline-flex items-center gap-0">
@@ -1661,9 +2264,8 @@ export function SessionForm({
                   </div>
 
                   {warmupExercises.length === 0 && (
-                    <div className="py-8 text-center border border-dashed border-white/5 rounded-xl bg-black/10">
-                      <p className="text-xs text-slate-500 italic">No hay ejercicios en el calentamiento.</p>
-                      <p className="text-[9px] text-slate-600 mt-1">El preparador físico puede rellenar este bloque más tarde.</p>
+                    <div className="py-3 text-center border border-dashed border-white/5 rounded-xl bg-black/5 flex items-center justify-center">
+                      <p className="text-[11px] text-slate-500 italic font-medium">No hay tareas en el calentamiento</p>
                     </div>
                   )}
 
@@ -1675,7 +2277,7 @@ export function SessionForm({
               )}
 
               {/* Block B: MAIN PART (Parte Principal) */}
-              <div className="glass rounded-2xl p-5 border border-white/10 bg-white/2 space-y-4">
+              <div className="bg-card rounded-lg p-5 border border-border space-y-4">
                 <div className="flex items-center justify-between border-b border-white/5 pb-2">
                   <div>
                     <h3 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
@@ -1685,23 +2287,41 @@ export function SessionForm({
                     <p className="text-[10px] text-slate-500 mt-0.5">Tareas y situaciones táctico-cognitivas centrales.</p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveBlockType("main");
-                      setLibraryTab("main");
-                      setIsLibraryOpen(true);
-                    }}
-                    className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-bold px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Añadir
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!copiedSingleTask}
+                      onClick={() => pasteExercise('main')}
+                      className={cn(
+                        "rounded-lg text-[10px] font-extrabold px-2.5 py-1.5 transition-all flex items-center gap-1 border shadow",
+                        copiedSingleTask
+                          ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30 cursor-pointer"
+                          : "bg-white/5 text-slate-500 border-white/10 opacity-50 cursor-not-allowed"
+                      )}
+                      title={copiedSingleTask ? `Pegar "${copiedSingleTask.title}"` : "Copia una tarea primero para pegarla aquí"}
+                    >
+                      <Copy className="h-3 w-3" />
+                      <span>📋 Pegar Tarea {copiedSingleTask ? `(${copiedSingleTask.title})` : ""}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveBlockType("main");
+                        setLibraryTab("main");
+                        setIsLibraryOpen(true);
+                      }}
+                      className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-bold px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Añadir
+                    </button>
+                  </div>
                 </div>
 
                 {mainExercises.length === 0 && (
-                  <div className="py-8 text-center border border-dashed border-white/5 rounded-xl bg-black/10">
-                    <p className="text-xs text-slate-500 italic">No hay ejercicios en la parte principal.</p>
+                  <div className="py-3 text-center border border-dashed border-white/5 rounded-xl bg-black/5 flex items-center justify-center">
+                    <p className="text-[11px] text-slate-500 italic font-medium">No hay tareas en la parte principal</p>
                   </div>
                 )}
 
@@ -1711,19 +2331,35 @@ export function SessionForm({
                 </div>
               </div>
 
-              {/* Block C: COOL-DOWN (Vuelta a la Calma) */}
+              {/* Block C: COOLDOWN (Vuelta a la Calma) */}
               {showCooldownBlock && (
-                <div className="glass rounded-2xl p-5 border border-white/10 bg-white/2 space-y-4">
+                <div className="bg-card rounded-lg p-5 border border-border space-y-4">
                   <div className="flex items-center justify-between border-b border-white/5 pb-2 flex-wrap gap-2">
                     <div>
                       <h3 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-sky-500 animate-pulse" />
+                        <span className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse" />
                         Bloque 3: Vuelta a la Calma ({cooldownExercises.length} tareas)
                       </h3>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Estiramientos, regenerativo y feedback final.</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">Estiramientos, regenerativo o crioterapia.</p>
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!copiedSingleTask}
+                        onClick={() => pasteExercise('cooldown')}
+                        className={cn(
+                          "rounded-lg text-[10px] font-extrabold px-2.5 py-1.5 transition-all flex items-center gap-1 border shadow",
+                          copiedSingleTask
+                            ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30 cursor-pointer"
+                            : "bg-white/5 text-slate-500 border-white/10 opacity-50 cursor-not-allowed"
+                        )}
+                        title={copiedSingleTask ? `Pegar "${copiedSingleTask.title}"` : "Copia una tarea primero para pegarla aquí"}
+                      >
+                        <Copy className="h-3 w-3" />
+                        <span>📋 Pegar Tarea {copiedSingleTask ? `(${copiedSingleTask.title})` : ""}</span>
+                      </button>
+
                       {/* Send Alert Button if empty */}
                       {cooldownExercises.length === 0 && (
                         <div className="relative inline-flex items-center gap-0">
@@ -1816,9 +2452,8 @@ export function SessionForm({
                   </div>
 
                   {cooldownExercises.length === 0 && (
-                    <div className="py-8 text-center border border-dashed border-white/5 rounded-xl bg-black/10">
-                      <p className="text-xs text-slate-500 italic">No hay ejercicios en la vuelta a la calma.</p>
-                      <p className="text-[9px] text-slate-600 mt-1">Puedes dejarlo para que lo complete el staff más tarde.</p>
+                    <div className="py-3 text-center border border-dashed border-white/5 rounded-xl bg-black/5 flex items-center justify-center">
+                      <p className="text-[11px] text-slate-500 italic font-medium">No hay tareas en la vuelta a la calma</p>
                     </div>
                   )}
 
@@ -1853,7 +2488,7 @@ export function SessionForm({
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* ── FORM ACTIONS ── */}
           <div className="flex gap-4 pt-4 border-t border-white/5">
@@ -1883,7 +2518,7 @@ export function SessionForm({
 
         {/* ── RIGHT HISTORIAL SIDEBAR (25%) ── */}
         {isSidebarOpen && (
-          <div className="w-[320px] shrink-0 sticky top-6 glass rounded-2xl border border-white/10 p-4 bg-white/2 max-h-[85vh] overflow-y-auto no-scrollbar flex flex-col gap-4 animate-in slide-in-from-right duration-200">
+          <div className="w-[320px] shrink-0 sticky top-6 bg-card rounded-lg border border-border p-4 max-h-[85vh] overflow-y-auto no-scrollbar flex flex-col gap-4 animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
               <span className="text-xs font-extrabold text-white tracking-tight flex items-center gap-1.5">
                 <FolderOpen className="h-4 w-4 corp-icon" />
@@ -1954,12 +2589,27 @@ export function SessionForm({
                               </div>
                               <div className="space-y-0.5 pl-1.5 border-l border-white/5">
                                 {blockExercises.map((ex: any, exIdx: number) => (
-                                  <div key={exIdx} className="flex items-center justify-between text-[9px] text-slate-400 group">
-                                    <span className="truncate max-w-[150px]">{ex.exercise?.title || "Tarea"}</span>
+                                  <div key={exIdx} className="flex items-center justify-between text-[9px] text-slate-400 group py-0.5 gap-2">
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                      {ex.whiteboard_data?.imageDataUrl ? (
+                                        <div className="h-5 w-8 shrink-0 rounded border border-white/10 bg-slate-950/40 overflow-hidden flex items-center justify-center">
+                                          <img 
+                                            src={ex.whiteboard_data.imageDataUrl} 
+                                            alt="Esquema" 
+                                            className="h-full w-full object-cover"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <span className="h-5 w-8 shrink-0 rounded border border-dashed border-white/5 bg-white/2 flex items-center justify-center text-[7px] text-slate-650 font-bold select-none">
+                                          —
+                                        </span>
+                                      )}
+                                      <span className="truncate text-slate-300 leading-snug" title={ex.exercise?.title}>{ex.exercise?.title || "Tarea"}</span>
+                                    </div>
                                     <button
                                       type="button"
                                       onClick={() => importSingleExercise(ex, block as any)}
-                                      className="text-slate-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity font-bold"
+                                      className="text-slate-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity font-bold shrink-0"
                                     >
                                       + Añadir
                                     </button>
@@ -1982,7 +2632,7 @@ export function SessionForm({
       {/* ── MODAL: EXERCISE LIBRARY SELECTOR ── */}
       {isLibraryOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass w-full max-w-lg rounded-3xl border border-white/10 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl animate-fade-in">
+          <div className="bg-popover w-full max-w-lg rounded-xl border border-border flex flex-col max-h-[80vh] overflow-hidden shadow-md animate-fade-in">
             <div className="p-5 border-b border-white/5 flex items-center justify-between">
               <h3 className="text-base font-extrabold text-white">Biblioteca de Ejercicios</h3>
               <button
@@ -2051,7 +2701,7 @@ export function SessionForm({
                       className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white placeholder-slate-650 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Categoría</label>
                       <input
@@ -2072,6 +2722,22 @@ export function SessionForm({
                         <option value="beginner">Principiante</option>
                         <option value="intermediate">Intermedio</option>
                         <option value="advanced">Avanzado</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Exportar a Biblioteca</label>
+                      <select
+                        value={newExScope}
+                        onChange={(e) => setNewExScope(e.target.value)}
+                        className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none"
+                      >
+                        <option value="coach">Personal (Entrenador / Prep Físico)</option>
+                        {(userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach") && (
+                          <option value="academy">Academia (Coordinador / Admin)</option>
+                        )}
+                        {userRole === "super_admin" && (
+                          <option value="global">ClubLab (Superadmin)</option>
+                        )}
                       </select>
                     </div>
                   </div>
@@ -2171,7 +2837,7 @@ export function SessionForm({
       {/* ── MODAL: PIZARRA TÁCTICA ── */}
       {whiteboardExerciseIndex !== null && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass w-full max-w-4xl rounded-3xl border border-white/10 flex flex-col max-h-[95vh] overflow-hidden shadow-2xl">
+          <div className="bg-popover w-full max-w-4xl rounded-xl border border-border flex flex-col max-h-[95vh] overflow-hidden shadow-md">
             <div className="p-5 border-b border-white/5 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-white">Pizarra Táctica</h3>
@@ -2207,7 +2873,7 @@ export function SessionForm({
 
       {showExitConfirmModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="glass w-full max-w-sm rounded-3xl border border-white/10 p-6 space-y-6 shadow-2xl animate-fade-in text-center">
+          <div className="bg-popover w-full max-w-sm rounded-xl border border-border p-6 space-y-6 shadow-md animate-fade-in text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-450 border border-rose-500/25 mx-auto">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             </div>
@@ -2372,11 +3038,59 @@ export function SessionForm({
                       </div>
                     )}
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800 uppercase tracking-wider text-[9px] mb-1.5">Convocatoria ({presentPlayers.length})</h3>
-                    <div className="text-[10px] text-slate-650 max-h-16 overflow-y-auto leading-relaxed">
-                      {presentPlayers.map(p => `${p.first_name} ${p.last_name}`).join(", ")}
+                </div>
+
+                {/* Convocatoria y Roster Completo en Informe (Sin Scroll - Colores por Estado) */}
+                <div className="border-t border-b border-slate-200 py-4 mb-5 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px]">
+                      Convocatoria y Estado Físico del Equipo ({activeSquadPlayers.length} Jugadores)
+                    </h3>
+                    <div className="flex items-center gap-3 text-[9px] font-semibold text-slate-600">
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Disponible</span>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> Parte Sesión</span>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> Readaptación</span>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> Lesionado</span>
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-slate-400" /> Ausente</span>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 text-[9.5px]">
+                    {activeSquadPlayers.map((p) => {
+                      const st = attendance[p.id]?.status ?? "present";
+                      const printColor =
+                        st === "present"
+                          ? "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold"
+                          : st === "partial"
+                          ? "bg-amber-50 text-amber-900 border-amber-300 font-bold"
+                          : st === "readaptation"
+                          ? "bg-orange-50 text-orange-900 border-orange-300 font-bold"
+                          : st === "injured"
+                          ? "bg-rose-50 text-rose-900 border-rose-300 font-bold"
+                          : "bg-slate-100 text-slate-500 border-slate-300 opacity-70";
+
+                      const stLabel =
+                        st === "present"
+                          ? "Disponible"
+                          : st === "partial"
+                          ? "Parte Sesión"
+                          : st === "readaptation"
+                          ? "Readaptación"
+                          : st === "injured"
+                          ? "Lesionado"
+                          : "Ausente";
+
+                      return (
+                        <div key={p.id} className={cn("p-1.5 rounded-lg border flex flex-col justify-between leading-tight", printColor)}>
+                          <span className="font-extrabold truncate" title={`${p.first_name} ${p.last_name}`}>
+                            {p.first_name} {p.last_name}
+                          </span>
+                          <span className="text-[8px] uppercase tracking-wider font-semibold opacity-90 mt-0.5">
+                            {stLabel}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -2607,6 +3321,135 @@ export function SessionForm({
           )}
         </div>
       )}
+
+      {/* ── MODAL: PREVIEW DE SESIÓN CON DIBUJOS TÁCTICOS ── */}
+      {previewSessionModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-white/10 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center font-bold">
+                  <Eye className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">
+                    {previewSessionModalData.title || `Sesión ${previewSessionModalData.session_total_seq || ""}`}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {new Date(previewSessionModalData.date).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                    {previewSessionModalData.microcycle_day && ` • ${previewSessionModalData.microcycle_day}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewSessionModalData(null)}
+                className="p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {(!previewSessionModalData.exercises || previewSessionModalData.exercises.length === 0) ? (
+                <div className="text-center py-10 border border-dashed border-white/10 rounded-2xl bg-white/2">
+                  <p className="text-slate-400 text-sm italic">Esta sesión no tiene tareas registradas</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Tareas de la Sesión ({previewSessionModalData.exercises.length})
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {previewSessionModalData.exercises.map((item: any, idx: number) => {
+                      const ex = item.exercise || item;
+                      const drawing = item.whiteboard_data?.imageDataUrl || ex?.whiteboard_data?.imageDataUrl;
+
+                      return (
+                        <div key={idx} className="bg-white/3 border border-white/10 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-white/10 text-slate-300 uppercase tracking-wider border border-white/10">
+                                  {item.block_type === 'warmup' ? 'Calentamiento' : item.block_type === 'cooldown' ? 'Vuelta a Calma' : item.block_type === 'block0' ? 'Bloque 0' : 'Parte Principal'}
+                                </span>
+                                <h4 className="text-sm font-extrabold text-white mt-1.5 leading-tight">
+                                  {ex?.title || item.title || "Tarea"}
+                                </h4>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const formattedEx = {
+                                    exercise_id: item.exercise_id || ex?.id,
+                                    title: ex?.title || item.title || "Ejercicio",
+                                    category: ex?.category || item.category || "General",
+                                    duration_min: item.duration_min || 15,
+                                    recovery_min: item.recovery_min || 2,
+                                    pitch_zones: item.pitch_zones || [],
+                                    equipment: item.equipment || [],
+                                    group_setup: item.group_setup || {},
+                                    whiteboard_data: item.whiteboard_data || ex?.whiteboard_data || null,
+                                  };
+                                  localStorage.setItem("cl_copied_single_exercise", JSON.stringify(formattedEx));
+                                  setCopiedSingleTask(formattedEx);
+                                  alert(`Tarea "${formattedEx.title}" copiada al portapapeles. ¡Puedes pegarla en cualquier bloque!`);
+                                }}
+                                className="px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold cursor-pointer flex items-center gap-1 shrink-0"
+                                title="Copiar esta tarea"
+                              >
+                                <Copy className="h-3 w-3" />
+                                <span>Copiar</span>
+                              </button>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">
+                              <span>⏱️ {item.duration_min || 15}m (+{item.recovery_min || 2}m rec)</span>
+                              {item.space_dimensions && <span>📐 {item.space_dimensions}</span>}
+                            </div>
+                          </div>
+
+                          {/* Tactical Whiteboard Drawing Image */}
+                          <div className="bg-slate-950 border border-white/10 rounded-xl p-2 min-h-[140px] flex items-center justify-center overflow-hidden">
+                            {drawing ? (
+                              <img
+                                src={drawing}
+                                alt="Dibujo táctico"
+                                className="w-full max-h-[180px] object-contain rounded-lg"
+                              />
+                            ) : (
+                              <div className="text-center p-4">
+                                <Sparkles className="h-5 w-5 text-slate-600 mx-auto mb-1" />
+                                <span className="text-[10px] text-slate-500 font-medium">Sin gráfico táctico</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/10 bg-white/[0.02] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPreviewSessionModalData(null)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all cursor-pointer"
+              >
+                Cerrar Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -2615,89 +3458,191 @@ export function SessionForm({
     const index = exercises.findIndex(item => item === ex);
     if (index === -1) return null;
 
+    const isExpanded = !!expandedExercises[ex.exercise_id];
+    const toggleExpand = () => {
+      setExpandedExercises(prev => ({
+        ...prev,
+        [ex.exercise_id]: !prev[ex.exercise_id]
+      }));
+    };
+
     return (
       <div
         key={ex.exercise_id + "-" + index}
-        className="rounded-xl border border-white/10 p-4 bg-white/3 space-y-4 animate-in fade-in slide-in-from-top-1 duration-150"
+        className={cn(
+          "rounded-xl border transition-all duration-200 bg-white/3 space-y-4",
+          isExpanded ? "border-white/10 p-5" : "border-white/5 p-3 hover:bg-white/[0.04] hover:border-white/10"
+        )}
       >
         {/* Card Header */}
-        <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-2">
-          <div className="flex items-center gap-2">
-            <span className="h-5 w-5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold flex items-center justify-center">
+        <div 
+          onClick={toggleExpand}
+          className="flex items-center justify-between gap-4 cursor-pointer select-none"
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className="h-5 w-5 shrink-0 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold flex items-center justify-center">
               {index + 1}
             </span>
-            <div>
-              <h4 className="text-xs font-extrabold text-white">{ex.title}</h4>
-              <p className="text-[8px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">{ex.category}</p>
+            
+            {!isExpanded && ex.whiteboard_data?.imageDataUrl && (
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setWhiteboardExerciseIndex(index);
+                }}
+                className="h-8 w-12 shrink-0 rounded border border-white/10 bg-slate-950/40 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-all flex items-center justify-center group"
+                title="Editar dibujo"
+              >
+                <img 
+                  src={ex.whiteboard_data.imageDataUrl} 
+                  alt="Esquema" 
+                  className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-xs font-extrabold text-white truncate">{ex.title}</h4>
+                {!isExpanded && (
+                  <span className="text-[9px] text-slate-405 bg-white/5 border border-white/5 rounded px-1.5 py-0.2 truncate shrink-0">
+                    {ex.category}
+                  </span>
+                )}
+              </div>
+              
+              {!isExpanded && (
+                <div className="flex items-center gap-3 mt-1 text-[9px] text-slate-500 font-semibold flex-wrap">
+                  <span className="flex items-center gap-1">
+                    ⏱️ {ex.num_series || 1} x {ex.series_duration_min || 10} min (Rec: {ex.series_recovery_min || 2} min)
+                  </span>
+                  <span>•</span>
+                  <span>Resto: {ex.transition_rest_min ?? 2} min</span>
+                  {ex.whiteboard_data && (
+                    <>
+                      <span>•</span>
+                      <span className="text-emerald-400 font-extrabold">✏️ Pizarra</span>
+                    </>
+                  )}
+                  {ex.group_setup?.groups?.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="text-purple-400 font-extrabold">👥 {ex.group_setup.groups.length} Grupos</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-1">
-            <CustomTooltip content="Mover arriba">
-              <button
-                type="button"
-                disabled={index === 0}
-                onClick={() => moveExercise(index, "up")}
-                className="p-1 rounded hover:bg-white/5 text-slate-500 hover:text-white disabled:opacity-30 transition-all"
-              >
-                <ChevronDown className="h-4 w-4 rotate-180" />
-              </button>
-            </CustomTooltip>
-            <CustomTooltip content="Mover abajo">
-              <button
-                type="button"
-                disabled={index === exercises.length - 1}
-                onClick={() => moveExercise(index, "down")}
-                className="p-1 rounded hover:bg-white/5 text-slate-500 hover:text-white disabled:opacity-30 transition-all"
-              >
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </CustomTooltip>
+          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => moveExercise(index, "up")}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all cursor-pointer"
+                >
+                  <ChevronDown className="h-4 w-4 rotate-180" />
+                </TooltipTrigger>
+                <TooltipContent>Mover arriba</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  disabled={index === exercises.length - 1}
+                  onClick={() => moveExercise(index, "down")}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all cursor-pointer"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </TooltipTrigger>
+                <TooltipContent>Mover abajo</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <div className="w-px h-3 bg-border mx-0.5" />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  onClick={() => duplicateExercise(index)}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-sky-450 transition-all cursor-pointer"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </TooltipTrigger>
+                <TooltipContent>Duplicar tarea</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  onClick={() => copyExercise(index)}
+                  className={cn("p-1 rounded hover:bg-muted transition-all cursor-pointer", copiedExercise?.exercise_id?.startsWith(ex.exercise_id) ? "text-emerald-400" : "text-muted-foreground hover:text-emerald-400")}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/></svg>
+                </TooltipTrigger>
+                <TooltipContent>Copiar tarea</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <div className="w-px h-3 bg-border mx-0.5" />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  onClick={() => removeExercise(index)}
+                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </TooltipTrigger>
+                <TooltipContent>Eliminar de la sesión</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="w-px h-3 bg-white/10 mx-0.5" />
-            <CustomTooltip content="Duplicar tarea">
-              <button
-                type="button"
-                onClick={() => duplicateExercise(index)}
-                className="p-1 rounded hover:bg-white/5 text-slate-500 hover:text-sky-450 transition-all"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            </CustomTooltip>
-            <CustomTooltip content="Copiar tarea">
-              <button
-                type="button"
-                onClick={() => copyExercise(index)}
-                className={cn("p-1 rounded hover:bg-white/5 transition-all", copiedExercise?.exercise_id?.startsWith(ex.exercise_id) ? "text-emerald-400" : "text-slate-500 hover:text-emerald-400")}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/></svg>
-              </button>
-            </CustomTooltip>
-            <div className="w-px h-3 bg-white/10 mx-0.5" />
-            <CustomTooltip content="Eliminar de la sesión">
-              <button
-                type="button"
-                onClick={() => removeExercise(index)}
-                className="p-1 rounded hover:bg-rose-500/15 text-slate-500 hover:text-rose-400 transition-all"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </CustomTooltip>
+            <button
+              type="button"
+              onClick={toggleExpand}
+              className="p-1 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-all cursor-pointer"
+              title={isExpanded ? "Contraer" : "Expandir"}
+            >
+              <ChevronRight className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-90")} />
+            </button>
           </div>
         </div>
 
-        {/* Block assignment selector */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Card Body */}
+        {isExpanded && (
+          <div className="space-y-4 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-200">
+
+        {/* Block & Location assignment selectors */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className={labelClass}>Bloque de la Sesión</label>
             <select
               value={ex.block_type || "main"}
               onChange={(e) => updateExerciseField(index, "block_type", e.target.value as any)}
-              className="w-full rounded-lg bg-slate-900 border border-white/10 px-2 py-1.5 text-xs text-white"
+              className="w-full rounded-lg bg-slate-900 border border-white/10 px-2 py-1.5 text-xs text-white cursor-pointer"
             >
               <option value="warmup">Calentamiento</option>
               <option value="main">Parte Principal</option>
               <option value="cooldown">Vuelta a la Calma</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Ubicación / Campo</label>
+            <select
+              value={ex.facility_id || ""}
+              onChange={(e) => updateExerciseField(index, "facility_id", e.target.value)}
+              className="w-full rounded-lg bg-slate-900 border border-white/10 px-2 py-1.5 text-xs text-white cursor-pointer"
+            >
+              <option value="">-- Por defecto / Sin asignar --</option>
+              {facilities.map((fac) => (
+                <option key={fac.id} value={fac.id}>
+                  {fac.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -3144,7 +4089,20 @@ export function SessionForm({
           </div>
         )}
 
-        {/* Whiteboard trigger removed (moved to top of details) */}
+        {/* Collapse button at the bottom of the card for easy navigation */}
+        <div className="flex justify-end border-t border-white/5 pt-3 mt-1">
+          <button
+            type="button"
+            onClick={toggleExpand}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold transition-all cursor-pointer select-none"
+            title="Contraer esta tarea"
+          >
+            <ChevronUp className="h-3.5 w-3.5 text-emerald-450" />
+            <span>Listo / Contraer Tarea</span>
+          </button>
+        </div>
+          </div>
+        )}
       </div>
     );
   }

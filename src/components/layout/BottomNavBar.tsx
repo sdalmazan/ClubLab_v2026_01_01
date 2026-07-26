@@ -65,7 +65,7 @@ const NAV_TABS: NavTab[] = [
     icon: Users,
     subItems: [
       { href: "/players", labelKey: "players", icon: Users, requiredPermission: "view_player_list" },
-      { href: "/training", labelKey: "training", icon: CalendarDays, requiredPermission: "create_session" },
+      { href: "/training", labelKey: "training", icon: CalendarDays, requiredPermission: "view_session_library" },
       { href: "/injuries", labelKey: "injuries", icon: HeartPulse, requiredPermission: "view_injuries" },
     ],
   },
@@ -104,6 +104,7 @@ const MORE_ITEMS: SubItem[] = [
 // ─────────────────────────────────────────────────────────
 
 function canShowTab(tab: NavTab | SubItem, user: AuthUser): boolean {
+  if (user.role === "player") return false;
   if ("requiredRoles" in tab && tab.requiredRoles) {
     // Special admin bypass
     if (

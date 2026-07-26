@@ -17,13 +17,16 @@ import {
   Grid,
   Sparkles,
   Copy,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { TacticalConceptsSelector } from "@/components/training/TacticalConceptsSelector";
 import { MuscleGroupsSelector } from "@/components/training/MuscleGroupsSelector";
 import { TaskWhiteboard } from "@/components/training/TaskWhiteboard";
 import { PitchGridSelector } from "@/components/training/PitchGridSelector";
+import { PitchCalculatorWidget } from "@/components/training/PitchCalculatorWidget";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 interface Exercise {
   id: string;
@@ -347,6 +350,39 @@ export default function ExercisesLibraryPage() {
         </div>
       )}
 
+      {/* Category Pills Quick Filters */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {[
+          { id: "all", label: "Todas", icon: Grid },
+          { id: "Calentamiento", label: "Activación / Calentamiento", icon: Sparkles },
+          { id: "Posesión", label: "Rondos & Posesiones", icon: Users },
+          { id: "Transición", label: "Transiciones (A-D / D-A)", icon: Zap },
+          { id: "Finalización", label: "Finalización & Remate", icon: BookOpen },
+          { id: "Balón Parado", label: "Balón Parado (ABP)", icon: Grid },
+          { id: "Táctica", label: "Táctica & Juego Real", icon: BookOpen },
+          { id: "Fuerza", label: "Fuerza / Gimnasio", icon: Sparkles },
+        ].map((cat) => {
+          const isSelected = selectedCategory === cat.id;
+          const Icon = cat.icon;
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedCategory(cat.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 border",
+                isSelected
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
+                  : "bg-slate-900 border-white/10 text-slate-400 hover:text-white hover:border-white/20"
+              )}
+            >
+              <Icon className="size-3.5" />
+              <span>{cat.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filters Bar */}
       <div className="flex flex-wrap items-center gap-3 bg-white/2 p-3 border border-white/5 rounded-2xl">
         <div className="flex-1 min-w-[200px] relative">
@@ -400,7 +436,7 @@ export default function ExercisesLibraryPage() {
           {filtered.map((ex) => (
             <div
               key={ex.id}
-              className="glass rounded-2xl border border-white/10 p-5 flex flex-col justify-between hover:border-white/15 transition-all shadow-xl hover:shadow-2xl"
+              className="bg-card rounded-lg border border-border p-5 flex flex-col justify-between hover:border-border transition-all shadow-md hover:shadow-2xl"
             >
               <div className="space-y-3.5">
                 {/* Header info */}
@@ -471,28 +507,32 @@ export default function ExercisesLibraryPage() {
                 {(ex.image_url || ex.video_url) && (
                   <div className="flex gap-2 text-[10px] pt-1">
                     {ex.image_url && (
-                      <span className="tooltip-container shrink-0">
-                        <span
-                          className="flex items-center gap-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-lg font-semibold cursor-pointer hover:bg-sky-500/15"
-                          onClick={() => window.open(ex.image_url!, "_blank")}
-                        >
-                          <ImageIcon className="h-3 w-3" />
-                          Imagen física
-                        </span>
-                        <span className="tooltip-text">Abrir enlace de imagen</span>
-                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger
+                            className="flex items-center gap-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold cursor-pointer hover:bg-sky-500/15 shrink-0"
+                            onClick={() => window.open(ex.image_url!, "_blank")}
+                          >
+                            <ImageIcon className="h-3 w-3" />
+                            Imagen física
+                          </TooltipTrigger>
+                          <TooltipContent>Abrir enlace de imagen</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                     {ex.video_url && (
-                      <span className="tooltip-container shrink-0">
-                        <span
-                          className="flex items-center gap-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-lg font-semibold cursor-pointer hover:bg-amber-500/15"
-                          onClick={() => window.open(ex.video_url!, "_blank")}
-                        >
-                          <Video className="h-3 w-3" />
-                          Ver Vídeo
-                        </span>
-                        <span className="tooltip-text">Ver video tutorial</span>
-                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger
+                            className="flex items-center gap-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold cursor-pointer hover:bg-amber-500/15 shrink-0"
+                            onClick={() => window.open(ex.video_url!, "_blank")}
+                          >
+                            <Video className="h-3 w-3" />
+                            Ver Vídeo
+                          </TooltipTrigger>
+                          <TooltipContent>Ver video tutorial</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
                 )}
@@ -531,41 +571,47 @@ export default function ExercisesLibraryPage() {
                   ID: #{ex.id.slice(0, 6)}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="tooltip-container">
-                    <button
-                      onClick={() => handleClone(ex)}
-                      className="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </button>
-                    <span className="tooltip-text">Clonar tarea</span>
-                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger
+                        onClick={() => handleClone(ex)}
+                        className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer flex items-center justify-center"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </TooltipTrigger>
+                      <TooltipContent>Clonar tarea</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   
-                  <span className="tooltip-container">
-                    <button
-                      onClick={() => openEditModal(ex)}
-                      className="p-1.5 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <span className="tooltip-text">
-                      {ex.library_scope === "global" && userRole !== "super_admin"
-                        ? "Editar y Personalizar"
-                        : ex.library_scope === "academy" && !(userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach")
-                        ? "Editar y Personalizar"
-                        : "Editar Tarea"}
-                    </span>
-                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger
+                        onClick={() => openEditModal(ex)}
+                        className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer flex items-center justify-center"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {ex.library_scope === "global" && userRole !== "super_admin"
+                          ? "Editar y Personalizar"
+                          : ex.library_scope === "academy" && !(userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach")
+                          ? "Editar y Personalizar"
+                          : "Editar Tarea"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-                  <span className="tooltip-container">
-                    <button
-                      onClick={() => handleDelete(ex.id, ex.title)}
-                      className="p-1.5 rounded hover:bg-rose-500/10 text-slate-500 hover:text-rose-450 transition-colors cursor-pointer flex items-center justify-center"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                    <span className="tooltip-text">Eliminar de biblioteca</span>
-                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger
+                        onClick={() => handleDelete(ex.id, ex.title)}
+                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer flex items-center justify-center"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </TooltipTrigger>
+                      <TooltipContent>Eliminar de biblioteca</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             </div>
@@ -575,10 +621,10 @@ export default function ExercisesLibraryPage() {
 
       {/* ── MODAL: CREATE / EDIT EXERCISE ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleSave}
-          className="glass w-full max-w-4xl rounded-3xl border border-white/10 p-6 space-y-5 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto"
+          className="bg-popover border border-border shadow-md w-full max-w-4xl rounded-xl p-6 space-y-5 animate-fade-in max-h-[90vh] overflow-y-auto"
           >
             <div className="flex justify-between items-center border-b border-white/5 pb-3">
               <h3 className="text-base font-extrabold text-white">
@@ -732,6 +778,27 @@ export default function ExercisesLibraryPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Pitch Dimensions & Methodology Calculator Widget */}
+              <div className="border-t border-white/5 pt-4">
+                <PitchCalculatorWidget
+                  title={title}
+                  description={description}
+                  playersPerGroup={playersPerGroup}
+                  currentSpaceDimensions={spaceDimensions}
+                  onApplyCalculation={(dimsShort, formattedMd) => {
+                    setSpaceDimensions(dimsShort);
+                    let currentDesc = description;
+                    if (currentDesc.includes("## 📐 Dimensiones Recomendadas")) {
+                      const baseDesc = currentDesc.split("## 📐 Dimensiones Recomendadas")[0].trim();
+                      currentDesc = baseDesc ? `${baseDesc}\n\n${formattedMd}` : formattedMd;
+                    } else {
+                      currentDesc = currentDesc.trim() ? `${currentDesc.trim()}\n\n${formattedMd}` : formattedMd;
+                    }
+                    setDescription(currentDesc);
+                  }}
+                />
               </div>
 
               {/* Space dimensions & needs groups */}

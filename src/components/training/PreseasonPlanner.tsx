@@ -1036,46 +1036,13 @@ export function PreseasonPlanner({
       
       setActiveSeasonId(seasonId);
 
-      // Shift dates migration for local storage (one-time fix for timezone offset cache)
-      const migrationKey = `cl_preseason_dates_shifted_v3_${teamId}`;
-      const hasMigrated = localStorage.getItem(migrationKey);
-      if (!hasMigrated) {
-        const localKey = `cl_preseason_sessions_${teamId}`;
-        const saved = localStorage.getItem(localKey) || localStorage.getItem("cl_preseason_sessions");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) {
-              const migratedSessions = parsed.map((s: any) => {
-                const d = parseDate(s.date);
-                d.setDate(d.getDate() + 1);
-                return {
-                  ...s,
-                  date: toDateStr(d)
-                };
-              });
-              localStorage.setItem(localKey, JSON.stringify(migratedSessions));
-              console.log("Migrated local storage sessions forward by 1 day.");
-            }
-          } catch (e) {
-            console.error("Failed to migrate sessions local storage:", e);
-          }
-        }
-        const savedStart = localStorage.getItem(`cl_preseason_start_date_${teamId}`) || localStorage.getItem("cl_preseason_start_date");
-        if (savedStart) {
-          const d = parseDate(savedStart);
-          d.setDate(d.getDate() + 1);
-          localStorage.setItem(`cl_preseason_start_date_${teamId}`, toDateStr(d));
-        }
-        const savedEnd = localStorage.getItem(`cl_preseason_end_date_${teamId}`) || localStorage.getItem("cl_preseason_end_date");
-        if (savedEnd) {
-          const d = parseDate(savedEnd);
-          d.setDate(d.getDate() + 1);
-          localStorage.setItem(`cl_preseason_end_date_${teamId}`, toDateStr(d));
-        }
-        localStorage.setItem(migrationKey, "true");
+      const clearKey = "cl_preseason_clear_local_v5";
+      if (teamId && !localStorage.getItem(clearKey)) {
+        localStorage.removeItem(`cl_preseason_sessions_${teamId}`);
+        localStorage.removeItem("cl_preseason_sessions");
+        localStorage.setItem(`cl_preseason_start_date_${teamId}`, "2026-07-27");
+        localStorage.setItem(clearKey, "true");
       }
-
       const savedStart = localStorage.getItem(`cl_preseason_start_date_${teamId}`) || localStorage.getItem("cl_preseason_start_date");
       const savedEnd = localStorage.getItem(`cl_preseason_end_date_${teamId}`) || localStorage.getItem("cl_preseason_end_date");
       if (savedStart) setStartDate(savedStart);
@@ -1439,7 +1406,7 @@ export function PreseasonPlanner({
 
   // ─────────────────────────────────────────────
   return (
-    <div className="no-print-bg glass rounded-3xl border border-white/10 p-6 md:p-8 text-slate-100 font-sans max-w-7xl mx-auto space-y-6">
+    <div className="no-print-bg bg-card rounded-xl border border-border p-6 md:p-8 text-slate-100 font-sans max-w-7xl mx-auto space-y-6">
       <style dangerouslySetInnerHTML={{ __html: `
         @media screen {
           /* Scale text sizes by 8% on screen */
@@ -1488,7 +1455,7 @@ export function PreseasonPlanner({
             display: none !important;
           }
           /* Remove borders/glass padding that looks bad */
-          .glass {
+          .bg-card {
             background: white !important;
             border-color: #e5e7eb !important;
             box-shadow: none !important;
@@ -1997,11 +1964,11 @@ export function PreseasonPlanner({
 
       {/* ── Grid ── */}
       {weeks.length === 0 ? (
-        <div className="glass rounded-2xl border border-white/10 p-10 text-center text-slate-500 text-sm">
+        <div className="bg-card rounded-lg border border-border p-10 text-center text-slate-500 text-sm">
           Selecciona un rango de fechas válido para generar el planning.
         </div>
       ) : (
-        <div className="glass rounded-2xl border border-white/10 overflow-hidden w-full shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
+        <div className="bg-card rounded-lg border border-border overflow-hidden w-full shadow-md">
           <div className="overflow-x-auto">
             <div className="min-w-[820px] grid" style={{ gridTemplateColumns: "110px repeat(7, minmax(0, 1fr))" }}>
               {/* Column headers */}

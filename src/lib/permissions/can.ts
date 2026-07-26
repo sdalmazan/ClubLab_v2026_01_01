@@ -43,6 +43,15 @@ export type Permission =
   | "manage_alert_thresholds"
   | "view_alerts"
   | "manage_alerts"
+  // Performance Center
+  | "access_performance_center"
+  | "view_performance_dashboard"
+  | "manage_performance_settings"
+  | "manage_performance_rules"
+  | "evaluate_recommendations"
+  | "manage_gym_programs"
+  | "manage_testing_center"
+  | "manage_physical_routines"
   // Injuries
   | "view_injuries"
   | "create_injury"
@@ -53,6 +62,7 @@ export type Permission =
   | "create_match"
   | "edit_match_stats"
   | "view_analytics"
+  | "view_scouting"
   // Academy
   | "access_academy_dashboard"
   | "view_academy_overview"
@@ -103,11 +113,20 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "create_match",
     "edit_match_stats",
     "view_analytics",
+    "view_scouting",
     "access_academy_dashboard",
     "view_academy_overview",
     "manage_academy_teams",
     "view_physical_tests",
     "create_physical_test",
+    "access_performance_center",
+    "view_performance_dashboard",
+    "manage_performance_settings",
+    "manage_performance_rules",
+    "evaluate_recommendations",
+    "manage_gym_programs",
+    "manage_testing_center",
+    "manage_physical_routines",
     "access_admin_panel",
     "manage_all_organizations",
   ],
@@ -146,11 +165,20 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "create_match",
     "edit_match_stats",
     "view_analytics",
+    "view_scouting",
     "access_academy_dashboard",
     "view_academy_overview",
     "manage_academy_teams",
     "view_physical_tests",
     "create_physical_test",
+    "access_performance_center",
+    "view_performance_dashboard",
+    "manage_performance_settings",
+    "manage_performance_rules",
+    "evaluate_recommendations",
+    "manage_gym_programs",
+    "manage_testing_center",
+    "manage_physical_routines",
   ],
 
   academy_director: [
@@ -223,11 +251,22 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "create_match",
     "edit_match_stats",
     "view_analytics",
+    "view_scouting",
     "view_physical_tests",
     "create_physical_test",
+    "access_performance_center",
+    "view_performance_dashboard",
+    "manage_performance_settings",
+    "manage_performance_rules",
+    "evaluate_recommendations",
+    "manage_gym_programs",
+    "manage_testing_center",
+    "manage_physical_routines",
   ],
 
   coach: [
+    "invite_users",
+    "manage_team",
     "view_player_list",
     "create_player",
     "edit_player",
@@ -240,13 +279,27 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "create_exercise",
     "view_team_loads",
     "view_player_loads",
+    "manage_alert_thresholds",
     "view_alerts",
+    "manage_alerts",
     "view_injuries",
     "create_injury",
+    "edit_injury",
     "view_matches",
     "create_match",
     "edit_match_stats",
+    "view_analytics",
+    "view_scouting",
     "view_physical_tests",
+    "create_physical_test",
+    "access_performance_center",
+    "view_performance_dashboard",
+    "manage_performance_settings",
+    "manage_performance_rules",
+    "evaluate_recommendations",
+    "manage_gym_programs",
+    "manage_testing_center",
+    "manage_physical_routines",
   ],
 
   physical_coach: [
@@ -265,17 +318,25 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "view_injuries",
     "view_physical_tests",
     "create_physical_test",
+    "access_performance_center",
+    "view_performance_dashboard",
+    "manage_performance_settings",
+    "manage_performance_rules",
+    "evaluate_recommendations",
+    "manage_gym_programs",
+    "manage_testing_center",
+    "manage_physical_routines",
   ],
 
   physio: [
-    "view_player_list",
-    "view_player_data",
     "view_player_health",
     "view_injury_medical_notes", // ONLY physio has this
     "view_injuries",
     "create_injury",
     "edit_injury",
     "validate_injury",
+    "view_matches", // physio can see matches
+    "view_session_library", // physio can see training schedule
     "view_alerts",
     "view_physical_tests",
   ],
@@ -288,9 +349,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "view_team_loads",
     "view_player_loads",
     "view_alerts",
-    "view_injuries",
     "view_matches",
     "view_analytics",
+    "view_scouting",
     "view_academy_overview",
     "view_physical_tests",
   ],

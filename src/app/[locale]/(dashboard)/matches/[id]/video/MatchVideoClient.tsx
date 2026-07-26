@@ -653,7 +653,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
           </button>
         </div>
 
-        <div className="glass rounded-3xl border border-white/10 p-8 shadow-2xl space-y-6 relative overflow-hidden max-w-4xl mx-auto mt-4">
+        <div className="bg-card rounded-xl border border-border p-8 shadow-md space-y-6 relative overflow-hidden max-w-4xl mx-auto mt-4">
           <div className="absolute top-0 right-0 h-40 w-40 bg-indigo-500/10 rounded-full blur-3xl -z-10" />
           
           <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center mx-auto text-indigo-400 text-3xl shadow-inner">
@@ -668,7 +668,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 max-w-2xl mx-auto">
             {/* Option 1: Local File Selection */}
-            <div className="glass p-5 rounded-2xl border border-white/5 flex flex-col justify-between items-center text-center space-y-4 hover:border-white/10 transition-all bg-white/2">
+            <div className="bg-card p-5 rounded-lg border border-border flex flex-col justify-between items-center text-center space-y-4 hover:border-border/50 transition-all">
               <div className="space-y-1.5 flex flex-col items-center">
                 <span className="text-2xl">💻</span>
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider">Archivo de Vídeo Local</h4>
@@ -690,7 +690,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
             </div>
 
             {/* Option 2: Web Link / Streaming URL */}
-            <div className="glass p-5 rounded-2xl border border-white/5 flex flex-col justify-between items-center text-center space-y-4 hover:border-white/10 transition-all bg-white/2">
+            <div className="bg-card p-5 rounded-lg border border-border flex flex-col justify-between items-center text-center space-y-4 hover:border-border/50 transition-all">
               <div className="space-y-1.5 flex flex-col items-center">
                 <span className="text-2xl">🌐</span>
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider">Vídeo en la Web (Streaming)</h4>
@@ -724,7 +724,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
   return (
     <div className="space-y-6">
       {/* Save panel / alerts */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900/40 border border-white/5 p-4 rounded-3xl backdrop-blur shadow-xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-muted/50 border border-border/50 p-4 rounded-xl shadow-md">
         <div className="flex items-center gap-2">
           <Info className="h-4 w-4 text-primary shrink-0" />
           <p className="text-xs text-slate-400">
@@ -758,7 +758,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
         {/* LEFT COLUMN: Player & Timeline */}
         <div className="lg:col-span-2 space-y-4">
           {/* Main Video Box */}
-          <div className="relative bg-slate-950/80 border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col justify-center items-center p-2 group min-h-[360px]">
+          <div className="relative bg-muted/50 border border-border rounded-xl overflow-hidden shadow-md flex flex-col justify-center items-center p-2 group min-h-[360px]">
             {activeVideo ? (
               <VideoPlayer
                 ref={playerRef}
@@ -924,7 +924,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
         {/* Active video metadata card */}
         {activeVideo && (
           <div className="flex flex-col gap-2">
-            <div className="glass rounded-3xl border border-white/10 p-4 shadow-xl flex items-center justify-between">
+            <div className="bg-card rounded-xl border border-border p-4 shadow-md flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xl">📹</span>
                 <div>
@@ -997,7 +997,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
 
           {/* TAB CONTENT: Limpieza */}
           {activeSidebarTab === "clean" && activeVideo && (
-            <div className="glass rounded-3xl border border-white/10 p-5 shadow-xl space-y-4">
+            <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
               <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Limpieza de Vídeo</h3>
               
               <div className="space-y-3.5">
@@ -1109,7 +1109,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
           {activeSidebarTab === "manual" && activeVideo && (
             <div className="space-y-4">
               {/* Add Clip Form */}
-              <div className="glass rounded-3xl border border-white/10 p-5 shadow-xl space-y-4">
+              <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
                 <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Nuevo Corte Manual</h3>
 
                 <div className="space-y-3">
@@ -1275,7 +1275,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
               </div>
 
               {/* List of Clips */}
-              <div className="glass rounded-3xl border border-white/10 p-5 shadow-xl space-y-4">
+              <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
                 <div className="flex items-center justify-between border-b border-white/5 pb-2">
                   <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Cortes de Partido</h3>
                   <select
@@ -1348,7 +1348,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
           {activeSidebarTab === "montage" && (
             <div className="space-y-4">
               {/* Create Montage form */}
-              <div className="glass rounded-3xl border border-white/10 p-5 shadow-xl space-y-4">
+              <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
                 <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Crear Montaje de Videoanálisis</h3>
                 
                 <form onSubmit={handleCreateMontage} className="flex gap-2">
@@ -1372,7 +1372,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
 
               {/* Rival analysis: fetch clips from OTHER matches */}
               {activeMontageId && (
-                <div className="glass rounded-3xl border border-white/10 p-5 shadow-xl space-y-4 bg-indigo-950/10 border-indigo-500/20">
+                <div className="bg-indigo-950/20 rounded-xl border border-indigo-500/20 p-5 shadow-md space-y-4">
                   <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-2">
                     <Sparkles className="h-4 w-4 text-indigo-400" />
                     <h3 className="text-xs font-black uppercase text-indigo-300 tracking-wider">
@@ -1432,7 +1432,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
 
               {/* List of Montages */}
               {videoData.montages && videoData.montages.length > 0 && (
-                <div className="glass rounded-3xl border border-white/10 p-5 shadow-xl space-y-4">
+                <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
                   <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Montajes Registrados</h3>
 
                   <div className="space-y-3.5">

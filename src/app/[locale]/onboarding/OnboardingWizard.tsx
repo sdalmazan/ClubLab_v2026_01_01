@@ -214,7 +214,7 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="glass rounded-2xl overflow-hidden animate-fade-in">
+    <div className="bg-card rounded-lg border border-border overflow-hidden animate-fade-in">
       {/* Progress bar */}
       <div className="h-1 bg-white/5">
         <div
@@ -303,7 +303,7 @@ export function OnboardingWizard() {
                           <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
                         </div>
                         {orgType === opt.value && (
-                          <div className="ml-auto h-2 w-2 rounded-full bg-emerald-500 animate-pulse-glow" />
+                          <div className="ml-auto h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                         )}
                       </div>
                     </button>

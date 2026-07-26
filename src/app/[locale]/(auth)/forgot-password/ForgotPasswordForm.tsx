@@ -32,7 +32,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <div className="glass rounded-2xl p-8 animate-fade-in">
+    <div className="bg-card rounded-lg border border-border p-8 animate-fade-in">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-white">Recuperar contraseña</h2>
         <p className="text-sm text-slate-400 mt-1">

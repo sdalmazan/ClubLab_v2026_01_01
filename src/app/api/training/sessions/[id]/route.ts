@@ -27,10 +27,39 @@ export async function PUT(
     }
 
     const body = await request.json();
+    const { client_updated_at, ...updateData } = body;
 
-    await updateSession(id, orgRole.organization_id, body);
+    if (client_updated_at) {
+      const { data: existingSession } = await supabase
+        .from("training_sessions")
+        .select("updated_at")
+        .eq("id", id)
+        .single();
 
-    return NextResponse.json({ success: true });
+      if (existingSession && existingSession.updated_at) {
+        const dbTime = new Date(existingSession.updated_at).getTime();
+        const clientTime = new Date(client_updated_at).getTime();
+        if (Math.abs(dbTime - clientTime) > 2000) {
+          return NextResponse.json({
+            error: "CONCURRENCY_ERROR",
+            message: "Esta sesión ha sido modificada por otro usuario. Copia tus cambios o recarga la página para evitar sobrescribirlos."
+          }, { status: 409 });
+        }
+      }
+    }
+
+    await updateSession(id, orgRole.organization_id, updateData);
+
+    const { data: updatedSession } = await supabase
+      .from("training_sessions")
+      .select("updated_at")
+      .eq("id", id)
+      .single();
+
+    return NextResponse.json({
+      success: true,
+      updated_at: updatedSession?.updated_at ?? null
+    });
   } catch (e: any) {
     console.error(`[PUT /api/training/sessions/${id}] Error:`, e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });

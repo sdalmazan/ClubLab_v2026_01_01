@@ -563,7 +563,7 @@ export function MatchGamePlan({
           .no-print, header, nav, aside, button, [data-sidebar], .sidebar-inset > header {
             display: none !important;
           }
-          .glass {
+          .bg-card {
             background: transparent !important;
             border-color: #cbd5e1 !important;
             box-shadow: none !important;
@@ -659,7 +659,7 @@ export function MatchGamePlan({
         <div
           onDragOver={handleDragOver}
           onDrop={handleSidebarDrop}
-          className="xl:col-span-4 flex flex-col glass rounded-2xl p-5 bg-white/2 border border-white/10 print:border-slate-300 print:bg-transparent"
+          className="xl:col-span-4 flex flex-col bg-card rounded-lg p-5 border border-border print:border-slate-300 print:bg-transparent"
         >
           <div className="flex flex-col flex-1 min-h-0 space-y-4">
             <div>
@@ -779,7 +779,7 @@ export function MatchGamePlan({
         </div>
 
         {/* Horizontal Soccer Field (Right side on desktop, originally on Left) */}
-        <div className="xl:col-span-8 flex flex-col items-center justify-center glass rounded-2xl p-4 bg-white/2 border border-white/10 print:border-slate-300 print:bg-transparent">
+        <div className="xl:col-span-8 flex flex-col items-center justify-center bg-card rounded-lg p-4 border border-border print:border-slate-300 print:bg-transparent">
           <div className="w-full flex items-center justify-between gap-4 mb-4 no-print">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               Alineación Horizontal (27 Spots Tácticos)
@@ -1078,7 +1078,7 @@ export function MatchGamePlan({
         "space-y-4 no-print",
         activeTab === "kickers" ? "block" : "hidden"
       )}>
-        <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10">
+        <div className="bg-card rounded-lg p-5 border border-border">
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
               <Target className="h-4 w-4 corp-icon" />
@@ -1158,7 +1158,7 @@ export function MatchGamePlan({
       )}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:break-inside-avoid">
           {/* Pautas Colectivas */}
-          <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 print:border-slate-300 print:bg-transparent">
+          <div className="bg-card rounded-lg p-5 border border-border print:border-slate-300 print:bg-transparent">
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 print:text-slate-800">
               Instrucciones y Pautas Colectivas
             </label>
@@ -1179,7 +1179,7 @@ export function MatchGamePlan({
 
           {/* ABP Estrategia Ofensiva y Defensiva */}
           <div className="grid grid-cols-1 gap-4">
-            <div className="glass rounded-2xl p-4 bg-white/2 border border-white/10 print:border-slate-300 print:bg-transparent">
+            <div className="bg-card rounded-lg p-4 border border-border print:border-slate-300 print:bg-transparent">
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 print:text-slate-800">
                 Estrategia ABP Ofensiva
               </label>
@@ -1198,7 +1198,7 @@ export function MatchGamePlan({
               )}
             </div>
 
-            <div className="glass rounded-2xl p-4 bg-white/2 border border-white/10 print:border-slate-300 print:bg-transparent">
+            <div className="bg-card rounded-lg p-4 border border-border print:border-slate-300 print:bg-transparent">
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 print:text-slate-800">
                 Estrategia ABP Defensiva
               </label>
@@ -1220,7 +1220,7 @@ export function MatchGamePlan({
         </div>
 
         {/* Roles y Asignaciones ABP */}
-        <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 print:border-slate-300 print:bg-transparent print:break-inside-avoid">
+        <div className="bg-card rounded-lg p-5 border border-border print:border-slate-300 print:bg-transparent print:break-inside-avoid">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 print:text-black">
             Roles y Asignaciones ABP
           </h3>
@@ -1435,7 +1435,7 @@ export function MatchGamePlan({
         "print:break-before-page print:pt-4",
         activeTab === "whiteboard" ? "block" : "hidden print:block"
       )}>
-        <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 print:border-slate-300 print:bg-transparent">
+        <div className="bg-card rounded-lg p-5 border border-border print:border-slate-300 print:bg-transparent">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 print:text-black">

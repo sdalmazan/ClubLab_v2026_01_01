@@ -251,17 +251,64 @@ export async function getSessions(teamId?: string): Promise<TrainingSession[]> {
 export async function getSessionById(id: string) {
   const supabase = await createClient();
 
-  // 1. Cargar datos básicos de la sesión
-  const { data: session, error: sessionError } = await supabase
-    .from("training_sessions")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  let session: any = null;
 
-  if (sessionError) {
-    logger.error("getSessionById", { error: sessionError.message });
+  // 1. First try by UUID if valid UUID format
+  if (isUuid) {
+    const { data, error } = await supabase
+      .from("training_sessions")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!error && data) {
+      session = data;
+    }
+  }
+
+  // 2. Fallback: If not found by UUID or if id is a date string (e.g. "2026-07-27", "27-07-2026", "27/7")
+  if (!session) {
+    let targetDate = id;
+    if (id.includes("/") || id.includes("-")) {
+      const cleanId = id.split("%2F").join("/").split("%2f").join("/");
+      const parts = cleanId.split(/[\/-]/);
+      if (parts.length === 2) {
+        // e.g. "27/7" -> "2026-07-27"
+        const day = parts[0].padStart(2, "0");
+        const month = parts[1].padStart(2, "0");
+        const year = new Date().getFullYear();
+        targetDate = `${year}-${month}-${day}`;
+      } else if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          // YYYY-MM-DD
+          targetDate = `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+        } else {
+          // DD-MM-YYYY
+          const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+          targetDate = `${year}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        }
+      }
+    }
+
+    const { data: dateSessions, error: dateError } = await supabase
+      .from("training_sessions")
+      .select("*")
+      .eq("date", targetDate)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (!dateError && dateSessions && dateSessions.length > 0) {
+      session = dateSessions[0];
+    }
+  }
+
+  if (!session) {
+    logger.error("getSessionById", { error: `Session not found for identifier: ${id}` });
     return null;
   }
+
+  const actualSessionId = session.id;
 
   // Load team sessions to compute metrics
   let matchedSession = session;
@@ -295,21 +342,21 @@ export async function getSessionById(id: string) {
     };
   }
 
-  // 2. Cargar los ejercicios vinculados
+  // 2. Cargar los ejercicios vinculados usando actualSessionId
   const { data: exercises, error: exercisesError } = await supabase
     .from("session_exercises")
     .select(`
       *,
       exercise:exercises(*)
     `)
-    .eq("session_id", id)
+    .eq("session_id", actualSessionId)
     .order("order_index", { ascending: true });
 
   if (exercisesError) {
     logger.error("getSessionById", { error: exercisesError.message });
   }
 
-  // 3. Cargar la asistencia registrada
+  // 3. Cargar la asistencia registrada usando actualSessionId
   const { data: attendance, error: attendanceError } = await supabase
     .from("session_attendance")
     .select(`
@@ -328,7 +375,7 @@ export async function getSessionById(id: string) {
         )
       )
     `)
-    .eq("session_id", id);
+    .eq("session_id", actualSessionId);
 
   if (attendanceError) {
     logger.error("getSessionById", { error: attendanceError.message });

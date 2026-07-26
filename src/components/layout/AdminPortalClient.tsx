@@ -266,7 +266,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
           <div className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="glass rounded-2xl p-5 flex flex-col gap-1.5 bg-white/2 border border-white/10">
+              <div className="bg-card rounded-lg p-5 flex flex-col gap-1.5 border border-border">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                   <Clock className="h-3 w-3 text-sky-400" />
                   Usuarios Online (5 min)
@@ -275,7 +275,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                 <span className="text-[9px] text-slate-400">Calculado en tiempo real</span>
               </div>
 
-              <div className="glass rounded-2xl p-5 flex flex-col gap-1.5 bg-white/2 border border-white/10">
+              <div className="bg-card rounded-lg p-5 flex flex-col gap-1.5 border border-border">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                   <Eye className="h-3 w-3 text-emerald-400" />
                   Páginas Vistas (Hoy)
@@ -286,7 +286,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                 <span className="text-[9px] text-slate-400">Actividad de navegación</span>
               </div>
 
-              <div className="glass rounded-2xl p-5 flex flex-col gap-1.5 bg-white/2 border border-white/10">
+              <div className="bg-card rounded-lg p-5 flex flex-col gap-1.5 border border-border">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                   <Settings className="h-3 w-3 text-amber-400" />
                   Acciones (Hoy)
@@ -297,7 +297,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                 <span className="text-[9px] text-slate-400">Interacciones registradas</span>
               </div>
 
-              <div className="glass rounded-2xl p-5 flex flex-col gap-1.5 bg-white/2 border border-white/10">
+              <div className="bg-card rounded-lg p-5 flex flex-col gap-1.5 border border-border">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                   <Users className="h-3 w-3 text-indigo-400" />
                   Total Registros
@@ -313,7 +313,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Top Viewed Pages */}
-              <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 space-y-4">
+              <div className="bg-card rounded-lg p-5 border border-border space-y-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   Pantallas Más Visitadas (Histórico Reciente)
                 </h3>
@@ -344,7 +344,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
               </div>
 
               {/* Top Features Used */}
-              <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 space-y-4">
+              <div className="bg-card rounded-lg p-5 border border-border space-y-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   Utilidades Más Utilizadas
                 </h3>
@@ -376,7 +376,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
             </div>
 
             {/* Daily History Aggregation */}
-            <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 space-y-4">
+            <div className="bg-card rounded-lg p-5 border border-border space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                 Historial de Uso Diario (Cargas de Telemetría)
               </h3>
@@ -433,7 +433,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                   />
                 </div>
 
-                <div className="glass rounded-2xl bg-white/2 border border-white/10 overflow-hidden">
+                <div className="bg-card rounded-lg border border-border overflow-hidden">
                   <table className="w-full text-xs text-left">
                     <thead>
                       <tr className="border-b border-white/5 bg-white/1 text-[10px] text-slate-500 font-bold uppercase">
@@ -479,7 +479,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
               </div>
 
               {/* Create Organization Form (Right Column) */}
-              <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 space-y-4 h-fit">
+              <div className="bg-card rounded-lg p-5 border border-border space-y-4 h-fit">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                   <Plus className="h-4 w-4 text-emerald-450" />
                   Crear Nueva Organización
@@ -583,7 +583,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                   />
                 </div>
 
-                <div className="glass rounded-2xl bg-white/2 border border-white/10 overflow-hidden">
+                <div className="bg-card rounded-lg border border-border overflow-hidden">
                   <table className="w-full text-xs text-left">
                     <thead>
                       <tr className="border-b border-white/5 bg-white/1 text-[10px] text-slate-500 font-bold uppercase">
@@ -645,7 +645,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
               </div>
 
               {/* Send Invitation Form (Right Column) */}
-              <div className="glass rounded-2xl p-5 bg-white/2 border border-white/10 space-y-4 h-fit">
+              <div className="bg-card rounded-lg p-5 border border-border space-y-4 h-fit">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                   <Mail className="h-4 w-4 text-emerald-450" />
                   Enviar Invitación de Registro
@@ -734,7 +734,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
               />
             </div>
 
-            <div className="glass rounded-2xl bg-white/2 border border-white/10 overflow-hidden">
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b border-white/5 bg-white/1 text-[10px] text-slate-500 font-bold uppercase">
@@ -797,7 +797,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
               Solicitudes Pendientes de Modificación de Posición
             </h3>
 
-            <div className="glass rounded-2xl bg-white/2 border border-white/10 overflow-hidden">
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
               <table className="w-full text-xs text-left">
                 <thead>
                   <tr className="border-b border-white/5 bg-white/1 text-[10px] text-slate-500 font-bold uppercase">

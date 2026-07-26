@@ -29,7 +29,7 @@ interface FieldMapProps {
   printMode?: boolean;
   hideMetadata?: boolean;
   onPlayerClick?: (playerId: string) => void;
-  attendanceStatuses?: Record<string, "present" | "absent" | "injured" | "rest" | "other">;
+  attendanceStatuses?: Record<string, "present" | "partial" | "readaptation" | "absent" | "injured" | "rest" | "other">;
 }
 
 const FORMATIONS_COORDINATES: Record<string, Record<PositionKey, { x: number; y: number }>> = {
@@ -280,27 +280,30 @@ export function FieldMap({
       <div className={cn(
         "absolute inset-0 rounded-2xl overflow-hidden",
         printMode
-          ? "bg-[#1E3F20]"
+          ? "bg-white border border-slate-300"
           : "bg-gradient-to-b from-[oklch(30%_0.12_145)] to-[oklch(22%_0.10_145)]"
       )}>
         {/* Field lines */}
         <svg
           viewBox="0 0 100 140"
-          className="absolute inset-0 w-full h-full opacity-35"
+          className={cn(
+            "absolute inset-0 w-full h-full",
+            printMode ? "opacity-100" : "opacity-35"
+          )}
           preserveAspectRatio="none"
         >
-          <rect x="4" y="4" width="92" height="132" fill="none" stroke="white" strokeWidth="0.8" />
-          <line x1="4" y1="70" x2="96" y2="70" stroke="white" strokeWidth="0.6" />
-          <circle cx="50" cy="70" r="12" fill="none" stroke="white" strokeWidth="0.6" />
-          <circle cx="50" cy="70" r="0.8" fill="white" />
-          <rect x="24" y="4" width="52" height="22" fill="none" stroke="white" strokeWidth="0.6" />
-          <rect x="36" y="4" width="28" height="9" fill="none" stroke="white" strokeWidth="0.6" />
-          <rect x="24" y="114" width="52" height="22" fill="none" stroke="white" strokeWidth="0.6" />
-          <rect x="36" y="127" width="28" height="9" fill="none" stroke="white" strokeWidth="0.6" />
-          <circle cx="50" cy="18" r="0.8" fill="white" />
-          <circle cx="50" cy="122" r="0.8" fill="white" />
-          <rect x="38" y="1.5" width="24" height="3" fill="none" stroke="white" strokeWidth="0.6" />
-          <rect x="38" y="135.5" width="24" height="3" fill="none" stroke="white" strokeWidth="0.6" />
+          <rect x="4" y="4" width="92" height="132" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.8" />
+          <line x1="4" y1="70" x2="96" y2="70" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
+          <circle cx="50" cy="70" r="12" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
+          <circle cx="50" cy="70" r="0.8" fill={printMode ? "#64748b" : "white"} />
+          <rect x="24" y="4" width="52" height="22" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
+          <rect x="36" y="4" width="28" height="9" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
+          <rect x="24" y="114" width="52" height="22" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
+          <rect x="36" y="127" width="28" height="9" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
+          <circle cx="50" cy="18" r="0.8" fill={printMode ? "#64748b" : "white"} />
+          <circle cx="50" cy="122" r="0.8" fill={printMode ? "#64748b" : "white"} />
+          <rect x="38" y="1.5" width="24" height="3" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
+          <rect x="38" y="135.5" width="24" height="3" fill="none" stroke={printMode ? "#64748b" : "white"} strokeWidth="0.6" />
         </svg>
       </div>
 
@@ -380,7 +383,7 @@ export function FieldMap({
               {/* Eligible players box */}
               {hasPlayers && (
                 <div className={cn(
-                  "mt-0.5 border rounded-xl p-1 flex flex-col gap-0.5 min-w-[120px] max-w-[155px] text-center pointer-events-auto z-10",
+                  "mt-1 border rounded-lg p-1 flex flex-col gap-1 min-w-[105px] max-w-[128px] text-center pointer-events-auto z-10",
                   printMode
                     ? "bg-zinc-950 border-zinc-800 shadow-none"
                     : "bg-zinc-950/95 backdrop-blur-md border-zinc-800 shadow-2xl"
@@ -413,7 +416,7 @@ export function FieldMap({
                         key={p.playerId}
                         onClick={() => onPlayerClick?.(p.playerId)}
                         className={cn(
-                          "flex items-center justify-between border rounded-lg p-1 w-full group/item transition-all",
+                          "flex items-center justify-between border rounded-md p-1 py-0.5 w-full group/item transition-all",
                           printMode
                             ? "bg-zinc-900 border-zinc-800 shadow-none"
                             : isNotPresent
@@ -423,21 +426,23 @@ export function FieldMap({
                         )}
                       >
                         {/* Player Details */}
-                        <div className="flex flex-col items-center flex-1 min-w-0 pr-1">
-                          {/* Name (bold, larger by 10%) */}
+                        <div className="flex flex-col items-center flex-1 min-w-0 pr-0.5">
+                          {/* Name (15% larger font size: 10px -> 11.5px) */}
                           <div className="flex items-center justify-center gap-1 w-full">
-                            {attendanceStatus === "absent" && <span className="h-1.5 w-1.5 rounded-full bg-slate-500 shrink-0" />}
+                            {attendanceStatus === "absent" && <span className="h-1 w-1 rounded-full bg-slate-500 shrink-0" />}
+                            {attendanceStatus === "partial" && <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />}
+                            {attendanceStatus === "readaptation" && <span className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0" />}
                             {attendanceStatus === "injured" && <span className="text-red-500 text-[9px] font-black shrink-0">✚</span>}
                             <span
-                              className={cn("text-[13px] font-extrabold leading-tight truncate", nameColorClass)}
+                              className={cn("text-[11.5px] font-extrabold leading-normal truncate", nameColorClass)}
                               title={p.name}
                             >
                               {displayName}
                             </span>
                           </div>
-                          {/* Details */}
+                          {/* Details (15% larger font size: 7.5px -> 8.7px) */}
                           {!hideMetadata && (p.birthYear || p.adjective) && (
-                            <div className="flex items-center justify-center gap-0.5 mt-0.5 text-[9.5px] font-medium leading-none flex-wrap w-full">
+                            <div className="flex items-center justify-center gap-0.5 mt-0.5 text-[8.7px] font-medium leading-none flex-wrap w-full">
                               {p.birthYear && (
                                 <span className={cn(isSub23 ? "text-blue-400 font-bold" : "text-slate-400")}>
                                   {p.birthYear}
@@ -484,7 +489,7 @@ export function FieldMap({
                     );
                   })}
                   {sorted.length > 4 && (
-                    <span className="text-[7.5px] text-slate-500 font-extrabold leading-none pt-0.5">
+                    <span className="text-[8.7px] text-slate-500 font-extrabold leading-none pt-0.5">
                       +{sorted.length - 4} más
                     </span>
                   )}

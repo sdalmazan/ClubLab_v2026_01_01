@@ -131,13 +131,13 @@ export async function getSuggestionsAction(
 
   try {
     if (entityType === "player") {
-      let q = statsAdmin.from("stat_player_match_influence").select("player_name");
+      let q = statsAdmin.from("v_player_season_stats").select("player_name");
       const words = cleanQuery.split(/\s+/).filter(Boolean);
       for (const w of words) {
         const pat = w.replace(/[aeiouáéíóúü]/gi, "_").replace(/[^a-zA-Z0-9_]/g, "");
         q = q.ilike("player_name", `%${pat}%`);
       }
-      const { data } = await q.limit(2000);
+      const { data } = await q.limit(100);
       const uniqueNames = Array.from(new Set(data?.map((d: any) => d.player_name) || [])) as string[];
       
       const lowerQuery = cleanQuery.toLowerCase();
@@ -423,5 +423,53 @@ export async function getScoutingOpportunitiesAction(organizationId: string, sea
   } catch (err) {
     console.error("Error loading scouting opportunities:", err);
     return [];
+  }
+}
+
+/**
+ * Dynamically calculates the standing/league position of a team in a season/competition.
+ * Handles in-memory calculations over federated matches in Node.js for zero database migration impact.
+ */
+export async function getTeamLeaguePositionAction(
+  teamName: string,
+  season: string,
+  competition: string
+): Promise<number | null> {
+  try {
+    const { data: matches, error } = await statsAdmin
+      .from("stat_matches")
+      .select("home_team, away_team, home_score, away_score")
+      .eq("season", season)
+      .eq("competition", competition)
+      .not("home_score", "is", null)
+      .not("away_score", "is", null);
+
+    if (error || !matches || matches.length === 0) return null;
+
+    const teamPoints: Record<string, number> = {};
+    for (const m of matches) {
+      const hScore = Number(m.home_score);
+      const aScore = Number(m.away_score);
+      if (isNaN(hScore) || isNaN(aScore)) continue;
+
+      if (!teamPoints[m.home_team]) teamPoints[m.home_team] = 0;
+      if (!teamPoints[m.away_team]) teamPoints[m.away_team] = 0;
+
+      if (hScore > aScore) {
+        teamPoints[m.home_team] += 3;
+      } else if (aScore > hScore) {
+        teamPoints[m.away_team] += 3;
+      } else {
+        teamPoints[m.home_team] += 1;
+        teamPoints[m.away_team] += 1;
+      }
+    }
+
+    const sortedTeams = Object.keys(teamPoints).sort((a, b) => teamPoints[b] - teamPoints[a]);
+    const index = sortedTeams.indexOf(teamName);
+    return index !== -1 ? index + 1 : null;
+  } catch (err) {
+    console.warn("Could not get team standing:", err);
+    return null;
   }
 }

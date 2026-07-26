@@ -388,7 +388,7 @@ export default function MethodologyAlertsPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleUpdateSettings}
-            className="glass w-full max-w-md rounded-3xl border border-white/10 p-6 space-y-6 shadow-2xl animate-fade-in"
+            className="bg-popover w-full max-w-md rounded-xl border border-border p-6 space-y-6 shadow-md animate-fade-in"
           >
             <div>
               <h3 className="text-base font-extrabold text-white">Configuración de Alertas</h3>
@@ -485,7 +485,7 @@ export default function MethodologyAlertsPage() {
               return (
                 <div
                   key={idx}
-                  className={`glass rounded-2xl border p-5 flex flex-col justify-between gap-4 transition-all hover:bg-white/[0.04] ${
+                  className={`bg-card rounded-lg border p-5 flex flex-col justify-between gap-4 transition-all hover:bg-white/[0.04] ${
                     isOveruse
                       ? "border-rose-500/15 bg-gradient-to-br from-rose-500/5 to-transparent"
                       : "border-amber-500/15 bg-gradient-to-br from-amber-500/5 to-transparent"

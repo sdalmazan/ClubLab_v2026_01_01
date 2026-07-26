@@ -15,6 +15,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface Facility {
   id: string;
@@ -52,6 +53,7 @@ export default function FacilitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string>("");
+  const [orgSettings, setOrgSettings] = useState<any>({});
 
   // New facility form state
   const [name, setName] = useState("");
@@ -79,7 +81,12 @@ export default function FacilitiesPage() {
 
       const { data: orgRole } = await supabase
         .from("user_organization_roles")
-        .select("organization_id")
+        .select(`
+          organization_id,
+          organizations (
+            settings
+          )
+        `)
         .eq("user_id", user.id)
         .single();
 
@@ -90,6 +97,7 @@ export default function FacilitiesPage() {
       }
 
       setOrgId(orgRole.organization_id);
+      setOrgSettings((orgRole as any)?.organizations?.settings ?? {});
 
       // Fetch facilities
       const { data, error: fetchErr } = await supabase
@@ -105,6 +113,35 @@ export default function FacilitiesPage() {
       setError(err.message ?? "Error al cargar instalaciones");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSetDefaultFacility(facilityId: string) {
+    try {
+      setError(null);
+      setSuccess(null);
+      
+      const isCurrentDefault = orgSettings?.default_facility_id === facilityId;
+      const updatedSettings = {
+        ...orgSettings,
+        default_facility_id: isCurrentDefault ? null : facilityId
+      };
+
+      const { error: updateErr } = await supabase
+        .from("organizations")
+        .update({ settings: updatedSettings })
+        .eq("id", orgId);
+
+      if (updateErr) throw updateErr;
+
+      setOrgSettings(updatedSettings);
+      setSuccess(
+        isCurrentDefault 
+          ? "Se ha quitado la instalación predeterminada" 
+          : "Instalación predeterminada guardada correctamente"
+      );
+    } catch (err: any) {
+      setError(err.message ?? "Error al establecer instalación por defecto");
     }
   }
 
@@ -234,7 +271,7 @@ export default function FacilitiesPage() {
                 return (
                   <div
                     key={fac.id}
-                    className="glass rounded-2xl border border-white/10 p-5 bg-white/2 hover:bg-white/5 hover:border-white/15 transition-all flex justify-between items-start gap-4"
+                    className="bg-card rounded-lg border border-border p-5 hover:bg-muted/50 hover:border-border transition-all flex justify-between items-start gap-4"
                   >
                     <div className="flex items-start gap-3">
                       <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-emerald-400 shrink-0">
@@ -245,8 +282,13 @@ export default function FacilitiesPage() {
                         <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-white/5 border border-white/5 rounded px-2 py-0.5">
                           {TYPE_LABELS[fac.type]}
                         </span>
+                        {orgSettings?.default_facility_id === fac.id && (
+                          <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5 ml-1.5 animate-pulse">
+                            Predeterminada
+                          </span>
+                        )}
                         {fac.surface && (
-                          <p className="text-xs text-slate-405">
+                          <p className="text-xs text-slate-405 mt-1">
                             Superficie: <span className="text-slate-300 font-medium">{fac.surface}</span>
                           </p>
                         )}
@@ -263,13 +305,33 @@ export default function FacilitiesPage() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(fac.id)}
-                      className="p-1.5 rounded hover:bg-rose-500/15 text-slate-500 hover:text-rose-400 transition-all cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleSetDefaultFacility(fac.id)}
+                        className={cn(
+                          "p-1.5 rounded transition-all cursor-pointer",
+                          orgSettings?.default_facility_id === fac.id
+                            ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
+                            : "hover:bg-white/5 text-slate-500 hover:text-amber-400"
+                        )}
+                        title={
+                          orgSettings?.default_facility_id === fac.id
+                            ? "Quitar como predeterminada"
+                            : "Establecer como predeterminada"
+                        }
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(fac.id)}
+                        className="p-1.5 rounded hover:bg-rose-500/15 text-slate-500 hover:text-rose-400 transition-all cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -281,7 +343,7 @@ export default function FacilitiesPage() {
         <div>
           <form
             onSubmit={handleAddFacility}
-            className="glass rounded-2xl p-6 bg-slate-950/20 border border-white/10 space-y-4"
+            className="bg-card rounded-lg p-6 border border-border space-y-4"
           >
             <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 mb-2">
               <Plus className="h-4 w-4 corp-icon" />

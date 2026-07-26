@@ -68,14 +68,14 @@ export function ResetPasswordForm() {
 
   if (checkingSession) {
     return (
-      <div className="glass rounded-2xl p-8 text-center text-slate-400">
+      <div className="bg-card rounded-lg border border-border p-8 text-center text-slate-400">
         Cargando sesión de recuperación...
       </div>
     );
   }
 
   return (
-    <div className="glass rounded-2xl p-8 animate-fade-in">
+    <div className="bg-card rounded-lg border border-border p-8 animate-fade-in">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-white">Restablecer tu contraseña</h2>
         <p className="text-sm text-slate-400 mt-1">

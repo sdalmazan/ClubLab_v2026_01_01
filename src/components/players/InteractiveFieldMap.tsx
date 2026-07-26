@@ -261,8 +261,8 @@ export function InteractiveFieldMap({ players = [], organizationSettings }: Inte
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start no-print-bg">
       {/* PDF Preview Modal */}
       {showPreview && pdfUrl && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200 no-print">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-background/80 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200 no-print">
+          <div className="bg-popover border border-border rounded-xl w-full max-w-4xl h-[85vh] flex flex-col shadow-md overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-slate-950/40">
               <div>
@@ -350,7 +350,7 @@ export function InteractiveFieldMap({ players = [], organizationSettings }: Inte
             display: block !important;
           }
           /* Reset container glass and border box shadows */
-          .glass-card {
+          .bg-card, .bg-muted\\/50 {
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
@@ -435,7 +435,7 @@ export function InteractiveFieldMap({ players = [], organizationSettings }: Inte
 
       {/* Left Column: Large Tactical Field Map */}
       <div className="lg:col-span-8 w-full max-w-[640px] mx-auto">
-        <div className="glass-card rounded-3xl p-5 border border-white/10 shadow-2xl relative bg-slate-900/50 backdrop-blur-md">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-md relative">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2 no-print">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               Campograma / Plantilla
@@ -469,7 +469,7 @@ export function InteractiveFieldMap({ players = [], organizationSettings }: Inte
                 {formationsOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setFormationsOpen(false)} />
-                    <div className="absolute right-0 mt-1.5 w-36 rounded-xl border border-white/10 bg-slate-950/95 backdrop-blur-xl p-1.5 shadow-2xl shadow-black z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="absolute right-0 mt-1.5 w-36 rounded-lg border border-border bg-popover p-1.5 shadow-md z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                       {FORMATIONS.map((form) => (
                         <button
                           key={form}
@@ -580,7 +580,7 @@ export function InteractiveFieldMap({ players = [], organizationSettings }: Inte
                   key={p.id}
                   href={`/players/${p.id}`}
                   className={cn(
-                    "flex flex-col gap-2 p-3.5 rounded-2xl border transition-all glass-card",
+                    "flex flex-col gap-2 p-3.5 rounded-lg border border-border transition-all bg-muted/50",
                     borderClass,
                     isInactive && "opacity-45 grayscale"
                   )}

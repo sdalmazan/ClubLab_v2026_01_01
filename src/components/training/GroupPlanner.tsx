@@ -52,7 +52,7 @@ export function GroupPlanner({
 
   if (groups.length === 0 && interactive) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 border border-dashed border-white/10 rounded-2xl bg-white/2 glass-card">
+      <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border/50 rounded-lg bg-muted/50">
         <Users className="h-8 w-8 text-slate-500 mb-3" />
         <p className="text-sm text-slate-300 font-semibold mb-3">
           No hay grupos de entrenamiento definidos para esta tarea
@@ -142,7 +142,7 @@ export function GroupPlanner({
           onDragOver={handleDragOver}
           onDrop={() => handleDrop(null)}
           className={cn(
-            "rounded-2xl border border-white/5 bg-white/2 p-4 min-h-[220px] transition-all flex flex-col gap-3 glass-card",
+            "rounded-lg border border-border/50 bg-muted/50 p-4 min-h-[220px] transition-all flex flex-col gap-3",
             activeDragId && "border-slate-500/20 bg-white/5"
           )}
         >
@@ -216,7 +216,7 @@ export function GroupPlanner({
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(group.name)}
                 className={cn(
-                  "rounded-2xl border p-4 min-h-[220px] transition-all flex flex-col gap-3 glass-card",
+                  "rounded-lg border p-4 min-h-[220px] transition-all flex flex-col gap-3 bg-muted/50",
                   colorClass,
                   activeDragId && "ring-1"
                 )}
@@ -307,7 +307,7 @@ export function GroupPlanner({
             <button
               type="button"
               onClick={addGroup}
-              className="flex flex-col items-center justify-center p-4 border border-dashed border-white/10 rounded-2xl hover:border-white/20 hover:bg-white/5 min-h-[220px] transition-all cursor-pointer glass-card"
+              className="flex flex-col items-center justify-center p-4 border border-dashed border-border/50 rounded-lg hover:border-border hover:bg-muted min-h-[220px] transition-all cursor-pointer bg-muted/50"
             >
               <Plus className="h-6 w-6 text-slate-500 mb-2" />
               <span className="text-xs font-bold text-slate-400">Añadir Equipo</span>

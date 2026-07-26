@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { NATIONALITIES } from "@/types";
 import { Check, X, ShieldAlert, Plus, Trash2, ArrowUpDown } from "lucide-react";
@@ -39,6 +39,10 @@ export function BulkEditForm({
   seasonId,
 }: BulkEditFormProps) {
   const router = useRouter();
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(1200);
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -101,6 +105,41 @@ export function BulkEditForm({
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasChanges]);
+
+  // Sync horizontal scrollbars
+  useEffect(() => {
+    const tableEl = tableContainerRef.current;
+    const topScrollEl = topScrollRef.current;
+    if (!tableEl || !topScrollEl) return;
+
+    const handleTableScroll = () => {
+      topScrollEl.scrollLeft = tableEl.scrollLeft;
+    };
+    const handleTopScroll = () => {
+      tableEl.scrollLeft = topScrollEl.scrollLeft;
+    };
+
+    tableEl.addEventListener("scroll", handleTableScroll);
+    topScrollEl.addEventListener("scroll", handleTopScroll);
+    return () => {
+      tableEl.removeEventListener("scroll", handleTableScroll);
+      topScrollEl.removeEventListener("scroll", handleTopScroll);
+    };
+  }, [players]);
+
+  // Track table width changes to update top scroll track width
+  useEffect(() => {
+    const tableEl = tableContainerRef.current?.querySelector("table");
+    if (!tableEl) return;
+
+    const obs = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTableScrollWidth(entry.target.scrollWidth);
+      }
+    });
+    obs.observe(tableEl);
+    return () => obs.disconnect();
+  }, [players]);
 
   // Update a specific field for a specific player row
   const updatePlayerField = (id: string, field: keyof PlayerRow, value: any) => {
@@ -277,12 +316,22 @@ export function BulkEditForm({
   return (
     <div className="space-y-6">
       {/* Table Container */}
-      <div className="glass rounded-2xl border border-white/5 overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
+      <div className="bg-card rounded-lg border border-border overflow-hidden shadow-md">
+        {/* Synced top scrollbar */}
+        <div 
+          ref={topScrollRef} 
+          className="w-full overflow-x-auto overflow-y-hidden h-3 bg-slate-950/20 border-b border-white/5 rounded-t-2xl"
+        >
+          <div style={{ width: `${tableScrollWidth}px`, height: "1.5px" }}></div>
+        </div>
+        <div ref={tableContainerRef} className="max-h-[650px] overflow-auto relative">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-white/5 bg-white/2 text-[10px] uppercase tracking-wider font-extrabold text-slate-400 select-none">
-                <th onClick={() => handleSort("firstName")} className="py-3 px-4 min-w-[280px] cursor-pointer hover:bg-white/1 transition-all">
+              <tr className="border-b border-white/5 bg-[#0b0f19]/95 backdrop-blur-md text-[10px] uppercase tracking-wider font-extrabold text-slate-400 select-none sticky top-0 z-20">
+                <th 
+                  onClick={() => handleSort("firstName")} 
+                  className="py-3 px-4 min-w-[280px] cursor-pointer hover:bg-white/1 transition-all sticky left-0 top-0 z-30 bg-[#0e1322]/95 border-r border-white/5 shadow-[2px_0_5px_rgba(0,0,0,0.3)]"
+                >
                   <div className="flex items-center gap-1">
                     <span>Jugador (Nombre y Apellidos)</span>
                     {renderSortIcon("firstName")}
@@ -350,9 +399,9 @@ export function BulkEditForm({
               {sortedPlayers.map((p) => {
                 const isTemp = p.id.startsWith("temp_");
                 return (
-                  <tr key={p.id} className="hover:bg-white/1 transition-all">
+                  <tr key={p.id} className="group hover:bg-white/1 transition-all">
                     {/* Name and Last Name inputs */}
-                    <td className="py-2 px-4">
+                    <td className="py-2 px-4 sticky left-0 z-10 bg-[#0e1322] group-hover:bg-[#131b2e] border-r border-white/5 transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.2)]">
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -672,8 +721,8 @@ function AlertModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass max-w-md w-full rounded-2xl border border-white/10 p-6 space-y-4 shadow-2xl animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-popover border border-border shadow-md max-w-md w-full rounded-lg p-6 space-y-4 animate-in fade-in duration-200">
         <h3 className="text-base font-bold text-white uppercase tracking-wider">{title}</h3>
         <p className="text-slate-350 text-xs leading-relaxed font-medium">{message}</p>
         <div className="flex gap-2.5 justify-end pt-2 flex-wrap sm:flex-nowrap">

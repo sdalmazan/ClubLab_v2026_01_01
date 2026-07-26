@@ -92,7 +92,7 @@ export function EquipmentSelector({
             <div
               key={std.name}
               className={cn(
-                "flex items-center justify-between p-3 rounded-xl border transition-all glass-card",
+                "flex items-center justify-between p-3 rounded-lg border transition-all bg-muted/50",
                 isSelected
                   ? "border-emerald-500/40 bg-emerald-500/5"
                   : "border-white/5 bg-white/2"
@@ -173,7 +173,7 @@ export function EquipmentSelector({
               .map((item) => (
                 <div
                   key={item.name}
-                  className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 glass-card"
+                  className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5"
                 >
                   <span className="text-sm font-semibold text-emerald-300">{item.name}</span>
                   {interactive ? (

@@ -166,6 +166,7 @@ export class ExplorerEngine {
         dependency: r.dependency ?? 0,
         yellowCards: r.yellow_cards ?? 0,
         redCards: r.red_cards ?? 0,
+        cardPoints: (r.yellow_cards ?? 0) + (r.red_cards ?? 0) * 3,
         cleanSheetRatio: r.clean_sheet_ratio ?? 0,
         goalsConceded90: r.goals_conceded_90 ?? 0,
         revulsiveImpact: r.revulsive_impact ?? 0,

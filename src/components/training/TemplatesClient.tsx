@@ -244,7 +244,7 @@ export function TemplatesClient({ templates, userRole, userId }: TemplatesClient
 
       {/* ── GRID LIST ── */}
       {filteredTemplates.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 glass-card rounded-2xl border border-white/5 bg-white/2">
+        <div className="flex flex-col items-center justify-center py-20 bg-muted/50 rounded-lg border border-border/50">
           <BookOpen className="h-10 w-10 text-slate-600 mb-3 animate-pulse" />
           <p className="text-slate-300 font-semibold">No se encontraron plantillas</p>
           <p className="text-slate-500 text-sm mt-1 max-w-sm text-center">
@@ -260,7 +260,7 @@ export function TemplatesClient({ templates, userRole, userId }: TemplatesClient
             return (
               <div
                 key={tpl.id}
-                className="glass-card rounded-2xl border border-white/10 p-5 bg-white/2 hover:bg-white/5 transition-all flex flex-col justify-between gap-5 relative overflow-hidden"
+                className="bg-muted/50 rounded-lg border border-border p-5 hover:bg-muted transition-all flex flex-col justify-between gap-5 relative overflow-hidden"
               >
                 <div className="space-y-4">
                   {/* Top Badges */}

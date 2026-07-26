@@ -54,7 +54,7 @@ export function PitchAvailability({ attendance }: PitchAvailabilityProps) {
   });
 
   return (
-    <div className="glass rounded-2xl border border-white/10 p-5 flex flex-col gap-4 shadow-xl print:border-slate-350 print:rounded-none">
+    <div className="bg-card rounded-lg border border-border p-5 flex flex-col gap-4 shadow-md print:border-slate-350 print:rounded-none">
       <div>
         <h3 className="text-xs font-black uppercase text-slate-300 tracking-wider print:text-slate-800">
           Disponibilidad Táctica en Campo (Campograma)

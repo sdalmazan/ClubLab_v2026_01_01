@@ -63,7 +63,7 @@ export function PlayerCard({
   }
 
   const cardClass = cn(
-    "group block glass rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 border",
+    "group block bg-card rounded-lg p-4 transition-all hover:-translate-y-0.5 hover:shadow-md border border-border",
     borderStyle,
     isInactive && "opacity-45 grayscale"
   );
@@ -180,7 +180,7 @@ export function PlayerCard({
 
 export function PlayerCardSkeleton() {
   return (
-    <div className="glass-card rounded-2xl p-4 animate-pulse">
+    <div className="bg-muted/50 rounded-lg p-4 animate-pulse">
       <div className="flex items-start gap-3">
         <div className="h-12 w-12 rounded-xl bg-white/5 shrink-0" />
         <div className="flex-1 space-y-2">

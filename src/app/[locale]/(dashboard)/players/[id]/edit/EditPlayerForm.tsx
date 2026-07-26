@@ -229,7 +229,7 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
         </p>
       </div>
 
-      <form id="edit-player-form" onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-6">
+      <form id="edit-player-form" onSubmit={handleSubmit} className="bg-card rounded-lg border border-border p-6 space-y-6">
         <section>
           <h2 className="text-sm font-bold text-white mb-4 pb-2 border-b border-white/5">Datos personales</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -453,7 +453,7 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
       </form>
 
       {userRole !== "player" && (
-        <div className="glass rounded-2xl p-6 border border-red-500/10 space-y-4">
+        <div className="bg-card rounded-lg border border-red-500/10 p-6 space-y-4">
           <h2 className="text-sm font-bold text-rose-455">Zona de Peligro</h2>
           <p className="text-xs text-slate-400 leading-normal">
             Elimina al jugador de la temporada actual o regístralo como baja manteniendo su histórico.
@@ -547,8 +547,8 @@ function AlertModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass max-w-md w-full rounded-2xl border border-white/10 p-6 space-y-4 shadow-2xl animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-popover border border-border shadow-md max-w-md w-full rounded-lg p-6 space-y-4 animate-in fade-in duration-200">
         <h3 className="text-base font-bold text-white uppercase tracking-wider">{title}</h3>
         <p className="text-slate-350 text-xs leading-relaxed font-medium">{message}</p>
         <div className="flex gap-2.5 justify-end pt-2 flex-wrap sm:flex-nowrap">

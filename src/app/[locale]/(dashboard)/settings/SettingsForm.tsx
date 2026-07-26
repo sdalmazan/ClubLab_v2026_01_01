@@ -6,6 +6,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { User, Key, Building2, UserCog, CheckCircle2, AlertTriangle, ChevronDown } from "lucide-react";
 import ImageAdjusterModal from "@/components/settings/ImageAdjusterModal";
+import { PerformanceSettingsTab } from "@/components/settings/PerformanceSettingsTab";
+import { TeamRolesSettingsTab } from "@/components/settings/TeamRolesSettingsTab";
 
 import { VALIDATED_COLORS, findClosestValidatedColor } from "@/lib/colors";
 
@@ -73,7 +75,7 @@ function ColorPickerGrid({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 mt-1.5 w-80 rounded-2xl border border-white/10 bg-slate-950/95 backdrop-blur-xl p-4 shadow-2xl shadow-black z-50 animate-in fade-in slide-in-from-top-1 duration-150 space-y-4">
+          <div className="absolute left-0 mt-1.5 w-80 rounded-lg border border-border bg-popover p-4 shadow-md z-50 animate-in fade-in slide-in-from-top-1 duration-150 space-y-4">
             <div>
               <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">Ingresar Color Corporativo:</p>
               <div className="flex gap-2">
@@ -162,7 +164,7 @@ export function SettingsForm({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'team' | 'methodology' | 'video_pack'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'team' | 'methodology' | 'video_pack' | 'performance'>('profile');
   const [inactiveDaysThreshold, setInactiveDaysThreshold] = useState(21);
   const [overuseWeeklyThreshold, setOveruseWeeklyThreshold] = useState(4);
 
@@ -671,12 +673,17 @@ export function SettingsForm({
   }
 
   const isOrgAdmin = role === "super_admin" || role === "club_admin" || role === "head_coach";
+  const canSeeBranding = role === "super_admin" || role === "club_admin";
+  const canSeeTeamSettings = role === "super_admin" || role === "club_admin" || role === "head_coach" || role === "academy_director";
+  const canSeeMethodology = role === "super_admin" || role === "club_admin" || role === "academy_director" || role === "academy_coordinator";
+  const canSeeVideoPack = role === "super_admin" || role === "club_admin" || role === "head_coach" || role === "coach" || role === "physical_coach";
+  const canSeePerformanceSettings = role === "super_admin" || role === "club_admin" || role === "head_coach" || role === "coach" || role === "physical_coach" || role === "physio";
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* ── LEFT: Account Info ── */}
       <div className="lg:col-span-1 space-y-6">
-        <div className="glass rounded-2xl p-6 border border-white/[0.06] flex flex-col items-center text-center">
+        <div className="bg-card rounded-lg border border-border p-6 flex flex-col items-center text-center">
           <div className="h-16 w-16 rounded-full bg-slate-900/50 border border-white/10 flex items-center justify-center corp-text font-extrabold text-2xl mb-4 shadow-lg">
             {fullName.split("@")[0].slice(0, 2).toUpperCase()}
           </div>
@@ -730,61 +737,78 @@ export function SettingsForm({
           >
             Cuenta y Seguridad
           </button>
-          {isOrgAdmin && (
-            <>
-              <button
-                type="button"
-                onClick={() => setActiveTab('branding')}
-                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'branding'
-                    ? 'border-[var(--corp)] corp-text'
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                Interfaz y Marca
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('team')}
-                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'team'
-                    ? 'border-[var(--corp)] corp-text'
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                Planificación y Equipo
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('methodology')}
-                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'methodology'
-                    ? 'border-[var(--corp)] corp-text'
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                Academia y Metodología
-              </button>
-            </>
+          {canSeeBranding && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('branding')}
+              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'branding'
+                  ? 'border-[var(--corp)] corp-text'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              Interfaz y Marca
+            </button>
           )}
-          <button
-            type="button"
-            onClick={() => setActiveTab('video_pack')}
-            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'video_pack'
-                ? 'border-[var(--corp)] corp-text'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            Herramientas de Vídeo
-          </button>
+          {canSeeTeamSettings && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('team')}
+              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'team'
+                  ? 'border-[var(--corp)] corp-text'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              Planificación y Equipo
+            </button>
+          )}
+          {canSeeMethodology && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('methodology')}
+              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'methodology'
+                  ? 'border-[var(--corp)] corp-text'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              Academia y Metodología
+            </button>
+          )}
+          {canSeeVideoPack && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('video_pack')}
+              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'video_pack'
+                  ? 'border-[var(--corp)] corp-text'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              Herramientas de Vídeo
+            </button>
+          )}
+          {canSeePerformanceSettings && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('performance')}
+              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'performance'
+                  ? 'border-emerald-500 text-emerald-400'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              Rendimiento & Tests
+            </button>
+          )}
         </div>
 
         {/* Tab 1: Profile & Password */}
-        {(activeTab === 'profile' || !isOrgAdmin) && (
+        {activeTab === 'profile' && (
           <div className="space-y-6">
             {/* Form: Profile details */}
-            <div className="glass rounded-2xl p-6 border border-white/[0.06]">
+            <div className="bg-card rounded-lg border border-border p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 corp-badge rounded-xl">
                   <User className="h-5 w-5" />
@@ -852,7 +876,7 @@ export function SettingsForm({
             </div>
 
             {/* Form: Password reset */}
-            <div className="glass rounded-2xl p-6 border border-white/[0.06]">
+            <div className="bg-card rounded-lg border border-border p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 corp-badge rounded-xl">
                   <Key className="h-5 w-5" />
@@ -927,8 +951,8 @@ export function SettingsForm({
         )}
 
         {/* Tab 2: Interfaz y Marca */}
-        {isOrgAdmin && activeTab === 'branding' && organizationId && (
-          <div className="glass rounded-2xl p-6 border border-white/[0.06] space-y-6">
+        {activeTab === 'branding' && canSeeBranding && organizationId && (
+          <div className="bg-card rounded-lg border border-border p-6 space-y-6">
             <div className="flex items-center gap-3 border-b border-white/5 pb-4">
               <div className="p-2 corp-badge rounded-xl">
                 <Building2 className="h-5 w-5" />
@@ -1070,15 +1094,26 @@ export function SettingsForm({
         )}
 
         {/* Tab 3: Planificación y Equipo */}
-        {isOrgAdmin && activeTab === 'team' && organizationId && (
-          <div className="glass rounded-2xl p-6 border border-white/[0.06] space-y-6">
-            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-              <div className="p-2 corp-badge rounded-xl">
-                <Building2 className="h-5 w-5" />
+        {activeTab === 'team' && canSeeTeamSettings && organizationId && (
+          <div className="bg-card rounded-lg border border-border p-6 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 corp-badge rounded-xl">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Planificación y Equipo</h3>
+                  <p className="text-xs text-slate-400">Parámetros globales de horarios, instalaciones y convocatorias</p>
+                </div>
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Planificación y Equipo</h3>
-                <p className="text-xs text-slate-400">Parámetros globales de horarios y convocatorias</p>
+                <Link
+                  href="/settings/facilities"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold px-4 py-2.5 transition-all shadow-md cursor-pointer"
+                >
+                  <Building2 className="h-4 w-4 corp-icon" />
+                  Gestionar Instalaciones / Campos
+                </Link>
               </div>
             </div>
 
@@ -1315,12 +1350,19 @@ export function SettingsForm({
                 </button>
               </div>
             </form>
+
+            {/* Team Staff Roles Management */}
+            {organizationId && (
+              <div className="pt-4 border-t border-white/5">
+                <TeamRolesSettingsTab organizationId={organizationId} />
+              </div>
+            )}
           </div>
         )}
 
         {/* Tab 4: Academia y Metodología */}
-        {isOrgAdmin && activeTab === 'methodology' && organizationId && (
-          <div className="glass rounded-2xl p-6 border border-white/[0.06] space-y-6">
+        {canSeeMethodology && activeTab === 'methodology' && organizationId && (
+          <div className="bg-card rounded-lg border border-border p-6 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 corp-badge rounded-xl">
@@ -1713,8 +1755,9 @@ export function SettingsForm({
           </div>
         )}
 
-        {activeTab === 'video_pack' && (
-          <div className="glass rounded-3xl border border-white/10 p-6 shadow-xl space-y-6">
+        {/* Tab 5: Video Pack & API integrations */}
+        {activeTab === 'video_pack' && canSeeVideoPack && (
+          <div className="bg-card rounded-lg border border-border p-6 shadow-xl space-y-6">
             <div className="flex items-center gap-3 border-b border-white/5 pb-4">
               <div className="h-10 w-10 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 text-xl shrink-0">
                 🎬
@@ -1731,7 +1774,7 @@ export function SettingsForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Windows card */}
-              <div className="glass p-5 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4 hover:border-white/10 transition-all bg-white/2">
+              <div className="bg-card p-5 rounded-lg border border-border flex flex-col justify-between space-y-4 hover:border-border/50 transition-all">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Sistema Operativo</span>
@@ -1785,6 +1828,11 @@ export function SettingsForm({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Tab 6: Rendimiento & Tests */}
+        {activeTab === 'performance' && (
+          <PerformanceSettingsTab />
         )}
       </div>
       {selectedFileForAdjustment && (

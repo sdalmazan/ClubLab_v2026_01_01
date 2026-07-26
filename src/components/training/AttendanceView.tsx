@@ -34,7 +34,7 @@ export function AttendanceView({ present, absent, injured, attendance }: Attenda
   const [viewMode, setViewMode] = useState<"list" | "pitch">("list");
 
   return (
-    <div className="glass rounded-2xl p-6 space-y-4 print:border-b print:pb-6 print:rounded-none print-break-avoid">
+    <div className="bg-card rounded-lg border border-border p-6 space-y-4 print:border-b print:pb-6 print:rounded-none print-break-avoid">
       <div className="flex items-center justify-between border-b border-white/5 pb-3.5 flex-wrap gap-3">
         <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 print:text-slate-800">
           <Users className="h-4 w-4 corp-icon" />
@@ -73,7 +73,7 @@ export function AttendanceView({ present, absent, injured, attendance }: Attenda
       {viewMode === "list" ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in">
           {/* Presentes */}
-          <div className="border border-white/5 bg-white/1 rounded-xl p-4 glass-card print:border-slate-200">
+          <div className="border border-border/50 bg-muted/50 rounded-lg p-4 print:border-slate-200">
             <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-2">
               Presentes ({present.length})
             </span>
@@ -92,7 +92,7 @@ export function AttendanceView({ present, absent, injured, attendance }: Attenda
           </div>
 
           {/* Ausentes */}
-          <div className="border border-white/5 bg-white/1 rounded-xl p-4 glass-card print:border-slate-200">
+          <div className="border border-border/50 bg-muted/50 rounded-lg p-4 print:border-slate-200">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
               Ausentes ({absent.length})
             </span>
@@ -114,7 +114,7 @@ export function AttendanceView({ present, absent, injured, attendance }: Attenda
           </div>
 
           {/* Lesionados / Bajas */}
-          <div className="border border-white/5 bg-white/1 rounded-xl p-4 glass-card print:border-slate-200">
+          <div className="border border-border/50 bg-muted/50 rounded-lg p-4 print:border-slate-200">
             <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block mb-2">
               Lesionados / Bajas ({injured.length})
             </span>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Paintbrush,
+  Pencil,
   TrendingUp,
   RotateCcw,
   RotateCw,
@@ -17,6 +17,10 @@ import {
   Disc,
   Goal,
   Square,
+  MousePointer,
+  Copy,
+  ChevronRight,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -101,6 +105,36 @@ const COLOR_OPTIONS = [
   { value: "#000000", name: "Negro" },
 ];
 
+function getDistanceToSegment(x: number, y: number, x1: number, y1: number, x2: number, y2: number) {
+  const A = x - x1;
+  const B = y - y1;
+  const C = x2 - x1;
+  const D = y2 - y1;
+
+  const dot = A * C + B * D;
+  const lenSq = C * C + D * D;
+  let param = -1;
+  if (lenSq !== 0) {
+    param = dot / lenSq;
+  }
+
+  let xx, yy;
+  if (param < 0) {
+    xx = x1;
+    yy = y1;
+  } else if (param > 1) {
+    xx = x2;
+    yy = y2;
+  } else {
+    xx = x1 + param * C;
+    yy = y1 + param * D;
+  }
+
+  const dx = x - xx;
+  const dy = y - yy;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 export function TaskWhiteboard({
   value,
   onChange,
@@ -142,7 +176,8 @@ export function TaskWhiteboard({
     | "select"
   >("pencil");
   const [activeColor, setActiveColor] = useState("#ffffff");
-  const [playerNumber, setPlayerNumber] = useState("1");
+  const [showColorPalette, setShowColorPalette] = useState(false);
+  const [playerNumber, setPlayerNumber] = useState("");
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [textCoords, setTextCoords] = useState<{ x: number; y: number } | null>(
@@ -165,8 +200,19 @@ export function TaskWhiteboard({
   // Dragging state refs
   const draggedMarkerIdRef = useRef<string | null>(null);
   const dragStartMarkersRef = useRef<MarkerElement[] | null>(null);
+  const draggedTextIdRef = useRef<string | null>(null);
+  const dragStartTextsRef = useRef<TextElement[] | null>(null);
+  const draggedStrokeIdRef = useRef<string | null>(null);
+  const dragStartStrokesRef = useRef<WhiteboardStroke[] | null>(null);
+  const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
   const isResizingRef = useRef(false);
   const draggedHandleRef = useRef<string | null>(null);
+
+  // Grouped tools tracking states
+  const [lastShapeTool, setLastShapeTool] = useState<"line" | "dashed_line" | "arrow" | "dashed_arrow" | "rectangle" | "dashed_rectangle">("line");
+  const [lastGoalTool, setLastGoalTool] = useState<"goal_11" | "goal_7" | "mini_goal">("goal_11");
+  const [activeShapesMenu, setActiveShapesMenu] = useState(false);
+  const [activeGoalsMenu, setActiveGoalsMenu] = useState(false);
 
   // Helper to push state to history
   const pushState = (
@@ -287,6 +333,52 @@ export function TaskWhiteboard({
     setSelectedType(null);
   };
 
+  const duplicateSelectedElement = () => {
+    if (!selectedId) return;
+    setHistory((prev) => [...prev, { strokes, markers, texts }]);
+    setRedoStack([]);
+    if (selectedType === "marker") {
+      const original = markers.find((m) => m.id === selectedId);
+      if (original) {
+        const copy: MarkerElement = {
+          ...original,
+          id: `marker-${Date.now()}`,
+          x: original.x + 15,
+          y: original.y + 15,
+        };
+        setMarkers((prev) => [...prev, copy]);
+        setSelectedId(copy.id);
+      }
+    } else if (selectedType === "text") {
+      const original = texts.find((t) => t.id === selectedId);
+      if (original) {
+        const copy: TextElement = {
+          ...original,
+          id: `text-${Date.now()}`,
+          x: original.x + 15,
+          y: original.y + 15,
+        };
+        setTexts((prev) => [...prev, copy]);
+        setSelectedId(copy.id);
+      }
+    } else if (selectedType === "stroke") {
+      const original = strokes.find((s) => s.id === selectedId);
+      if (original) {
+        const copyPoints = original.points.map((p) => ({
+          x: p.x + 15,
+          y: p.y + 15,
+        }));
+        const copy: WhiteboardStroke = {
+          ...original,
+          id: `stroke-${Date.now()}`,
+          points: copyPoints,
+        };
+        setStrokes((prev) => [...prev, copy]);
+        setSelectedId(copy.id);
+      }
+    }
+  };
+
   const rotateSelectedMarker = () => {
     if (selectedId && selectedType === "marker") {
       setHistory((prev) => [...prev, { strokes, markers, texts }]);
@@ -380,6 +472,35 @@ export function TaskWhiteboard({
             ctx.fill();
             ctx.stroke();
           });
+        }
+      } else if (selStroke && ["line", "dashed_line", "arrow", "dashed_arrow"].includes(selStroke.type)) {
+        if (selStroke.points.length >= 2) {
+          const p0 = selStroke.points[0];
+          const p1 = selStroke.points[1];
+          
+          ctx.strokeStyle = "#10b981";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          ctx.lineTo(p1.x, p1.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = "#ffffff";
+          ctx.strokeStyle = "#10b981";
+          ctx.lineWidth = 2;
+          const handleSize = 6;
+
+          ctx.beginPath();
+          ctx.arc(p0.x, p0.y, handleSize, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(p1.x, p1.y, handleSize, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
         }
       }
     }
@@ -627,11 +748,13 @@ export function TaskWhiteboard({
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(number ?? "1", 0, 0);
+      if (number) {
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(number, 0, 0);
+      }
     } else if (type === "rival") {
       // Red circle with white jersey number
       ctx.beginPath();
@@ -642,11 +765,13 @@ export function TaskWhiteboard({
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(number ?? "X", 0, 0);
+      if (number) {
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(number, 0, 0);
+      }
     } else if (type === "ball") {
       // Small white circle with cross markings (soccer ball)
       ctx.beginPath();
@@ -721,7 +846,7 @@ export function TaskWhiteboard({
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    // 1. Check if clicked near one of the handles of the selected rectangle
+    // 1. Check if clicked near one of the handles of the selected shape
     if (selectedId && selectedType === "stroke") {
       const selStroke = strokes.find((s) => s.id === selectedId);
       if (selStroke && (selStroke.type === "rectangle" || selStroke.type === "dashed_rectangle")) {
@@ -735,6 +860,23 @@ export function TaskWhiteboard({
           else if (Math.sqrt((x - maxX) ** 2 + (y - minY) ** 2) < handleSize) handleHit = "tr";
           else if (Math.sqrt((x - minX) ** 2 + (y - maxY) ** 2) < handleSize) handleHit = "bl";
           else if (Math.sqrt((x - maxX) ** 2 + (y - maxY) ** 2) < handleSize) handleHit = "br";
+          
+          if (handleHit) {
+            isResizingRef.current = true;
+            draggedHandleRef.current = handleHit;
+            canvas.setPointerCapture(e.pointerId);
+            return;
+          }
+        }
+      } else if (selStroke && ["line", "dashed_line", "arrow", "dashed_arrow"].includes(selStroke.type)) {
+        if (selStroke.points.length >= 2) {
+          const p0 = selStroke.points[0];
+          const p1 = selStroke.points[1];
+          const handleSize = 12; // hit target radius
+          let handleHit: string | null = null;
+          
+          if (Math.sqrt((x - p0.x) ** 2 + (y - p0.y) ** 2) < handleSize) handleHit = "line_start";
+          else if (Math.sqrt((x - p1.x) ** 2 + (y - p1.y) ** 2) < handleSize) handleHit = "line_end";
           
           if (handleHit) {
             isResizingRef.current = true;
@@ -806,12 +948,34 @@ export function TaskWhiteboard({
     if (textHit) {
       setSelectedId(textHit.id);
       setSelectedType("text");
+      draggedTextIdRef.current = textHit.id;
+      dragStartTextsRef.current = [...texts];
+      dragOffsetRef.current = { x, y };
+      canvas.setPointerCapture(e.pointerId);
       return;
     }
 
     const strokeHit = strokes.find((stroke) => {
       if (stroke.type === "rectangle" || stroke.type === "dashed_rectangle") {
         return isNearRectBorder(x, y, stroke);
+      }
+      if (stroke.type === "pencil") {
+        for (let i = 0; i < stroke.points.length - 1; i++) {
+          const pA = stroke.points[i];
+          const pB = stroke.points[i + 1];
+          if (getDistanceToSegment(x, y, pA.x, pA.y, pB.x, pB.y) < 12) {
+            return true;
+          }
+        }
+        return stroke.points.some(
+          (pt) => Math.sqrt((pt.x - x) ** 2 + (pt.y - y) ** 2) < 12
+        );
+      }
+      // For lines and arrows (which have 2 points: start and end)
+      if (stroke.points.length >= 2) {
+        const p0 = stroke.points[0];
+        const p1 = stroke.points[1];
+        return getDistanceToSegment(x, y, p0.x, p0.y, p1.x, p1.y) < 12;
       }
       return stroke.points.some(
         (pt) => Math.sqrt((pt.x - x) ** 2 + (pt.y - y) ** 2) < 12
@@ -820,6 +984,10 @@ export function TaskWhiteboard({
     if (strokeHit) {
       setSelectedId(strokeHit.id);
       setSelectedType("stroke");
+      draggedStrokeIdRef.current = strokeHit.id;
+      dragStartStrokesRef.current = JSON.parse(JSON.stringify(strokes));
+      dragOffsetRef.current = { x, y };
+      canvas.setPointerCapture(e.pointerId);
       return;
     }
 
@@ -842,13 +1010,13 @@ export function TaskWhiteboard({
         x,
         y,
         type: activeTool,
-        number: activeTool === "player" || activeTool === "rival" ? playerNumber : undefined,
+        number: (activeTool === "player" || activeTool === "rival") && playerNumber ? playerNumber : undefined,
         color: activeTool === "player" ? activeColor : undefined,
       };
       pushState(strokes, [...markers, newMarker], texts);
 
       // increment player number for convenience
-      if (activeTool === "player" || activeTool === "rival") {
+      if ((activeTool === "player" || activeTool === "rival") && playerNumber) {
         const nextNum = parseInt(playerNumber);
         if (!isNaN(nextNum)) {
           setPlayerNumber((nextNum + 1).toString());
@@ -865,6 +1033,8 @@ export function TaskWhiteboard({
     }
 
     // Drawing tools: pencil, arrow, dashed_arrow, rectangle
+    if (activeTool === "select") return;
+
     isDrawingRef.current = true;
     const strokeId = `stroke-${Date.now()}`;
     drawingIdRef.current = strokeId;
@@ -892,7 +1062,43 @@ export function TaskWhiteboard({
       return;
     }
 
-    // If resizing selected rectangle
+    // If dragging text, update its coordinate
+    if (draggedTextIdRef.current && dragOffsetRef.current) {
+      const dx = x - dragOffsetRef.current.x;
+      const dy = y - dragOffsetRef.current.y;
+      const originalTexts = dragStartTextsRef.current || [];
+      const original = originalTexts.find(t => t.id === draggedTextIdRef.current);
+      if (original) {
+        setTexts((prev) =>
+          prev.map((t) =>
+            t.id === draggedTextIdRef.current ? { ...t, x: original.x + dx, y: original.y + dy } : t
+          )
+        );
+      }
+      return;
+    }
+
+    // If dragging a stroke, update all its points coordinates
+    if (draggedStrokeIdRef.current && dragOffsetRef.current) {
+      const dx = x - dragOffsetRef.current.x;
+      const dy = y - dragOffsetRef.current.y;
+      const originalStrokes = dragStartStrokesRef.current || [];
+      const original = originalStrokes.find(s => s.id === draggedStrokeIdRef.current);
+      if (original) {
+        const shiftedPoints = original.points.map(pt => ({
+          x: pt.x + dx,
+          y: pt.y + dy
+        }));
+        setStrokes((prev) =>
+          prev.map((s) =>
+            s.id === draggedStrokeIdRef.current ? { ...s, points: shiftedPoints } : s
+          )
+        );
+      }
+      return;
+    }
+
+    // If resizing selected shape or adjusting endpoints
     if (isResizingRef.current && selectedId) {
       setStrokes((prev) =>
         prev.map((stroke) => {
@@ -901,7 +1107,11 @@ export function TaskWhiteboard({
           if (points.length < 2) return stroke;
           
           const handle = draggedHandleRef.current;
-          if (handle === "tl") {
+          if (handle === "line_start") {
+            points[0] = { x, y };
+          } else if (handle === "line_end") {
+            points[1] = { x, y };
+          } else if (handle === "tl") {
             points[0] = { x, y };
           } else if (handle === "tr") {
             points[0] = { x: points[0].x, y };
@@ -1001,6 +1211,38 @@ export function TaskWhiteboard({
       }
       draggedMarkerIdRef.current = null;
       dragStartMarkersRef.current = null;
+      return;
+    }
+
+    // End text dragging and commit to history
+    if (draggedTextIdRef.current) {
+      const startTexts = dragStartTextsRef.current || [];
+      const current = texts.find(t => t.id === draggedTextIdRef.current);
+      const original = startTexts.find(t => t.id === draggedTextIdRef.current);
+
+      if (current && original && (current.x !== original.x || current.y !== original.y)) {
+        setHistory((prev) => [...prev, { strokes, markers, texts: startTexts }]);
+        setRedoStack([]);
+      }
+      draggedTextIdRef.current = null;
+      dragStartTextsRef.current = null;
+      dragOffsetRef.current = null;
+      return;
+    }
+
+    // End stroke dragging and commit to history
+    if (draggedStrokeIdRef.current) {
+      const startStrokes = dragStartStrokesRef.current || [];
+      const current = strokes.find(s => s.id === draggedStrokeIdRef.current);
+      const original = startStrokes.find(s => s.id === draggedStrokeIdRef.current);
+
+      if (current && original && (current.points[0]?.x !== original.points[0]?.x || current.points[0]?.y !== original.points[0]?.y)) {
+        setHistory((prev) => [...prev, { strokes: startStrokes, markers, texts }]);
+        setRedoStack([]);
+      }
+      draggedStrokeIdRef.current = null;
+      dragStartStrokesRef.current = null;
+      dragOffsetRef.current = null;
       return;
     }
 
@@ -1151,52 +1393,318 @@ export function TaskWhiteboard({
             </div>
 
             {/* Draw tools */}
-            <div className="flex md:flex-col gap-1 bg-white/5 p-1 rounded-xl max-h-[60vh] overflow-y-auto">
-              {[
-                { id: "pencil", icon: Paintbrush, label: "Lápiz" },
-                { id: "line", icon: Minus, label: "Línea Sólida" },
-                { id: "dashed_line", icon: Minus, label: "Línea Discont.", dashed: true },
-                { id: "arrow", icon: TrendingUp, label: "Flecha Sólida" },
-                { id: "dashed_arrow", icon: TrendingUp, label: "Flecha Discont.", dashed: true },
-                { id: "rectangle", icon: Square, label: "Rectángulo Sólido" },
-                { id: "dashed_rectangle", icon: Square, label: "Rectángulo Discont.", dashed: true },
-                { id: "goal_11", icon: Goal, label: "Portería F11" },
-                { id: "goal_7", icon: Goal, label: "Portería F7" },
-                { id: "mini_goal", icon: Goal, label: "Mini Portería" },
-                { id: "cone", icon: Disc, label: "Cono" },
-                { id: "player", icon: Circle, label: "Jugador" },
-                { id: "rival", icon: HelpCircle, label: "Rival" },
-                { id: "ball", icon: Disc, label: "Balón" },
-                { id: "text", icon: Type, label: "Texto" },
-                { id: "eraser", icon: Trash2, label: "Goma" },
-              ].map((tool) => {
-                const Icon = tool.icon;
-                const isSelected = activeTool === tool.id;
+            <div className="flex md:flex-col gap-1 bg-white/5 p-1 rounded-xl max-h-[60vh] md:overflow-y-visible relative">
+              {/* Select Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool("select");
+                  setActiveShapesMenu(false);
+                  setActiveGoalsMenu(false);
+                }}
+                onMouseEnter={() => setHoveredToolLabel("Seleccionar / Modificar")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                className={cn(
+                  "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                  activeTool === "select"
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <MousePointer className="h-4.5 w-4.5" />
+              </button>
+
+              {/* Lápiz Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool("pencil");
+                  setActiveShapesMenu(false);
+                  setActiveGoalsMenu(false);
+                }}
+                onMouseEnter={() => setHoveredToolLabel("Lápiz")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                className={cn(
+                  "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                  activeTool === "pencil"
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <Pencil className="h-4.5 w-4.5" />
+              </button>
+
+              {/* Goma Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool("eraser");
+                  setActiveShapesMenu(false);
+                  setActiveGoalsMenu(false);
+                }}
+                onMouseEnter={() => setHoveredToolLabel("Borrar elemento")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                className={cn(
+                  "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                  activeTool === "eraser"
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <Trash2 className="h-4.5 w-4.5" />
+              </button>
+
+              {/* Balón Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool("ball");
+                  setActiveShapesMenu(false);
+                  setActiveGoalsMenu(false);
+                }}
+                onMouseEnter={() => setHoveredToolLabel("Añadir Balón")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                className={cn(
+                  "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                  activeTool === "ball"
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <Disc className="h-4.5 w-4.5" />
+              </button>
+
+              {/* Cono Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool("cone");
+                  setActiveShapesMenu(false);
+                  setActiveGoalsMenu(false);
+                }}
+                onMouseEnter={() => setHoveredToolLabel("Añadir Cono")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                className={cn(
+                  "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                  activeTool === "cone"
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <Disc className="h-4.5 w-4.5 rotate-45" />
+              </button>
+
+              {/* Texto Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool("text");
+                  setActiveShapesMenu(false);
+                  setActiveGoalsMenu(false);
+                }}
+                onMouseEnter={() => setHoveredToolLabel("Añadir Texto")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                className={cn(
+                  "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                  activeTool === "text"
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <Type className="h-4.5 w-4.5" />
+              </button>
+
+              {/* Jugador Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool("player");
+                  setActiveShapesMenu(false);
+                  setActiveGoalsMenu(false);
+                }}
+                onMouseEnter={() => setHoveredToolLabel("Añadir Jugador")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                className={cn(
+                  "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                  activeTool === "player"
+                    ? "bg-emerald-500 text-white"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <div className="relative flex items-center justify-center">
+                  <User className="h-4.5 w-4.5" />
+                  <span
+                    className="absolute -bottom-1 -right-1 h-2 w-2 rounded-full border border-slate-950"
+                    style={{ backgroundColor: activeColor }}
+                  />
+                </div>
+              </button>
+
+              {/* Líneas y Formas Group */}
+              {(() => {
+                const isShapeActive = ["line", "dashed_line", "arrow", "dashed_arrow", "rectangle", "dashed_rectangle"].includes(activeTool);
+                let ShapeIcon = Minus;
+                let isDashed = false;
+                if (lastShapeTool.includes("arrow")) ShapeIcon = TrendingUp;
+                else if (lastShapeTool.includes("rectangle")) ShapeIcon = Square;
+                if (lastShapeTool.includes("dashed")) isDashed = true;
+
                 return (
-                  <button
-                    key={tool.id}
-                    type="button"
-                    onClick={() => setActiveTool(tool.id as any)}
-                    onMouseEnter={() => setHoveredToolLabel(tool.label)}
-                    onMouseLeave={() => setHoveredToolLabel(null)}
-                    className={cn(
-                      "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative group",
-                      isSelected
-                        ? "bg-emerald-500 text-white"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-                    )}
-                  >
-                    <div className="relative">
-                      <Icon className="h-4.5 w-4.5" />
-                      {tool.dashed && (
+                  <div className="relative flex md:flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTool(lastShapeTool);
+                        setActiveShapesMenu(prev => !prev);
+                        setActiveGoalsMenu(false);
+                      }}
+                      onMouseEnter={() => setHoveredToolLabel(`Líneas/Formas (${lastShapeTool.replace("_", " ")})`)}
+                      onMouseLeave={() => setHoveredToolLabel(null)}
+                      className={cn(
+                        "p-2 rounded-l-lg md:rounded-t-lg md:rounded-b-none transition-all flex items-center justify-center cursor-pointer relative",
+                        isShapeActive
+                          ? "bg-emerald-500 text-white"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                      )}
+                    >
+                      <ShapeIcon className="h-4.5 w-4.5" />
+                      {isDashed && (
                         <span className="absolute -bottom-1 -right-1 text-[7px] font-black bg-slate-950 text-emerald-400 rounded px-0.5 scale-75 border border-white/10">
                           - -
                         </span>
                       )}
-                    </div>
-                  </button>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveShapesMenu(prev => !prev);
+                        setActiveGoalsMenu(false);
+                      }}
+                      className={cn(
+                        "p-1 rounded-r-lg md:rounded-b-lg md:rounded-t-none border-l md:border-l-0 md:border-t border-white/10 transition-all flex items-center justify-center cursor-pointer text-slate-450 hover:text-white",
+                        isShapeActive ? "bg-emerald-600 text-white" : "bg-white/3 hover:bg-white/8"
+                      )}
+                    >
+                      <ChevronRight className="h-3 w-3 rotate-90 md:rotate-0" />
+                    </button>
+
+                    {/* Shapes Submenu */}
+                    {activeShapesMenu && (
+                      <div className="absolute left-[54px] md:left-[60px] top-0 z-50 bg-slate-950/95 border border-white/10 rounded-xl p-1.5 flex md:flex-row gap-1 shadow-2xl backdrop-blur-md">
+                        {[
+                          { id: "line", icon: Minus, label: "Línea Sólida" },
+                          { id: "dashed_line", icon: Minus, label: "Línea Discont.", dashed: true },
+                          { id: "arrow", icon: TrendingUp, label: "Flecha Sólida" },
+                          { id: "dashed_arrow", icon: TrendingUp, label: "Flecha Discont.", dashed: true },
+                          { id: "rectangle", icon: Square, label: "Rectángulo Sólido" },
+                          { id: "dashed_rectangle", icon: Square, label: "Rectángulo Discont.", dashed: true },
+                        ].map((sTool) => {
+                          const SIcon = sTool.icon;
+                          return (
+                            <button
+                              key={sTool.id}
+                              type="button"
+                              onClick={() => {
+                                setLastShapeTool(sTool.id as any);
+                                setActiveTool(sTool.id as any);
+                                setActiveShapesMenu(false);
+                              }}
+                              className={cn(
+                                "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                                activeTool === sTool.id
+                                  ? "bg-emerald-500 text-white"
+                                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                              )}
+                              title={sTool.label}
+                            >
+                              <SIcon className="h-4.5 w-4.5" />
+                              {sTool.dashed && (
+                                <span className="absolute -bottom-1 -right-1 text-[7px] font-black bg-slate-950 text-emerald-400 rounded px-0.5 scale-75 border border-white/10">
+                                  - -
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
-              })}
+              })()}
+
+              {/* Porterías Group */}
+              {(() => {
+                const isGoalActive = ["goal_11", "goal_7", "mini_goal"].includes(activeTool);
+
+                return (
+                  <div className="relative flex md:flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTool(lastGoalTool);
+                        setActiveGoalsMenu(prev => !prev);
+                        setActiveShapesMenu(false);
+                      }}
+                      onMouseEnter={() => setHoveredToolLabel(`Porterías (${lastGoalTool.replace("goal_", "F")})`)}
+                      onMouseLeave={() => setHoveredToolLabel(null)}
+                      className={cn(
+                        "p-2 rounded-l-lg md:rounded-t-lg md:rounded-b-none transition-all flex items-center justify-center cursor-pointer relative",
+                        isGoalActive
+                          ? "bg-emerald-500 text-white"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                      )}
+                    >
+                      <Goal className="h-4.5 w-4.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveGoalsMenu(prev => !prev);
+                        setActiveShapesMenu(false);
+                      }}
+                      className={cn(
+                        "p-1 rounded-r-lg md:rounded-b-lg md:rounded-t-none border-l md:border-l-0 md:border-t border-white/10 transition-all flex items-center justify-center cursor-pointer text-slate-450 hover:text-white",
+                        isGoalActive ? "bg-emerald-600 text-white" : "bg-white/3 hover:bg-white/8"
+                      )}
+                    >
+                      <ChevronRight className="h-3 w-3 rotate-90 md:rotate-0" />
+                    </button>
+
+                    {/* Goals Submenu */}
+                    {activeGoalsMenu && (
+                      <div className="absolute left-[54px] md:left-[60px] top-0 z-50 bg-slate-950/95 border border-white/10 rounded-xl p-1.5 flex md:flex-row gap-1 shadow-2xl backdrop-blur-md">
+                        {[
+                          { id: "goal_11", icon: Goal, label: "Portería F11" },
+                          { id: "goal_7", icon: Goal, label: "Portería F7" },
+                          { id: "mini_goal", icon: Goal, label: "Mini Portería" },
+                        ].map((gTool) => {
+                          const GIcon = gTool.icon;
+                          return (
+                            <button
+                              key={gTool.id}
+                              type="button"
+                              onClick={() => {
+                                setLastGoalTool(gTool.id as any);
+                                setActiveTool(gTool.id as any);
+                                setActiveGoalsMenu(false);
+                              }}
+                              className={cn(
+                                "p-2 rounded-lg transition-all flex items-center justify-center cursor-pointer relative",
+                                activeTool === gTool.id
+                                  ? "bg-emerald-500 text-white"
+                                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                              )}
+                              title={gTool.label}
+                            >
+                              <GIcon className="h-4.5 w-4.5" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* If player/rival tool is selected, show number selector */}
@@ -1213,33 +1721,59 @@ export function TaskWhiteboard({
               </div>
             )}
 
-            {/* Colors */}
-            <div className="flex md:flex-col gap-1 bg-white/5 p-1 rounded-xl">
-              {COLOR_OPTIONS.map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => setActiveColor(c.value)}
-                  style={{ backgroundColor: c.value }}
-                  className={cn(
-                    "h-6 w-6 rounded-full border transition-all cursor-pointer flex items-center justify-center",
-                    activeColor === c.value
-                      ? "border-emerald-500 scale-110"
-                      : "border-transparent hover:scale-105"
-                  )}
-                >
-                  {activeColor === c.value && (
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        c.value === "#ffffff" || c.value === "#facc15"
-                          ? "bg-slate-900"
-                          : "bg-white"
-                      )}
-                    />
-                  )}
-                </button>
-              ))}
+            {/* Colors (Single button with horizontal popover) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowColorPalette(!showColorPalette)}
+                onMouseEnter={() => setHoveredToolLabel("Paleta de Color")}
+                onMouseLeave={() => setHoveredToolLabel(null)}
+                style={{ backgroundColor: activeColor }}
+                className="h-9 w-9 rounded-xl border border-white/20 transition-all cursor-pointer flex items-center justify-center shadow-lg hover:border-white/40"
+                title="Seleccionar Color"
+              >
+                <span className={cn(
+                  "h-2 w-2 rounded-full",
+                  activeColor === "#ffffff" || activeColor === "#facc15" ? "bg-slate-900" : "bg-white"
+                )} />
+              </button>
+
+              {showColorPalette && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowColorPalette(false)} />
+                  <div className="absolute left-12 top-0 ml-2 flex gap-1.5 bg-slate-950/95 border border-white/10 rounded-xl p-1.5 shadow-2xl z-50 animate-in slide-in-from-left-1 duration-150">
+                    {COLOR_OPTIONS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => {
+                          setActiveColor(c.value);
+                          setShowColorPalette(false);
+                        }}
+                        style={{ backgroundColor: c.value }}
+                        className={cn(
+                          "h-6 w-6 rounded-full border transition-all cursor-pointer flex items-center justify-center",
+                          activeColor === c.value
+                            ? "border-emerald-500 scale-110 ring-2 ring-emerald-500/30"
+                            : "border-white/10 hover:scale-105 hover:border-white/30"
+                        )}
+                        title={c.name}
+                      >
+                        {activeColor === c.value && (
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              c.value === "#ffffff" || c.value === "#facc15"
+                                ? "bg-slate-900"
+                                : "bg-white"
+                            )}
+                          />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1347,6 +1881,17 @@ export function TaskWhiteboard({
                 />
               ))}
             </div>
+
+            {/* Duplicate option */}
+            <button
+              type="button"
+              onClick={duplicateSelectedElement}
+              className="flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+              title="Duplicar elemento"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Duplicar
+            </button>
 
             {/* Delete option */}
             <button

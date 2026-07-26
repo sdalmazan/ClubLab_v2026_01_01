@@ -63,7 +63,7 @@ export default async function PlayerTestsPage({
       </div>
 
       {/* History table */}
-      <div className="glass rounded-2xl p-6">
+      <div className="bg-card rounded-lg border border-border p-6">
         {tests.length === 0 ? (
           <p className="text-slate-400 text-sm text-center py-10">
             No hay pruebas físicas registradas para este jugador.

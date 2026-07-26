@@ -235,7 +235,7 @@ export default function ConceptHeatmapPage() {
           No hay datos de entrenamiento registrados para este equipo en el periodo seleccionado.
         </div>
       ) : (
-        <div className="glass rounded-3xl p-6 border border-white/10 bg-slate-900/30">
+        <div className="bg-card rounded-xl p-6 border border-border">
           <ConceptHeatmap data={heatmapData} period={period} maxMinutes={period === "season" ? 400 : 120} />
         </div>
       )}

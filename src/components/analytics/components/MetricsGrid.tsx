@@ -17,6 +17,7 @@ interface MetricsGridProps {
   onPlayerClick?: (playerName: string) => void;
   onShiftMetric?: (metricId: string, direction: "left" | "right") => void;
   clubName?: string;
+  isComparisonMode?: boolean;
 }
 
 /**
@@ -38,6 +39,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
   onPlayerClick,
   onShiftMetric,
   clubName,
+  isComparisonMode = false,
 }) => {
   const topScrollRef = useRef<HTMLDivElement>(null);
   const bottomScrollRef = useRef<HTMLDivElement>(null);
@@ -73,7 +75,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
       case "back": return "DEF";
       case "midfielder": return "MC";
       case "winger": return "EXT";
-      case "striker": return "DEL";
+      case "striker":
+      case "forward": return "DEL";
       default: return pos.toUpperCase().substring(0, 3);
     }
   };
@@ -132,20 +135,24 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
             <thead className="sticky top-0 z-30 bg-slate-950 shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
               <tr className="border-b border-slate-850">
                 {/* Checkbox: Sticky Left 0 */}
-                <th className="py-4 pl-4 pr-2 w-12 text-center sticky left-0 z-30 bg-slate-950">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someSelected;
-                    }}
-                    onChange={onToggleSelectAll}
-                    className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-primary focus:ring-primary focus:ring-offset-slate-950"
-                  />
-                </th>
+                {isComparisonMode && (
+                  <th className="py-4 pl-4 pr-2 w-12 text-center sticky left-0 z-30 bg-slate-950">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someSelected;
+                      }}
+                      onChange={onToggleSelectAll}
+                      className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-primary focus:ring-primary focus:ring-offset-slate-950"
+                    />
+                  </th>
+                )}
 
                 {/* Name / Info: Sticky Left 12 (48px) */}
-                <th className={`py-4 px-4 font-bold text-slate-400 sticky left-12 z-30 bg-slate-950 border-r border-slate-850 transition-all ${
+                <th className={`py-4 px-4 font-bold text-slate-400 sticky z-30 bg-slate-950 border-r border-slate-850 transition-all ${
+                  isComparisonMode ? "left-12" : "left-0"
+                } ${
                   isScrolled ? "shadow-[4px_0_8px_rgba(0,0,0,0.5)]" : ""
                 }`}>
                   <span>Nombre</span>
@@ -247,24 +254,28 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
                     <tr
                       key={row.id}
                       className={`hover:bg-slate-900/20 transition-all ${
-                        isSelected ? "bg-primary/10 hover:bg-primary/15" : isOwnTeam ? "bg-primary/5 hover:bg-primary/8" : ""
+                        isSelected ? "bg-primary/15 hover:bg-primary/20" : isOwnTeam ? "bg-primary/10 hover:bg-primary/15" : ""
                       }`}
                     >
                       {/* Checkbox Selector: Sticky Left 0 */}
-                      <td className={`py-3 pl-4 pr-2 text-center sticky left-0 z-20 border-r border-transparent transition-all ${
-                        isSelected ? "bg-slate-900" : isOwnTeam ? "bg-slate-900 border-l-2 border-primary" : "bg-slate-950"
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => onToggleSelectRow(row.id)}
-                          className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-primary focus:ring-primary"
-                        />
-                      </td>
+                      {isComparisonMode && (
+                        <td className={`py-3 pl-4 pr-2 text-center sticky left-0 z-20 border-r border-transparent transition-all ${
+                          isSelected ? "bg-slate-900" : isOwnTeam ? "bg-slate-900 border-l-4 border-primary" : "bg-slate-950"
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => onToggleSelectRow(row.id)}
+                            className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-primary focus:ring-primary"
+                          />
+                        </td>
+                      )}
 
                       {/* Row Header Information: Sticky Left 12 */}
-                      <td className={`py-3 px-4 sticky left-12 z-20 border-r border-slate-850 transition-all ${
-                        isSelected ? "bg-slate-900" : isOwnTeam ? "bg-slate-900" : "bg-slate-950"
+                      <td className={`py-3 px-4 sticky z-20 border-r border-slate-850 transition-all ${
+                        isComparisonMode ? "left-12" : "left-0"
+                      } ${
+                        isSelected ? "bg-slate-900" : isOwnTeam ? "bg-slate-900 border-l-4 border-primary" : "bg-slate-950"
                       } ${
                         isScrolled ? "shadow-[4px_0_8px_rgba(0,0,0,0.5)]" : ""
                       }`}>
@@ -327,10 +338,14 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
               <tfoot className="border-t border-slate-850 font-bold bg-slate-900/20">
                 <tr>
                   {/* Sticky Left 0 */}
-                  <td className="py-4 pl-4 pr-2 sticky left-0 z-20 bg-slate-950"></td>
+                  {isComparisonMode && (
+                    <td className="py-4 pl-4 pr-2 sticky left-0 z-20 bg-slate-950"></td>
+                  )}
                   
                   {/* Sticky Left 12 */}
-                  <td className={`py-4 px-4 text-slate-400 sticky left-12 z-20 bg-slate-950 border-r border-slate-850 transition-all ${
+                  <td className={`py-4 px-4 text-slate-400 sticky z-20 bg-slate-950 border-r border-slate-850 transition-all ${
+                    isComparisonMode ? "left-12" : "left-0"
+                  } ${
                     isScrolled ? "shadow-[4px_0_8px_rgba(0,0,0,0.5)]" : ""
                   }`}>
                     <div className="flex items-center gap-2">

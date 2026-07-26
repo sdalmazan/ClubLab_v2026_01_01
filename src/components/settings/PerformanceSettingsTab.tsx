@@ -1,0 +1,609 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { DEFAULT_PERFORMANCE_THRESHOLDS, DEFAULT_PERFORMANCE_RULES } from "@/lib/performance/ruleEngine";
+import type { PerformanceThresholds, PerformanceRule } from "@/types/performance";
+import {
+  Sliders,
+  ShieldCheck,
+  Save,
+  CheckCircle2,
+  Zap,
+  Radio,
+  ToggleRight,
+  ToggleLeft,
+  Plus,
+  Trash2,
+  AlertCircle,
+  Activity,
+} from "lucide-react";
+
+interface PhysicalTestItem {
+  id: string;
+  name: string;
+  category: string | null;
+  unit: string | null;
+  higher_is_better: boolean;
+  is_active: boolean;
+  description?: string | null;
+}
+
+export function PerformanceSettingsTab() {
+  const [thresholds, setThresholds] = useState<PerformanceThresholds>(DEFAULT_PERFORMANCE_THRESHOLDS);
+  const [rules, setRules] = useState<PerformanceRule[]>(DEFAULT_PERFORMANCE_RULES);
+  const [gpsEnabled, setGpsEnabled] = useState(true);
+  const [gpsProvider, setGpsProvider] = useState("catapult");
+  
+  // Physical Tests State
+  const [physicalTests, setPhysicalTests] = useState<PhysicalTestItem[]>([]);
+  const [loadingTests, setLoadingTests] = useState(true);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // New Test Modal State
+  const [showAddTestModal, setShowAddTestModal] = useState(false);
+  const [newTestName, setNewTestName] = useState("");
+  const [newTestCategory, setNewTestCategory] = useState("Fuerza");
+  const [newTestUnit, setNewTestUnit] = useState("cm");
+  const [newTestHigherIsBetter, setNewTestHigherIsBetter] = useState(true);
+  const [newTestDescription, setNewTestDescription] = useState("");
+  const [submittingTest, setSubmittingTest] = useState(false);
+
+  const [saved, setSaved] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadPhysicalTests();
+    loadGpsPreference();
+  }, []);
+
+  async function loadGpsPreference() {
+    try {
+      const res = await fetch("/api/organization/settings");
+      const data = await res.json();
+      console.log(`[GPS DEBUG UI] GET response in PerformanceSettingsTab = ${JSON.stringify(data)}`);
+      if (data?.success && data?.is_gps_enabled !== undefined) {
+        const isGpsOn = Boolean(data.is_gps_enabled);
+        setGpsEnabled(isGpsOn);
+        console.log(`[GPS DEBUG UI] value rendered in PerformanceSettingsTab = ${isGpsOn}`);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("cl_is_gps_enabled", isGpsOn ? "true" : "false");
+          document.cookie = `cl_is_gps_enabled=${isGpsOn ? "true" : "false"}; path=/; max-age=31536000`;
+        }
+      }
+    } catch (err) {
+      console.error("Error loading GPS preference in PerformanceSettingsTab:", err);
+    }
+  }
+
+  async function persistGpsSetting(newValue: boolean) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("cl_is_gps_enabled", newValue ? "true" : "false");
+      document.cookie = `cl_is_gps_enabled=${newValue ? "true" : "false"}; path=/; max-age=31536000`;
+    }
+    try {
+      console.log(`[GPS DEBUG UI] Sending PATCH /api/organization/settings with is_gps_enabled = ${newValue}`);
+      const res = await fetch("/api/organization/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settingsToUpdate: { is_gps_enabled: newValue } }),
+      });
+      const data = await res.json();
+      console.log(`[GPS DEBUG UI] PATCH response in PerformanceSettingsTab = ${JSON.stringify(data)}`);
+      if (data?.success && data?.is_gps_enabled !== undefined) {
+        setGpsEnabled(Boolean(data.is_gps_enabled));
+      }
+    } catch (err) {
+      console.error("Error saving GPS setting in PerformanceSettingsTab:", err);
+    }
+  }
+
+  async function handleToggleGps() {
+    const updated = !gpsEnabled;
+    console.log(`[GPS DEBUG UI] Toggling GPS in PerformanceSettingsTab from ${gpsEnabled} to ${updated}`);
+    setGpsEnabled(updated);
+    await persistGpsSetting(updated);
+  }
+
+  async function loadPhysicalTests() {
+    try {
+      setLoadingTests(true);
+      setErrorMsg(null);
+      const res = await fetch("/api/performance/tests");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al cargar batería de tests");
+      setPhysicalTests(data || []);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || "No se pudo cargar la batería de tests.");
+    } finally {
+      setLoadingTests(false);
+    }
+  }
+
+  async function handleToggleTest(testId: string, currentActive: boolean) {
+    try {
+      setTogglingId(testId);
+      setErrorMsg(null);
+
+      const res = await fetch("/api/performance/tests", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: testId,
+          is_active: !currentActive,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al cambiar estado del test");
+
+      setPhysicalTests((prev) =>
+        prev.map((t) => (t.id === testId ? { ...t, is_active: !currentActive } : t))
+      );
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || "Error al actualizar el test.");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function handleCreateTest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTestName.trim()) return;
+
+    try {
+      setSubmittingTest(true);
+      setErrorMsg(null);
+
+      const res = await fetch("/api/performance/tests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newTestName.trim(),
+          category: newTestCategory,
+          unit: newTestUnit.trim(),
+          higher_is_better: newTestHigherIsBetter,
+          description: newTestDescription.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al crear el nuevo test");
+
+      setPhysicalTests((prev) => [...prev, data]);
+      setShowAddTestModal(false);
+      setNewTestName("");
+      setNewTestDescription("");
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || "Error al guardar el nuevo test.");
+    } finally {
+      setSubmittingTest(false);
+    }
+  }
+
+  async function handleDeleteTest(testId: string, testName: string) {
+    if (!confirm(`¿Eliminar el test "${testName}" de la batería del club?`)) return;
+
+    try {
+      setErrorMsg(null);
+      const res = await fetch(`/api/performance/tests?id=${testId}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al eliminar test");
+
+      setPhysicalTests((prev) => prev.filter((t) => t.id !== testId));
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || "Error al eliminar el test.");
+    }
+  }
+
+  const handleToggleRule = (ruleId: string) => {
+    setRules((prev) =>
+      prev.map((r) => (r.id === ruleId ? { ...r, is_enabled: !r.is_enabled } : r))
+    );
+  };
+
+  const handleSave = async () => {
+    await persistGpsSetting(gpsEnabled);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Save Button */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-white/10 pb-4">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Activity className="h-5 w-5 text-emerald-400" />
+            Ajustes de Rendimiento, Tests & Reglas
+          </h2>
+          <p className="text-xs text-slate-400">
+            Añade o quita tests físicos de la batería activa y configura los umbrales del club.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 shadow-md shadow-emerald-950/50 transition-all cursor-pointer"
+        >
+          <Save className="h-4 w-4" />
+          {saved ? "¡Ajustes Guardados!" : "Guardar Ajustes"}
+        </button>
+      </div>
+
+      {saved && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          Los parámetros de rendimiento, batería de tests y motor de reglas se han guardado con éxito.
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-400">
+          <AlertCircle className="h-4 w-4 text-rose-400" />
+          {errorMsg}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left Column: Physical Tests Management (6 cols) */}
+        <div className="lg:col-span-6 space-y-6">
+          {/* Physical Tests Selection & Creation */}
+          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Zap className="h-4 w-4 text-emerald-400" />
+                Batería de Tests Físicos ({physicalTests.filter((t) => t.is_active).length}/{physicalTests.length} Activos)
+              </h3>
+
+              <button
+                type="button"
+                onClick={() => setShowAddTestModal(true)}
+                className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-xl text-xs font-bold hover:bg-emerald-500/20 transition-colors cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Añadir Test
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Los tests seleccionados aquí son los que aparecerán automáticamente en la pantalla de testing del preparador físico.
+            </p>
+
+            {loadingTests ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500" />
+              </div>
+            ) : physicalTests.length === 0 ? (
+              <div className="text-xs text-slate-500 italic py-4 text-center">
+                No hay tests físicos configurados. Haz clic en "Añadir Test" para crear uno.
+              </div>
+            ) : (
+              <div className="space-y-2 text-xs max-h-[380px] overflow-y-auto pr-1">
+                {physicalTests.map((test) => (
+                  <div
+                    key={test.id}
+                    className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
+                      test.is_active
+                        ? "border-emerald-500/30 bg-slate-950/80"
+                        : "border-white/5 bg-slate-950/30 opacity-60"
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">{test.name}</span>
+                        <span className="text-[9px] font-bold uppercase bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
+                          {test.category || "General"}
+                        </span>
+                        <span className="text-[9px] font-mono text-emerald-400 font-semibold">
+                          [{test.unit || "unidad"}]
+                        </span>
+                      </div>
+                      {test.description && (
+                        <p className="text-[10px] text-slate-400 line-clamp-1">{test.description}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTest(test.id, test.is_active)}
+                        disabled={togglingId === test.id}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+                        title={test.is_active ? "Desactivar de la pantalla de tests" : "Activar en la pantalla de tests"}
+                      >
+                        {test.is_active ? (
+                          <ToggleRight className="h-6 w-6 text-emerald-400" />
+                        ) : (
+                          <ToggleLeft className="h-6 w-6 text-slate-600" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTest(test.id, test.name)}
+                        className="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-1"
+                        title="Eliminar test"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* GPS Tracking Config */}
+          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Radio className="h-4 w-4 text-cyan-400" />
+                Integración de Dispositivos GPS & Carga Externa
+              </h3>
+
+              <button
+                type="button"
+                onClick={handleToggleGps}
+                className="text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+              >
+                {gpsEnabled ? (
+                  <ToggleRight className="h-6 w-6 text-emerald-400" />
+                ) : (
+                  <ToggleLeft className="h-6 w-6 text-slate-600" />
+                )}
+              </button>
+            </div>
+
+            {gpsEnabled ? (
+              <div className="space-y-3 text-xs">
+                <p className="text-slate-400">
+                  El sistema capturará automáticamente métricas GPS (Distancia Total, HSR &gt;21 km/h, Sprints &gt;25 km/h, Aceleraciones/Desaceleraciones).
+                </p>
+                <div>
+                  <label className="block font-medium text-slate-300 mb-1">Proveedor de GPS del Club</label>
+                  <select
+                    value={gpsProvider}
+                    onChange={(e) => setGpsProvider(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="catapult">Catapult Sports (OpenField)</option>
+                    <option value="wimu">WIMU PRO / Hudl</option>
+                    <option value="oliver">Oliver GPS</option>
+                    <option value="statssports">STATS Apex GPS</option>
+                    <option value="manual">Ingreso Manual / CSV</option>
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">
+                La recopilación de datos GPS está desactivada. La carga externa se calculará mediante minutos de juego y RPE.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Thresholds & Rules Engine (6 cols) */}
+        <div className="lg:col-span-6 space-y-6">
+          {/* Thresholds */}
+          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 space-y-4 shadow-lg">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Sliders className="h-4 w-4 text-emerald-400" />
+              Umbrales de Carga & Wellness del Club
+            </h3>
+
+            <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2">
+              <div>
+                <label className="block font-medium text-slate-300 mb-1">Wellness Alerta (0–25)</label>
+                <input
+                  type="number"
+                  value={thresholds.wellness_warning_score}
+                  onChange={(e) => setThresholds({ ...thresholds, wellness_warning_score: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-300 mb-1">Wellness Crítico (0–25)</label>
+                <input
+                  type="number"
+                  value={thresholds.wellness_critical_score}
+                  onChange={(e) => setThresholds({ ...thresholds, wellness_critical_score: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-300 mb-1">ACWR Ratio Alerta</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={thresholds.acwr_warning_ratio}
+                  onChange={(e) => setThresholds({ ...thresholds, acwr_warning_ratio: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-300 mb-1">ACWR Ratio Crítico (Spike)</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={thresholds.acwr_critical_ratio}
+                  onChange={(e) => setThresholds({ ...thresholds, acwr_critical_ratio: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block font-medium text-slate-300 mb-1">Límite Minutos Competitivos (7 Días)</label>
+                <input
+                  type="number"
+                  value={thresholds.max_minutes_7days}
+                  onChange={(e) => setThresholds({ ...thresholds, max_minutes_7days: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Rule Engine Manager */}
+          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 space-y-3 shadow-lg">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              Gestor de Reglas de Recomendación ({rules.filter((r) => r.is_enabled).length}/{rules.length} Activas)
+            </h3>
+
+            <div className="space-y-2 text-xs">
+              {rules.map((r) => (
+                <div key={r.id} className="flex items-center justify-between rounded-xl bg-slate-950/60 border border-white/5 p-3">
+                  <div>
+                    <span className="font-bold text-white block">
+                      {r.code} — {r.name}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{r.description}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleRule(r.id)}
+                    className="text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+                  >
+                    {r.is_enabled ? (
+                      <ToggleRight className="h-6 w-6 text-emerald-400" />
+                    ) : (
+                      <ToggleLeft className="h-6 w-6 text-slate-600" />
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL: ADD NEW TEST */}
+      {showAddTestModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleCreateTest}
+            className="bg-slate-900 border border-white/10 shadow-2xl w-full max-w-md rounded-2xl p-6 space-y-4 animate-fade-in"
+          >
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <Plus className="h-4 w-4 text-emerald-400" />
+                Añadir Nuevo Test Físico
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddTestModal(false)}
+                className="text-slate-400 hover:text-white font-bold text-lg cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                  Nombre del Test *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Test VBT en Sentadilla, Salto Monopodal..."
+                  value={newTestName}
+                  onChange={(e) => setNewTestName(e.target.value)}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                    Categoría
+                  </label>
+                  <select
+                    value={newTestCategory}
+                    onChange={(e) => setNewTestCategory(e.target.value)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Fuerza">Fuerza / Potencia</option>
+                    <option value="Velocidad">Velocidad / Aceleración</option>
+                    <option value="Aeróbico">Aeróbico / RSA</option>
+                    <option value="Neuromuscular">Neuromuscular</option>
+                    <option value="Antropometría">Antropometría ISAK</option>
+                    <option value="Movilidad">Movilidad / Asimetría</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                    Unidad de Medida
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej. cm, seg, kg, m/s, nivel"
+                    value={newTestUnit}
+                    onChange={(e) => setNewTestUnit(e.target.value)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={newTestHigherIsBetter}
+                    onChange={(e) => setNewTestHigherIsBetter(e.target.checked)}
+                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 h-4 w-4"
+                  />
+                  Un mayor valor indica mejor rendimiento (Higher is Better)
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                  Descripción / Protocolo
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Detallar protocolo de medición..."
+                  value={newTestDescription}
+                  onChange={(e) => setNewTestDescription(e.target.value)}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowAddTestModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={submittingTest}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer"
+              >
+                {submittingTest ? "Guardando..." : "Crear y Activar Test"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}

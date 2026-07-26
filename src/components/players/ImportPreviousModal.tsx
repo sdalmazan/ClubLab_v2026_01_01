@@ -192,8 +192,8 @@ export function ImportPreviousModal({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fade-in">
-          <div className="glass rounded-3xl border border-white/10 w-full max-w-lg p-6 bg-slate-900/95 shadow-2xl relative flex flex-col max-h-[85vh] overflow-hidden space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 animate-fade-in">
+          <div className="bg-popover rounded-xl border border-border w-full max-w-lg p-6 shadow-md relative flex flex-col max-h-[85vh] overflow-hidden space-y-4">
             
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-white/5 pb-3">

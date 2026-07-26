@@ -2,16 +2,18 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { LanguageSelector } from "@/components/layout/LanguageSelector";
 import { HeaderContextSelector } from "@/components/layout/HeaderContextSelector";
+import { RoleViewSelector } from "@/components/layout/RoleViewSelector";
 import { BottomNavBar } from "@/components/layout/BottomNavBar";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { unstable_cache } from "next/cache";
-import type { AuthUser } from "@/types";
+import type { AuthUser, UserRole } from "@/types";
 import { findClosestValidatedColor } from "@/lib/colors";
 import { PageTracker } from "@/components/layout/PageTracker";
 import { CACHE_TAGS } from "@/features/analysis/cache/layer";
+import { isSuperAdminUser, ROLE_MODE_OPTIONS } from "@/lib/permissions/roleOverride";
 
 /**
  * Dashboard layout.
@@ -201,6 +203,13 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   let activeTeamId: string = cookieStore.get("cl_active_team_id")?.value ?? "";
   let activeSeasonId: string = cookieStore.get("cl_active_season_id")?.value ?? "";
+  const roleOverrideCookie = cookieStore.get("cl_role_override")?.value as UserRole | undefined;
+
+  const isRealSuperAdmin = isSuperAdminUser(orgRole.role, user.email);
+  const activeRole: UserRole =
+    isRealSuperAdmin && roleOverrideCookie && ROLE_MODE_OPTIONS.some((r) => r.value === roleOverrideCookie)
+      ? roleOverrideCookie
+      : orgRole.role;
 
   let activeTeam = teamList.find((t) => t.id === activeTeamId);
   if (!activeTeam || orgType === "club") {
@@ -219,7 +228,7 @@ export default async function DashboardLayout({
     email: user.email ?? "",
     organization_id: orgRole.organization_id,
     organization_slug: org?.slug ?? "",
-    role: orgRole.role,
+    role: activeRole,
     team_id: activeTeamId || null,
     plan_slug: plan,
     club_name: clubName,
@@ -266,9 +275,13 @@ export default async function DashboardLayout({
             activeTeamId={activeTeamId}
             activeSeasonId={activeSeasonId}
             orgType={orgType}
+            userRole={authUser.role}
           />
 
           <div className="flex-1" />
+          {isRealSuperAdmin && (
+            <RoleViewSelector currentRole={activeRole} actualRole={orgRole.role} />
+          )}
           <LanguageSelector />
         </header>
 

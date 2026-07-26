@@ -123,7 +123,7 @@ export function CreatePlayerForm({
       <form
         id="create-player-form"
         onSubmit={handleSubmit}
-        className="glass rounded-2xl p-6 space-y-6"
+        className="bg-card rounded-lg border border-border p-6 space-y-6"
       >
       {/* ── PERSONAL ── */}
       <section>
@@ -369,8 +369,8 @@ function AlertModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass max-w-md w-full rounded-2xl border border-white/10 p-6 space-y-4 shadow-2xl animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-popover border border-border shadow-md max-w-md w-full rounded-lg p-6 space-y-4 animate-in fade-in duration-200">
         <h3 className="text-base font-bold text-white uppercase tracking-wider">{title}</h3>
         <p className="text-slate-350 text-xs leading-relaxed font-medium">{message}</p>
         <div className="flex gap-3 justify-end pt-2">

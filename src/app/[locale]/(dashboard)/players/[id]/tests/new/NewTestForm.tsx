@@ -74,14 +74,14 @@ export function NewTestForm({ playerId, testTypes }: NewTestFormProps) {
 
   if (testTypes.length === 0) {
     return (
-      <div className="glass rounded-2xl p-6 text-center text-slate-400 text-sm">
+      <div className="bg-card rounded-lg border border-border p-6 text-center text-slate-400 text-sm">
         No hay tipos de tests configurados en la organización. Crea o activa un tipo de test antes de continuar.
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-6">
+    <form onSubmit={handleSubmit} className="bg-card rounded-lg border border-border p-6 space-y-6">
       {error && (
         <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
           {error}

@@ -245,6 +245,54 @@ export interface WellnessEntry {
   created_at: string;
 }
 
+export interface PlayerWellnessCheckin {
+  id: string;
+  organization_id: string;
+  player_id: string;
+  date: string;
+  sleep_quality: number; // 1-5
+  fatigue: number; // 1-5
+  mood: number; // 1-5
+  muscle_soreness: number; // 1-5
+  stress: number; // 1-5
+  has_discomfort: boolean;
+  discomfort_body_part: string | null;
+  discomfort_intensity: number | null; // 1-10
+  notes: string | null;
+  created_at: string;
+}
+
+export type RecommendationCategory = "fuerza" | "prevencion" | "activacion" | "recuperacion";
+
+export interface PlayerRecommendation {
+  id: string;
+  organization_id: string;
+  player_id: string;
+  category: RecommendationCategory;
+  title: string;
+  description: string;
+  reason_context: string | null;
+  exercise_routine_id: string | null;
+  estimated_minutes: number | null;
+  is_completed: boolean;
+  created_by: string | null;
+  created_at: string;
+  exercise?: {
+    id: string;
+    title: string;
+    description: string | null;
+  };
+}
+
+export interface PlayerPrivacyRequest {
+  id: string;
+  user_id: string;
+  request_type: "export_data" | "delete_account" | "rectify";
+  status: "pending" | "processing" | "completed" | "rejected";
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface RPEEntry {
   id: string;
   player_id: string;
@@ -263,12 +311,13 @@ export interface RPEEntry {
 // SESSIONS & TRAINING
 // ============================================================
 
-export type SessionType = "training" | "individual" | "match";
+export type SessionType = "training" | "individual" | "match" | "rest";
 
 export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
   training: "Entrenamiento Grupal",
   individual: "Entrenamiento Individual",
   match: "Partido",
+  rest: "Descanso",
 };
 
 export type MicrocycleDay =
@@ -848,4 +897,6 @@ export const NATIONALITY_TO_COUNTRY_CODE: Record<string, string> = {
   "Zambiana": "zm",
   "Zimbabuense": "zw"
 };
+
+export * from "./performance";
 
