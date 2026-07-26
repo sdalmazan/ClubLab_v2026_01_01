@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-
-// Service role client to perform super-admin overrides
-const supabaseAdmin = createSupabaseClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
+    const supabaseAdmin = createAdminClient();
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -311,6 +306,7 @@ export async function POST(req: NextRequest) {
 
 // Daily Aggregator Helper logic
 async function runDailyAggregation() {
+  const supabaseAdmin = createAdminClient();
   // Get all raw page views
   const { data: pageViews } = await supabaseAdmin
     .from("platform_page_views")
