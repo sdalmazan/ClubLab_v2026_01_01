@@ -1,3 +1,45 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+
+/**
+ * Helper to normalize and sanitize phone numbers for WhatsApp API.
+ * Removes spaces, dashes, dots, parentheses, and automatically prepends '34' (Spain) if a 9-digit mobile number is entered.
+ */
+export function normalizePhoneNumber(phone: string): { cleanPhone: string; digitsOnly: string } {
+  if (!phone) return { cleanPhone: "", digitsOnly: "" };
+
+  const rawDigits = phone.replace(/\D/g, "");
+  let digitsOnly = rawDigits;
+  if (rawDigits.length === 9 && (rawDigits.startsWith("6") || rawDigits.startsWith("7"))) {
+    digitsOnly = `34${rawDigits}`;
+  }
+
+  const cleanPhone = `+${digitsOnly}`;
+  return { cleanPhone, digitsOnly };
+}
+
+export interface WhatsAppLogRecord {
+  wamid: string;
+  waba_id?: string;
+  phone_number_id?: string;
+  recipient_phone: string;
+  template_name?: string;
+  language?: string;
+  initial_status: string;
+  current_status: string;
+  error_code?: number | null;
+  error_title?: string | null;
+  error_message?: string | null;
+  error_details?: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  failed_at?: string | null;
+  raw_initial_response?: any;
+  raw_last_webhook_event?: any;
+}
+
 const inMemoryLogs = new Map<string, WhatsAppLogRecord>();
 
 function writeToLocalLog(record: WhatsAppLogRecord) {
