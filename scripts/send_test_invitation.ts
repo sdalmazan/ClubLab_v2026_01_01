@@ -111,7 +111,7 @@ async function main() {
     ? `https://${process.env.VERCEL_URL}` 
     : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
 
-  const invitationUrl = `${baseUrl}/es/register?token=${invitation.token}&email=${encodeURIComponent(recipientEmail)}`;
+  const invitationUrl = `${baseUrl}/es/invite?token=${invitation.token}&email=${encodeURIComponent(recipientEmail)}`;
 
   console.log(`🚀 Enviando correo de invitación a ${recipientEmail}...`);
   console.log(`URL de invitación: ${invitationUrl}`);
