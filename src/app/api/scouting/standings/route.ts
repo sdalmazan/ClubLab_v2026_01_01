@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const allMatches = matches || [];
+    const allMatches: any[] = matches || [];
 
     // Find all unique teams in this season
     const teamsSet = new Set<string>();
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
     const targetMatchday = requestedMatchday ? parseInt(requestedMatchday, 10) : lastPlayedMatchday;
 
     // Filter matches up to targetMatchday
-    const matchesUpToTarget = allMatches.filter((m) => m.matchday <= targetMatchday);
+    const matchesUpToTarget = allMatches.filter((m: any) => m.matchday <= targetMatchday);
 
     // Map to track stats per team up to targetMatchday
     const teamStats = new Map<
@@ -186,7 +186,7 @@ export async function GET(request: Request) {
     });
 
     // Extract total matchdays (max matchday in dataset, default 34)
-    const totalMatchdays = Math.max(34, ...allMatches.map((m) => m.matchday || 0));
+    const totalMatchdays = Math.max(34, ...allMatches.map((m: any) => m.matchday || 0));
 
     return NextResponse.json({
       season,
