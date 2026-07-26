@@ -17,6 +17,9 @@ export const SEASON_CONFIGS: Record<
     Omit<CompetitionConfig, "season" | "competitionName">
   >
 > = {
+  "2026/2027": {
+    "Tercera Federación - Grupo 8": { competicion: "24218932", grupo: "24218933", temporada: "22", region: DEFAULT_REGION },
+  },
   "2025/2026": {
     "Tercera Federación - Grupo 8": { competicion: "22911126", grupo: "22911127", temporada: "21", region: DEFAULT_REGION },
     "1ª División Regional Aficionados - Grupo A": { competicion: "22911132", grupo: "22911133", temporada: "21", region: DEFAULT_REGION },

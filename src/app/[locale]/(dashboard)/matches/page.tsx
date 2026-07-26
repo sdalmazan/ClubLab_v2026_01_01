@@ -8,6 +8,7 @@ import {
   MapPin,
   Search,
   ChevronRight,
+  ChevronLeft,
   X,
   ShieldAlert,
   TrendingUp,
@@ -58,14 +59,19 @@ export default function MatchesPage() {
   const [supabase] = useState(() => createClient());
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [season, setSeason] = useState("2025/2026");
+  const [season, setSeason] = useState("2026/2027");
   const [availableSeasons, setAvailableSeasons] = useState<string[]>(["2026/2027", "2025/2026", "2024/2025"]);
   const [search, setSearch] = useState("");
   const [matchdayFilter, setMatchdayFilter] = useState("all");
 
-  // Tab control: "squad" (Partidos propios) vs "stats" (Ranking Plantilla Goles/Asistencias) vs "rival" (Análisis de rival)
-  const [activeTab, setActiveTab] = useState<"squad" | "stats" | "rival">("squad");
+  // Tab control: "squad" (Partidos propios) vs "stats" (Ranking Plantilla) vs "rival" (Análisis de rival) vs "standings" (Calendario y Clasificación)
+  const [activeTab, setActiveTab] = useState<"squad" | "stats" | "rival" | "standings">("squad");
   const [selectedRival, setSelectedRival] = useState("");
+
+  // Standings and matchday navigation state
+  const [standingsData, setStandingsData] = useState<any>(null);
+  const [standingsLoading, setStandingsLoading] = useState(false);
+  const [navMatchday, setNavMatchday] = useState<number>(1);
 
   // Sub-tabs for Rival Analysis Dashboard
   const [scoutingTab, setScoutingTab] = useState<"squad" | "coach" | "dynamics" | "discipline">("squad");
@@ -208,6 +214,39 @@ export default function MatchesPage() {
       fetchRivalAnalysis();
     }
   }, [selectedRival, season, activeTab]);
+
+  // Fetch full league standings & matchday fixtures
+  const fetchStandings = async (targetJornada?: number) => {
+    try {
+      setStandingsLoading(true);
+      const url = targetJornada
+        ? `/api/scouting/standings?season=${encodeURIComponent(season)}&matchday=${targetJornada}`
+        : `/api/scouting/standings?season=${encodeURIComponent(season)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setStandingsData(data);
+        if (data.selectedMatchday) {
+          setNavMatchday(data.selectedMatchday);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching standings:", err);
+    } finally {
+      setStandingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "standings") {
+      fetchStandings();
+    }
+  }, [season, activeTab]);
+
+  const handleMatchdayNavChange = (jornada: number) => {
+    setNavMatchday(jornada);
+    fetchStandings(jornada);
+  };
 
   // Sync scrollbars
   useEffect(() => {
@@ -650,6 +689,22 @@ export default function MatchesPage() {
         >
           Análisis de Rival
           {activeTab === "rival" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+          )}
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("standings");
+            setSearch("");
+            setMatchdayFilter("all");
+            fetchStandings();
+          }}
+          className={`pb-2.5 px-4 text-xs font-black uppercase tracking-wider relative transition-colors cursor-pointer shrink-0 ${
+            activeTab === "standings" ? "text-primary font-extrabold" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          📆 Calendario y Clasificación Completa
+          {activeTab === "standings" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
           )}
         </button>
@@ -1382,7 +1437,275 @@ export default function MatchesPage() {
         </div>
       )}
 
-      {/* Filters Bar */}
+      {/* FULL LEAGUE STANDINGS & CALENDAR PANEL */}
+      {activeTab === "standings" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Navigation Control Bar */}
+          <div className="bg-slate-900 border border-white/10 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="size-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                <Trophy className="size-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-white tracking-tight flex items-center gap-2">
+                  Tercera Federación — Grupo 8
+                  <span className="text-[10px] bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded font-black uppercase">
+                    {season}
+                  </span>
+                </h2>
+                <p className="text-slate-400 text-xs">
+                  Clasificación completa de la temporada y calendario oficial jornada a jornada.
+                </p>
+              </div>
+            </div>
+
+            {/* Navigation controls */}
+            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+              <button
+                onClick={() => handleMatchdayNavChange(Math.max(1, navMatchday - 1))}
+                disabled={navMatchday <= 1 || standingsLoading}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                title="Jornada anterior"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+
+              <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-white/10">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Jornada:</span>
+                <Select
+                  value={navMatchday.toString()}
+                  onValueChange={(val) => val && handleMatchdayNavChange(parseInt(val, 10))}
+                >
+                  <SelectTrigger className="h-7 w-32 border-0 bg-transparent text-xs font-black text-primary p-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {Array.from({ length: standingsData?.totalMatchdays || 34 }, (_, i) => i + 1).map((j) => (
+                      <SelectItem key={j} value={j.toString()} className="text-xs font-semibold">
+                        Jornada {j} {j === standingsData?.lastPlayedMatchday ? "★ (Última)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <button
+                onClick={() => handleMatchdayNavChange(Math.min(standingsData?.totalMatchdays || 34, navMatchday + 1))}
+                disabled={navMatchday >= (standingsData?.totalMatchdays || 34) || standingsLoading}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                title="Jornada siguiente"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+
+              {standingsData?.lastPlayedMatchday && (
+                <button
+                  onClick={() => handleMatchdayNavChange(standingsData.lastPlayedMatchday)}
+                  className="px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <span>Última Disputada (J{standingsData.lastPlayedMatchday})</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Grid 2 Columns: Left = Matchday Fixtures, Right = Standings Table */}
+          {standingsLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-slate-900/50 border border-white/10 rounded-2xl">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              <p className="text-xs text-slate-400 mt-3 font-semibold">Calculando clasificación y resultados de la Jornada {navMatchday}...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Matchday Fixtures (5 cols) */}
+              <div className="lg:col-span-5 bg-card border border-border rounded-2xl p-4 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-sm font-black text-white tracking-tight flex items-center gap-2">
+                    <span>Encuentros Jornada {navMatchday}</span>
+                    <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">
+                      {matches.filter((m) => m.matchday === navMatchday).length} Partidos
+                    </span>
+                  </h3>
+                </div>
+
+                <div className="space-y-2.5">
+                  {(() => {
+                    const jMatches = matches.filter((m) => m.matchday === navMatchday);
+                    if (jMatches.length === 0) {
+                      return (
+                        <div className="text-center py-12 text-slate-500 text-xs italic">
+                          No hay información de partidos para la Jornada {navMatchday}.
+                        </div>
+                      );
+                    }
+
+                    return jMatches.map((m) => {
+                      const isHomeAlmazan = m.home_team.toLowerCase().includes("almazán") || m.home_team.toLowerCase().includes("almazan");
+                      const isAwayAlmazan = m.away_team.toLowerCase().includes("almazán") || m.away_team.toLowerCase().includes("almazan");
+                      const played = m.home_score !== null && m.away_score !== null;
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`p-3.5 rounded-xl border transition-all space-y-2 ${
+                            isHomeAlmazan || isAwayAlmazan
+                              ? "bg-emerald-950/30 border-emerald-500/40 shadow-lg shadow-emerald-950/20"
+                              : "bg-white/3 border-white/5 hover:border-white/15"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            {/* Home Team */}
+                            <div className={`font-bold flex-1 truncate ${isHomeAlmazan ? "text-emerald-400 font-black" : "text-slate-200"}`}>
+                              {displayTeamName(m.home_team)}
+                            </div>
+
+                            {/* Score or VS */}
+                            <div className="px-3 shrink-0 text-center">
+                              {played ? (
+                                <span className="px-2.5 py-1 bg-slate-950 text-white font-extrabold rounded-lg border border-white/10 text-xs">
+                                  {m.home_score} - {m.away_score}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">
+                                  vs
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Away Team */}
+                            <div className={`font-bold flex-1 text-right truncate ${isAwayAlmazan ? "text-emerald-400 font-black" : "text-slate-200"}`}>
+                              {displayTeamName(m.away_team)}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
+                            <span>📅 {m.match_date || "Por definir"}</span>
+                            {played && (
+                              <button
+                                onClick={() => fetchMatchDetail(m.id)}
+                                className="text-primary hover:underline font-bold cursor-pointer"
+                              >
+                                Ver Acta →
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Right Column: Standings Table (7 cols) */}
+              <div className="lg:col-span-7 bg-card border border-border rounded-2xl p-4 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <h3 className="text-sm font-black text-white tracking-tight">
+                      Clasificación General (Hasta Jornada {navMatchday})
+                    </h3>
+                    <span className="text-[10px] text-slate-400">
+                      Puntuación y dinámica de forma en los últimos 5 partidos.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[9px] text-slate-400">
+                    <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400 inline-block"/> Campeón</span>
+                    <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-sky-400 inline-block"/> Playoff</span>
+                    <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-rose-400 inline-block"/> Descenso</span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-white/5 border-b border-white/10 text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">
+                        <th className="py-2.5 px-2 text-center w-8">Pos</th>
+                        <th className="py-2.5 px-3 min-w-[140px]">Equipo</th>
+                        <th className="py-2.5 px-2 text-center font-extrabold text-white">Pts</th>
+                        <th className="py-2.5 px-2 text-center">PJ</th>
+                        <th className="py-2.5 px-2 text-center">PG</th>
+                        <th className="py-2.5 px-2 text-center">PE</th>
+                        <th className="py-2.5 px-2 text-center">PP</th>
+                        <th className="py-2.5 px-2 text-center">GF</th>
+                        <th className="py-2.5 px-2 text-center">GC</th>
+                        <th className="py-2.5 px-2 text-center">DG</th>
+                        <th className="py-2.5 px-3 text-center min-w-[120px]">Últimos 5</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-medium">
+                      {(standingsData?.standings || []).map((t: any) => {
+                        const isAlmazan = t.team.toLowerCase().includes("almazán") || t.team.toLowerCase().includes("almazan");
+                        
+                        let posBadge = "bg-white/5 text-slate-400 border-white/10";
+                        if (t.position === 1) posBadge = "bg-amber-500/20 text-amber-300 border-amber-500/40 font-black";
+                        else if (t.position >= 2 && t.position <= 5) posBadge = "bg-sky-500/20 text-sky-300 border-sky-500/40 font-extrabold";
+                        else if (t.position >= 16) posBadge = "bg-rose-500/20 text-rose-300 border-rose-500/40 font-bold";
+
+                        return (
+                          <tr
+                            key={t.team}
+                            className={`transition-colors ${
+                              isAlmazan
+                                ? "bg-emerald-950/40 font-bold border-l-2 border-l-emerald-400"
+                                : "hover:bg-white/3"
+                            }`}
+                          >
+                            <td className="py-2.5 px-2 text-center">
+                              <span className={`inline-flex items-center justify-center size-5 rounded text-[10px] border ${posBadge}`}>
+                                {t.position}
+                              </span>
+                            </td>
+                            <td className={`py-2.5 px-3 font-bold truncate max-w-[160px] ${isAlmazan ? "text-emerald-400 font-extrabold" : "text-white"}`}>
+                              {displayTeamName(t.team)}
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-black text-white text-sm bg-white/3">
+                              {t.points}
+                            </td>
+                            <td className="py-2.5 px-2 text-center text-slate-300">{t.played}</td>
+                            <td className="py-2.5 px-2 text-center text-emerald-400 font-bold">{t.wins}</td>
+                            <td className="py-2.5 px-2 text-center text-amber-300 font-bold">{t.draws}</td>
+                            <td className="py-2.5 px-2 text-center text-rose-400 font-bold">{t.losses}</td>
+                            <td className="py-2.5 px-2 text-center text-slate-300">{t.goalsFor}</td>
+                            <td className="py-2.5 px-2 text-center text-slate-400">{t.goalsAgainst}</td>
+                            <td className={`py-2.5 px-2 text-center font-bold ${t.goalDiff > 0 ? "text-emerald-400" : t.goalDiff < 0 ? "text-rose-400" : "text-slate-400"}`}>
+                              {t.goalDiff > 0 ? `+${t.goalDiff}` : t.goalDiff}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {t.form.length === 0 ? (
+                                  <span className="text-[9px] text-slate-600 italic">-</span>
+                                ) : (
+                                  t.form.map((res: "V" | "E" | "D", idx: number) => {
+                                    let badgeStyle = "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
+                                    if (res === "E") badgeStyle = "bg-amber-500/20 text-amber-300 border-amber-500/40";
+                                    if (res === "D") badgeStyle = "bg-rose-500/20 text-rose-400 border-rose-500/40";
+
+                                    return (
+                                      <span
+                                        key={idx}
+                                        className={`size-4 rounded-md border text-[9px] font-black flex items-center justify-center ${badgeStyle}`}
+                                        title={res === "V" ? "Victoria" : res === "E" ? "Empate" : "Derrota"}
+                                      >
+                                        {res}
+                                      </span>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(activeTab === "squad" || activeTab === "rival") && (
+        <div className="space-y-6">
       <div className="bg-card p-4 rounded-xl border border-border flex flex-col md:flex-row gap-4 items-center justify-between shadow-md">
         <div className="relative w-full md:max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
