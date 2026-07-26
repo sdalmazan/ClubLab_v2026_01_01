@@ -130,6 +130,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const supabaseAdmin = createAdminClient();
     const supabase = await createServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -170,6 +171,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const supabaseAdmin = createAdminClient();
     const supabase = await createServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
