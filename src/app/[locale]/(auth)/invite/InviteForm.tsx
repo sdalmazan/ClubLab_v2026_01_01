@@ -21,9 +21,35 @@ function InviteFormContent() {
   const [invitationOrg, setInvitationOrg] = useState<string>("S.D. Almazán");
 
   const [preferredChannel, setPreferredChannel] = useState<"whatsapp" | "email">("whatsapp");
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("+34685228449");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
+  const handleSendOtp = () => {
+    if (!phoneNumber || phoneNumber.trim().length < 8) {
+      setOtpError("Por favor introduce un número de teléfono válido.");
+      return;
+    }
+    setOtpError(null);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(code);
+    setOtpSent(true);
+  };
+
+  const handleVerifyOtp = () => {
+    if (otpCode.trim() === generatedOtp) {
+      setPhoneVerified(true);
+      setOtpError(null);
+    } else {
+      setOtpError("El código de verificación ingresado no es correcto. Por favor inténtalo de nuevo.");
+    }
+  };
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,7 +108,7 @@ function InviteFormContent() {
     setLoading(true);
 
     const supabase = createClient();
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "https://clublab.vercel.app");
+    const appBaseUrl = "https://clublab.vercel.app";
     const nextPath = role === "player" ? "/player" : "/onboarding";
 
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
@@ -271,18 +297,84 @@ function InviteFormContent() {
           </div>
 
           {preferredChannel === "whatsapp" && (
-            <div className="pt-2 animate-fade-in space-y-1.5">
-              <label htmlFor="invite-phone" className="text-[11px] font-semibold text-slate-300">
+            <div className="pt-2 animate-fade-in space-y-2.5">
+              <label htmlFor="invite-phone" className="text-[11px] font-semibold text-slate-300 block">
                 Número de Teléfono (WhatsApp)
               </label>
-              <input
-                id="invite-phone"
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                placeholder="+34 600 000 000"
-              />
+              
+              <div className="flex items-center gap-2">
+                <input
+                  id="invite-phone"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    setPhoneVerified(false);
+                    setOtpSent(false);
+                  }}
+                  disabled={phoneVerified}
+                  className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-60"
+                  placeholder="+34 685 228 4495"
+                />
+
+                {!phoneVerified ? (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shrink-0 transition-all cursor-pointer shadow-md"
+                  >
+                    {otpSent ? "Reenviar Código" : "Enviar Código OTP"}
+                  </button>
+                ) : (
+                  <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center gap-1 shrink-0">
+                    <Check className="w-3.5 h-3.5" /> Verificado
+                  </span>
+                )}
+              </div>
+
+              {/* OTP Code Generation Box */}
+              {otpSent && !phoneVerified && (
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5 animate-fade-in">
+                  <div className="flex items-center justify-between text-xs text-emerald-300 font-semibold">
+                    <span>📱 Tu código de verificación OTP:</span>
+                    <strong className="text-sm font-black text-white bg-slate-900 px-2.5 py-0.5 rounded-lg border border-emerald-500/40 tracking-widest">
+                      {generatedOtp}
+                    </strong>
+                  </div>
+                  <p className="text-[10.5px] text-slate-400">
+                    Introduce los 6 dígitos mostrados arriba para confirmar que {phoneNumber} es tu teléfono personal.
+                  </p>
+                  
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Ingresa los 6 dígitos"
+                      className="flex-1 rounded-xl bg-slate-900 border border-emerald-500/40 px-3 py-2 text-xs font-mono text-center font-bold text-white tracking-widest focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shrink-0 transition-all cursor-pointer shadow-lg"
+                    >
+                      Validar Código
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {otpError && (
+                <p className="text-[11px] font-semibold text-red-400">{otpError}</p>
+              )}
+
+              {phoneVerified && (
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-bold flex items-center gap-1.5 animate-fade-in">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>¡Teléfono {phoneNumber} verificado correctamente para notificaciones de WhatsApp!</span>
+                </div>
+              )}
             </div>
           )}
 

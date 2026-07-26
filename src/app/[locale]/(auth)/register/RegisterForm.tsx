@@ -66,7 +66,7 @@ function RegisterFormContent() {
     setLoading(true);
 
     const supabase = createClient();
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "https://clublab.vercel.app");
+    const appBaseUrl = "https://clublab.vercel.app";
     const nextPath = role === "player" ? "/player" : "/onboarding";
 
     const { data: authData, error: signUpError } = await supabase.auth.signUp({

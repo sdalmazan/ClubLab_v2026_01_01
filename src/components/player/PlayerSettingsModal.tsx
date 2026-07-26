@@ -145,42 +145,127 @@ export function PlayerSettingsModal({ isOpen, onClose }: PlayerSettingsModalProp
         {/* Form Body */}
         <form onSubmit={handleSave} className="p-4 space-y-4">
           {activeTab === "profile" && (
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                  Nombre Deportivo
-                </label>
-                <input
-                  type="text"
-                  value={sportingName}
-                  onChange={(e) => setSportingName(e.target.value)}
-                  className="w-full p-3.5 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
-                />
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                    Nombre Deportivo / Apodo
+                  </label>
+                  <input
+                    type="text"
+                    value={sportingName}
+                    onChange={(e) => setSportingName(e.target.value)}
+                    placeholder="Ej. Diego C."
+                    className="w-full p-3 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                    Fecha de Nacimiento
+                  </label>
+                  <input
+                    type="date"
+                    value="2001-05-14"
+                    onChange={() => {}}
+                    className="w-full p-3 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                    Pie Dominante
+                  </label>
+                  <select
+                    defaultValue="Diestro"
+                    className="w-full p-3 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="Diestro">Diestro</option>
+                    <option value="Zurdo">Zurdo</option>
+                    <option value="Ambidiestro">Ambidiestro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                    Posición Principal
+                  </label>
+                  <select
+                    defaultValue="Mediocentro"
+                    className="w-full p-3 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="Portero">Portero</option>
+                    <option value="Central">Defensa Central</option>
+                    <option value="Lateral Derecho">Lateral Derecho</option>
+                    <option value="Lateral Izquierdo">Lateral Izquierdo</option>
+                    <option value="Mediocentro">Mediocentro / Pivote</option>
+                    <option value="Mediapunta">Mediapunta / Interior</option>
+                    <option value="Extremo Derecho">Extremo Derecho</option>
+                    <option value="Extremo Izquierdo">Extremo Izquierdo</option>
+                    <option value="Delantero Centro">Delantero Centro</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
                     Altura (cm)
                   </label>
                   <input
                     type="number"
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
-                    className="w-full p-3.5 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
+                    className="w-full p-2.5 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                  <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
                     Peso (kg)
                   </label>
                   <input
                     type="number"
                     value={weight}
                     onChange={(e) => setWeight(e.target.value)}
-                    className="w-full p-3.5 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
+                    className="w-full p-2.5 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
                   />
                 </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
+                    Dorsal Preferido
+                  </label>
+                  <input
+                    type="number"
+                    defaultValue="8"
+                    className="w-full p-2.5 rounded-2xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Injury & Medical History Button inside Profile */}
+              <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between mt-2">
+                <div>
+                  <span className="text-xs font-bold text-foreground block">🩺 Histórico Lesional y Salud</span>
+                  <span className="text-[10.5px] text-muted-foreground block">Añade o consulta tus antecedentes médicos</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    // Small delay to allow modal transition
+                    setTimeout(() => {
+                      const btn = document.querySelector('[data-open-injury-modal]') as HTMLButtonElement;
+                      if (btn) btn.click();
+                    }, 200);
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shrink-0"
+                >
+                  Gestionar
+                </button>
               </div>
             </div>
           )}
