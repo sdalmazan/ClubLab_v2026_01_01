@@ -28,6 +28,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
+import { formatToDDMMAAAA } from "@/lib/utils";
 
 interface Match {
   id: string;
@@ -669,7 +670,7 @@ export default function MatchesPage() {
             activeTab === "stats" ? "text-primary font-extrabold" : "text-slate-500 hover:text-slate-300"
           }`}
         >
-          🏆 Ranking Plantilla (Goles & Asistencias)
+          Ranking Plantilla (Goles & Asistencias)
           {activeTab === "stats" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
           )}
@@ -703,7 +704,7 @@ export default function MatchesPage() {
             activeTab === "standings" ? "text-primary font-extrabold" : "text-slate-500 hover:text-slate-300"
           }`}
         >
-          📆 Calendario y Clasificación Completa
+          Calendario y Clasificación
           {activeTab === "standings" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
           )}
@@ -1523,14 +1524,17 @@ export default function MatchesPage() {
                   <h3 className="text-sm font-black text-white tracking-tight flex items-center gap-2">
                     <span>Encuentros Jornada {navMatchday}</span>
                     <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">
-                      {matches.filter((m) => m.matchday === navMatchday).length} Partidos
+                      {(standingsData?.matches || matches.filter((m) => m.matchday === navMatchday)).length} Partidos
                     </span>
                   </h3>
                 </div>
 
                 <div className="space-y-2.5">
                   {(() => {
-                    const jMatches = matches.filter((m) => m.matchday === navMatchday);
+                    const jMatches = (standingsData?.matches && standingsData.matches.length > 0)
+                      ? standingsData.matches
+                      : matches.filter((m) => m.matchday === navMatchday);
+
                     if (jMatches.length === 0) {
                       return (
                         <div className="text-center py-12 text-slate-500 text-xs italic">
@@ -1539,14 +1543,14 @@ export default function MatchesPage() {
                       );
                     }
 
-                    return jMatches.map((m) => {
+                    return jMatches.map((m: any) => {
                       const isHomeAlmazan = m.home_team.toLowerCase().includes("almazán") || m.home_team.toLowerCase().includes("almazan");
                       const isAwayAlmazan = m.away_team.toLowerCase().includes("almazán") || m.away_team.toLowerCase().includes("almazan");
-                      const played = m.home_score !== null && m.away_score !== null;
+                      const played = m.home_score !== null && m.away_score !== null && m.home_score >= 0 && m.away_score >= 0;
 
                       return (
                         <div
-                          key={m.id}
+                          key={m.id || `${m.home_team}-${m.away_team}`}
                           className={`p-3.5 rounded-xl border transition-all space-y-2 ${
                             isHomeAlmazan || isAwayAlmazan
                               ? "bg-emerald-950/30 border-emerald-500/40 shadow-lg shadow-emerald-950/20"
@@ -1566,7 +1570,7 @@ export default function MatchesPage() {
                                   {m.home_score} - {m.away_score}
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">
+                                <span className="text-[10px] font-bold text-slate-400 bg-white/5 px-2 py-0.5 rounded border border-white/10 uppercase tracking-wider">
                                   vs
                                 </span>
                               )}
@@ -1579,7 +1583,10 @@ export default function MatchesPage() {
                           </div>
 
                           <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
-                            <span>📅 {m.match_date || "Por definir"}</span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="size-3 text-slate-500" />
+                              {m.match_date ? formatToDDMMAAAA(m.match_date) : "Por definir"}
+                            </span>
                             {played && (
                               <button
                                 onClick={() => fetchMatchDetail(m.id)}
@@ -1675,14 +1682,14 @@ export default function MatchesPage() {
                                   <span className="text-[9px] text-slate-600 italic">-</span>
                                 ) : (
                                   t.form.map((res: "V" | "E" | "D", idx: number) => {
-                                    let badgeStyle = "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
-                                    if (res === "E") badgeStyle = "bg-amber-500/20 text-amber-300 border-amber-500/40";
-                                    if (res === "D") badgeStyle = "bg-rose-500/20 text-rose-400 border-rose-500/40";
+                                    let badgeStyle = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                                    if (res === "E") badgeStyle = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                                    if (res === "D") badgeStyle = "bg-rose-500/10 text-rose-400 border-rose-500/20";
 
                                     return (
                                       <span
                                         key={idx}
-                                        className={`size-4 rounded-md border text-[9px] font-black flex items-center justify-center ${badgeStyle}`}
+                                        className={`size-5 rounded-full border text-[9px] font-bold flex items-center justify-center ${badgeStyle}`}
                                         title={res === "V" ? "Victoria" : res === "E" ? "Empate" : "Derrota"}
                                       >
                                         {res}
@@ -1818,6 +1825,8 @@ export default function MatchesPage() {
             </table>
           </div>
         </div>
+      )}
+      </div>
       )}
 
       {/* MATCH DETAILS AND OVERRIDES MODAL */}

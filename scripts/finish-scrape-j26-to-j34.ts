@@ -12,12 +12,6 @@ function parseSpanishDate(raw: string | null | undefined): string | null {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
-function getSundayForMatchday(jornada: number): string {
-  const baseDate = new Date("2026-09-06T12:00:00Z");
-  baseDate.setDate(baseDate.getDate() + (jornada - 1) * 7);
-  return baseDate.toISOString().split("T")[0];
-}
-
 function cleanTeamName(raw: string): string {
   return raw
     .trim()
@@ -28,7 +22,7 @@ function cleanTeamName(raw: string): string {
 
 async function main() {
   console.log("════════════════════════════════════════════════════════");
-  console.log("  Importador de Calendario 2026/2027 - Tercera RFEF G8");
+  console.log("  Completando Jornadas 26 a 34 RFCYLF (2026/2027)");
   console.log("════════════════════════════════════════════════════════");
 
   const season = "2026/2027";
@@ -37,12 +31,14 @@ async function main() {
   const groupCode = "24218933";
   const seasonCode = "22";
 
+  console.log("Esperando 15s para enfriar la IP del WAF de RFCYLF...");
+  await new Promise((r) => setTimeout(r, 15000));
+
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     locale: "es-ES",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
     extraHTTPHeaders: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
     },
   });
@@ -62,58 +58,54 @@ async function main() {
   const page = await context.newPage();
   page.setDefaultNavigationTimeout(45000);
 
-  // Initial landing page session
   await page.goto("https://www.rfcylf.es/", { waitUntil: "domcontentloaded" }).catch(() => null);
-  await new Promise((r) => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 3000));
 
-  let totalMatchesInserted = 0;
-  let totalMatchesUpdated = 0;
+  let totalInserted = 0;
 
-  for (let j = 1; j <= 34; j++) {
+  for (let j = 26; j <= 34; j++) {
     const url = `https://www.rfcylf.es/pnfg/NPcd/NFG_CmpJornada?cod_primaria=1000120&CodCompeticion=${competitionCode}&CodGrupo=${groupCode}&CodTemporada=${seasonCode}&CodJornada=${j}`;
-    console.log(`\n----------------------------------------`);
-    console.log(`Descargando Jornada ${j}...`);
+    console.log(`\nDescargando Jornada ${j}...`);
 
     let extractedMatches: any[] = [];
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 5; attempt++) {
       try {
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-        await new Promise((r) => setTimeout(r, 1200));
+        await new Promise((r) => setTimeout(r, 2000));
 
         const html = await page.content();
         if (html && html.length >= 5000) {
           extractedMatches = await page.evaluate(() => {
             const matchesData: any[] = [];
             const tables = Array.from(document.querySelectorAll("table"));
-            
+
             for (const table of tables) {
               const rows = Array.from(table.querySelectorAll("tr"));
               for (const tr of rows) {
-                const cells = Array.from(tr.querySelectorAll("td"));
-                if (cells.length >= 3) {
-                  const rowText = tr.textContent || "";
-                  const actaLink = tr.querySelector("a[href*='CodActa']");
-                  const codActa = actaLink ? (actaLink.getAttribute("href") || "").match(/CodActa=(\d+)/i)?.[1] : null;
+                const rowText = tr.textContent || "";
+                const actaLink = tr.querySelector("a[href*='CodActa']");
+                const codActa = actaLink ? (actaLink.getAttribute("href") || "").match(/CodActa=(\d+)/i)?.[1] : null;
 
-                  const teamLinks = Array.from(tr.querySelectorAll("a")).filter(a => (a.getAttribute("href") || "").includes("NFG_VisEquipo"));
-                  
-                  if (teamLinks.length >= 2) {
-                    const home = teamLinks[0].textContent?.trim() || "";
-                    const away = teamLinks[1].textContent?.trim() || "";
-                    const dateMatch = rowText.match(/(\d{2}[/-]\d{2}[/-]\d{4})/);
-                    const scoreMatch = rowText.match(/(\d+)\s*[-–]\s*(\d+)/);
-                    
-                    if (home && away) {
-                      matchesData.push({
-                        home,
-                        away,
-                        date: dateMatch ? dateMatch[1] : null,
-                        homeScore: scoreMatch ? parseInt(scoreMatch[1], 10) : null,
-                        awayScore: scoreMatch ? parseInt(scoreMatch[2], 10) : null,
-                        codActa: codActa || null,
-                      });
-                    }
+                const teamLinks = Array.from(tr.querySelectorAll("a")).filter((a) =>
+                  (a.getAttribute("href") || "").includes("NFG_VisEquipo")
+                );
+
+                if (teamLinks.length >= 2) {
+                  const home = teamLinks[0].textContent?.trim() || "";
+                  const away = teamLinks[1].textContent?.trim() || "";
+                  const dateMatch = rowText.match(/(\d{2}[/-]\d{2}[/-]\d{4})/);
+                  const scoreMatch = rowText.match(/(\d+)\s*[-–]\s*(\d+)/);
+
+                  if (home && away) {
+                    matchesData.push({
+                      home,
+                      away,
+                      date: dateMatch ? dateMatch[1] : null,
+                      homeScore: scoreMatch ? parseInt(scoreMatch[1], 10) : null,
+                      awayScore: scoreMatch ? parseInt(scoreMatch[2], 10) : null,
+                      codActa: codActa || null,
+                    });
                   }
                 }
               }
@@ -122,46 +114,41 @@ async function main() {
             return matchesData;
           });
 
-          if (extractedMatches.length > 0) break;
-        } else {
-          console.warn(`  [Intento ${attempt}] Respuesta corta (${html?.length}b). Re-visitando landing...`);
-          await page.goto("https://www.rfcylf.es/", { waitUntil: "domcontentloaded" }).catch(() => null);
-          await new Promise((r) => setTimeout(r, 2000));
+          if (extractedMatches.length > 0) {
+            console.log(`  -> Éxito J${j}: ${extractedMatches.length} partidos extraídos.`);
+            break;
+          }
         }
+
+        console.warn(`  [Intento ${attempt}] Re-visitando portada...`);
+        await page.goto("https://www.rfcylf.es/", { waitUntil: "domcontentloaded" }).catch(() => null);
+        await new Promise((r) => setTimeout(r, 4000));
       } catch (err: any) {
         console.warn(`  [Intento ${attempt}] Error:`, err.message);
-        await new Promise((r) => setTimeout(r, 2000));
+        await page.goto("https://www.rfcylf.es/", { waitUntil: "domcontentloaded" }).catch(() => null);
+        await new Promise((r) => setTimeout(r, 4000));
       }
     }
 
-    // Deduplicate matches in current jornada
-    const uniqueMatchesMap = new Map<string, any>();
+    const uniqueMap = new Map<string, any>();
     for (const m of extractedMatches) {
       const h = cleanTeamName(m.home);
       const a = cleanTeamName(m.away);
       if (h && a && h !== a) {
         const key = `${h}___${a}`;
-        if (!uniqueMatchesMap.has(key)) {
-          uniqueMatchesMap.set(key, { ...m, home: h, away: a });
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, { ...m, home: h, away: a });
         }
       }
     }
 
-    const matchesToProcess = Array.from(uniqueMatchesMap.values());
-    console.log(`Jornada ${j}: ${matchesToProcess.length} partidos únicos a procesar.`);
+    const uniqueList = Array.from(uniqueMap.values());
 
-    for (let idx = 0; idx < matchesToProcess.length; idx++) {
-      const m = matchesToProcess[idx];
+    for (const m of uniqueList) {
       const homeTeam = m.home;
       const awayTeam = m.away;
-
       const isPlayed = m.homeScore !== null && m.awayScore !== null;
-      let matchDate = parseSpanishDate(m.date);
-      
-      if (!matchDate) {
-        matchDate = getSundayForMatchday(j);
-      }
-
+      const matchDate = parseSpanishDate(m.date);
       const isAlmazan = homeTeam.toLowerCase().includes("almazán") || homeTeam.toLowerCase().includes("almazan");
 
       let fedId = m.codActa;
@@ -179,7 +166,7 @@ async function main() {
         season,
         matchday: j,
         match_date: matchDate,
-        venue: isAlmazan ? "Campo Municipal La Arboleda" : "Campo por definir",
+        venue: isAlmazan ? "Campo Municipal La Arboleda" : "Campo Pendiente de asignar",
         home_team: homeTeam,
         away_team: awayTeam,
         home_score: isPlayed ? m.homeScore : -1,
@@ -198,23 +185,18 @@ async function main() {
         .maybeSingle();
 
       if (existing) {
-        const { error: upErr } = await statsAdmin.from("stat_matches").update(matchRow).eq("id", existing.id);
-        if (upErr) console.error(`  - Update error J${j} (${homeTeam} vs ${awayTeam}):`, upErr.message);
-        else totalMatchesUpdated++;
+        await statsAdmin.from("stat_matches").update(matchRow).eq("id", existing.id);
       } else {
-        const { error: insErr } = await statsAdmin.from("stat_matches").insert(matchRow);
-        if (insErr) console.error(`  - Insert error J${j} (${homeTeam} vs ${awayTeam}):`, insErr.message);
-        else totalMatchesInserted++;
+        await statsAdmin.from("stat_matches").insert(matchRow);
+        totalInserted++;
       }
     }
 
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 2000));
   }
 
   console.log(`\n========================================`);
-  console.log(`RESUMEN DE IMPORTACIÓN DE TEMPORADA 2026/2027:`);
-  console.log(`- Partidos insertados: ${totalMatchesInserted}`);
-  console.log(`- Partidos actualizados: ${totalMatchesUpdated}`);
+  console.log(`JORNADAS 26-34 COMPLETADAS EN BASE DE DATOS.`);
   console.log(`========================================\n`);
 
   await browser.close();

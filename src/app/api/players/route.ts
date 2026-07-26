@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createPlayer } from "@/services/players";
+import { createPlayer, getSquadPlayers } from "@/services/players";
+
+export async function GET(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const teamId = searchParams.get("teamId") || undefined;
+    const strictTeamOnly = searchParams.get("strict") === "true";
+
+    const players = await getSquadPlayers(teamId, strictTeamOnly);
+    return NextResponse.json({ players });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient();

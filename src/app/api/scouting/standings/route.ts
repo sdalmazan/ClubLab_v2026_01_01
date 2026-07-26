@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     // Find the highest matchday that has at least 1 played match
     let lastPlayedMatchday = 1;
     for (const m of allMatches) {
-      const isPlayed = m.home_score !== null && m.away_score !== null;
+      const isPlayed = m.home_score !== null && m.away_score !== null && Number(m.home_score) >= 0 && Number(m.away_score) >= 0;
       if (isPlayed && m.matchday > lastPlayedMatchday) {
         lastPlayedMatchday = m.matchday;
       }
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
 
     // Process played matches up to targetMatchday
     for (const m of matchesUpToTarget) {
-      const isPlayed = m.home_score !== null && m.away_score !== null;
+      const isPlayed = m.home_score !== null && m.away_score !== null && Number(m.home_score) >= 0 && Number(m.away_score) >= 0;
       if (!isPlayed) continue;
 
       const home = teamStats.get(m.home_team);
@@ -188,12 +188,16 @@ export async function GET(request: Request) {
     // Extract total matchdays (max matchday in dataset, default 34)
     const totalMatchdays = Math.max(34, ...allMatches.map((m: any) => m.matchday || 0));
 
+    // Get fixtures for the selected matchday
+    const matchdayFixtures = allMatches.filter((m: any) => m.matchday === targetMatchday);
+
     return NextResponse.json({
       season,
       competition,
       selectedMatchday: targetMatchday,
       lastPlayedMatchday,
       totalMatchdays,
+      matches: matchdayFixtures,
       standings,
     });
   } catch (err: any) {

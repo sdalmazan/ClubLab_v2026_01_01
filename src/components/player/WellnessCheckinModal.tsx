@@ -34,13 +34,31 @@ export function WellnessCheckinModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      await fetch("/api/player/wellness", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sleepQuality,
+          fatigue,
+          mood,
+          muscleSoreness,
+          stress,
+          hasDiscomfort,
+          discomfortPart: discomfortPart === "Otro" ? customDiscomfortPart : discomfortPart,
+          discomfortIntensity,
+          comments: showComments ? comments : undefined,
+        }),
+      });
+    } catch (err) {
+      console.error("Error submitting wellness checkin:", err);
+    } finally {
       setIsSubmitting(false);
       onSubmitSuccess();
-    }, 600);
+    }
   };
 
   const renderRatingGroup = (

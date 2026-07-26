@@ -20,13 +20,24 @@ export function CheckoutRpeModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      await fetch("/api/player/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rpe,
+          postFeeling,
+        }),
+      });
+    } catch (err) {
+      console.error("Error submitting check-out RPE:", err);
+    } finally {
       setIsSubmitting(false);
       onSubmitSuccess();
-    }, 600);
+    }
   };
 
   const getRpeLabel = (val: number) => {

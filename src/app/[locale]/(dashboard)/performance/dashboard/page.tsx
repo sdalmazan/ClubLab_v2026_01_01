@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PerformanceSubNav } from "@/components/performance/PerformanceSubNav";
 import { ReadinessGrid, type ReadinessPlayer } from "@/components/performance/ReadinessGrid";
 import { PageHeader } from "@/components/ui/page-header";
@@ -48,7 +48,61 @@ const INITIAL_PHYSIO_INBOX: PhysioInboxSuggestion[] = [];
 export default function PerformanceDashboardPage() {
   const [readinessPlayers, setReadinessPlayers] = useState<ReadinessPlayer[]>(INITIAL_READINESS_PLAYERS);
   const [physioInbox, setPhysioInbox] = useState<PhysioInboxSuggestion[]>(INITIAL_PHYSIO_INBOX);
-  
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSquad() {
+      try {
+        setIsLoading(true);
+        const res = await fetch("/api/players");
+        const json = await res.json();
+        if (json.players && Array.isArray(json.players)) {
+          const mapped: ReadinessPlayer[] = json.players.map((p: any) => {
+            const rawName = p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Futbolista";
+            const typeLabel = p.membership?.player_type === "reserve" 
+              ? " [Filial]" 
+              : p.membership?.player_type === "youth" 
+              ? " [Juvenil]" 
+              : "";
+            const fullName = `${rawName}${typeLabel}`;
+            
+            const hasInjury = !!p.active_injury;
+            const readinessState: "ready" | "adapted" | "unavailable" = hasInjury
+              ? (p.active_injury.status === "readaptation" ? "adapted" : "unavailable")
+              : (p.physical_status === "red" ? "unavailable" : p.physical_status === "yellow" ? "adapted" : "ready");
+
+            const latestW = p.latest_wellness;
+            const sleep = latestW?.sleep_quality ?? 4;
+            const fatigue = latestW?.fatigue ?? 2;
+            const mood = latestW?.mood ?? 4;
+            const muscle = latestW?.muscle_soreness ?? 1;
+            const stress = latestW?.stress ?? 2;
+            const wellnessScore = (sleep + (6 - fatigue) + mood + (6 - muscle) + (6 - stress));
+
+            return {
+              id: p.id,
+              name: fullName,
+              position: p.membership?.positions?.[0] || "Futbolista",
+              jerseyNumber: p.membership?.jersey_number || undefined,
+              readinessState,
+              wellnessScore,
+              acwrRatio: p.acwr_ratio || 1.0,
+              targetMinutes: readinessState === "ready" ? 90 : readinessState === "adapted" ? 45 : 0,
+              restrictionNote: p.active_injury ? `${p.active_injury.body_part} (${p.active_injury.severity || 'Molestia'})` : undefined,
+              physioNote: latestW?.localized_discomfort || undefined,
+            };
+          });
+          setReadinessPlayers(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load readiness players:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSquad();
+  }, []);
+
   const ruleEngine = new RuleEngineProvider();
 
   // Handlers for Target Minutes

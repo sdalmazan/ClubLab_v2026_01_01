@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { PerformanceSubNav } from "@/components/performance/PerformanceSubNav";
 import { 
   Activity, 
@@ -51,12 +51,32 @@ interface HolisticPlayerRecord {
   completedWellnessToday: boolean;
 }
 
-const INITIAL_HOLISTIC_ROSTER: HolisticPlayerRecord[] = [];
+function formatPositionLabel(posKey?: string): string {
+  if (!posKey) return "Futbolista";
+  switch (posKey) {
+    case "goalkeeper": return "POR";
+    case "left_back": return "LI";
+    case "right_back": return "LD";
+    case "left_center_back":
+    case "right_center_back": return "DFC";
+    case "defensive_midfielder": return "MCD";
+    case "central_midfielder":
+    case "playmaker_midfielder": return "MC";
+    case "attacking_midfielder": return "MCO";
+    case "left_winger": return "EI";
+    case "right_winger": return "ED";
+    case "second_striker": return "SD";
+    case "striker": return "DC";
+    default: return posKey.toUpperCase();
+  }
+}
 
+const INITIAL_HOLISTIC_ROSTER: HolisticPlayerRecord[] = [];
 
 export default function PerformanceMonitoringPage() {
   const [activeTab, setActiveTab] = useState<"matrix360" | "wellness_weight">("matrix360");
   const [roster, setRoster] = useState<HolisticPlayerRecord[]>(INITIAL_HOLISTIC_ROSTER);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   
   // GPS Import Modal state
@@ -67,6 +87,70 @@ export default function PerformanceMonitoringPage() {
 
   // Selected Player 360 Dossier Modal
   const [dossierPlayer, setDossierPlayer] = useState<HolisticPlayerRecord | null>(null);
+
+  useEffect(() => {
+    async function loadSquad() {
+      try {
+        setIsLoading(true);
+        const res = await fetch("/api/players");
+        const json = await res.json();
+        if (json.players && Array.isArray(json.players)) {
+          const mapped: HolisticPlayerRecord[] = json.players.map((p: any) => {
+            const rawName = p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Futbolista";
+            const typeLabel = p.membership?.player_type === "reserve" 
+              ? " [Filial]" 
+              : p.membership?.player_type === "youth" 
+              ? " [Juvenil]" 
+              : "";
+            const fullName = `${rawName}${typeLabel}`;
+            const pos = formatPositionLabel(p.membership?.positions?.[0]);
+            
+            const hasInjury = !!p.active_injury;
+            const injuryStatus: "apto" | "rtp" | "baja" = hasInjury
+              ? (p.active_injury.status === "readaptation" ? "rtp" : "baja")
+              : (p.physical_status === "red" ? "baja" : p.physical_status === "yellow" ? "rtp" : "apto");
+
+            const latestW = p.latest_wellness;
+            const completedWellnessToday = !!latestW;
+
+            const sleep = latestW?.sleep_quality ?? 4;
+            const fatigue = latestW?.fatigue ?? 2;
+            const mood = latestW?.mood ?? 4;
+            const muscle = latestW?.muscle_soreness ?? 1;
+            const stress = latestW?.stress ?? 2;
+            const wellnessScore = (sleep + (6 - fatigue) + mood + (6 - muscle) + (6 - stress));
+
+            return {
+              id: p.id,
+              name: fullName,
+              position: pos,
+              jerseyNumber: p.membership?.jersey_number || undefined,
+              injuryStatus,
+              injuryDetail: p.active_injury ? `${p.active_injury.body_part} (${p.active_injury.severity || 'Activa'})` : p.availability_notes || undefined,
+              discomfortNote: latestW?.discomfort_body_part || latestW?.localized_discomfort || undefined,
+              wellnessScore,
+              sleepQuality: sleep,
+              fatigueLevel: fatigue,
+              gpsDistanceKm: p.gps_distance_km || 0,
+              hsrDistanceM: p.hsr_distance_m || 0,
+              sprintsCount: p.sprints_count || 0,
+              acwrRatio: p.acwr_ratio || 1.0,
+              bodyFatPercentage: p.height_cm ? Math.round((p.weight_kg || 75) / Math.pow(p.height_cm / 100, 2) * 10) / 10 : 11.5,
+              weightKg: p.weight_kg || 74.0,
+              weightDiffKg: 0,
+              completedWellnessToday,
+            };
+          });
+          setRoster(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load squad for performance monitoring:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSquad();
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

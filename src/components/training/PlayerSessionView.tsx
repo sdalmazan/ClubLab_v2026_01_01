@@ -16,7 +16,8 @@ import {
   CheckCircle,
   HelpCircle,
   Monitor,
-  Smartphone
+  Smartphone,
+  Lock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,73 @@ export function PlayerSessionView({
 
   const sessionStatus: "planned" | "completed" | "cancelled" = session.status || "planned";
   const playerCallStatus: "called" | "not_called" | "pending" = "called";
+
+  // Check 2-hour pre-start lock for group training sessions ("training")
+  const isGroupTraining = session.session_type === "training";
+  const dateStr = session.date || "";
+  const rawTimeStr = session.start_time || "10:00:00";
+  const timeStr = rawTimeStr.length === 5 ? `${rawTimeStr}:00` : rawTimeStr;
+  const sessionStartMs = dateStr ? new Date(`${dateStr}T${timeStr}`).getTime() : 0;
+  const twoHoursBeforeMs = sessionStartMs ? sessionStartMs - (2 * 60 * 60 * 1000) : 0;
+  const isLockedForPlayers = isGroupTraining && sessionStartMs > 0 && Date.now() < twoHoursBeforeMs;
+
+  if (isLockedForPlayers) {
+    const openObj = new Date(twoHoursBeforeMs);
+    const openTimeStr = openObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const openDateStr = openObj.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+
+    return (
+      <div className="bg-slate-950 text-white min-h-screen pb-16 flex flex-col font-sans">
+        <div className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/90 border-b border-slate-800 px-4 md:px-8 py-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 cursor-pointer"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="text-xs font-bold text-slate-300">Ficha de Entrenamiento</span>
+          <div className="w-9" />
+        </div>
+
+        <div className="p-4 md:p-8 max-w-xl mx-auto w-full my-auto space-y-6 text-center">
+          <div className="size-16 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mx-auto">
+            <Lock className="size-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-extrabold text-white">
+              Contenido Reservado Hasta 2 Horas Antes
+            </h2>
+            <p className="text-slate-400 text-xs leading-relaxed max-w-md mx-auto">
+              Por política de preparación del cuerpo técnico, los contenidos y ejercicios de la sesión de entrenamiento grupal estarán disponibles para la plantilla <strong>2 horas antes de su inicio</strong>.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5 text-xs text-left">
+            <div className="flex justify-between items-center text-slate-400 pb-2 border-b border-slate-800">
+              <span className="font-semibold">Apertura para jugadores:</span>
+              <span className="font-extrabold text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
+                {openTimeStr} hs ({openDateStr})
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-slate-400">
+              <span>Sesión:</span>
+              <span className="font-bold text-white">{title}</span>
+            </div>
+            <div className="flex justify-between items-center text-slate-400">
+              <span>Inicio de entrenamiento:</span>
+              <span className="font-bold text-slate-200">{startTime} hs</span>
+            </div>
+            <div className="flex justify-between items-center text-slate-400">
+              <span>Lugar:</span>
+              <span className="font-bold text-slate-200">{facilityNames}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-slate-950 text-white min-h-screen pb-16 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-white">

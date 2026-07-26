@@ -195,6 +195,15 @@ export default async function DashboardPage({
     });
   }
 
+  // Real Check-in & Check-out statistics
+  const completedCheckinsCount = players.filter((p: any) => !!p.latest_wellness).length;
+  const checkinPct = totalPlayers > 0 ? Math.round((completedCheckinsCount / totalPlayers) * 100) : 0;
+  const pendingCheckinCount = totalPlayers - completedCheckinsCount;
+
+  const completedCheckoutsCount = players.filter((p: any) => !!p.latest_rpe).length;
+  const checkoutPct = totalPlayers > 0 ? Math.round((completedCheckoutsCount / totalPlayers) * 100) : 0;
+  const pendingCheckoutCount = totalPlayers - completedCheckoutsCount;
+
   return (
     <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto">
       {/* ── Standard PageHeader ── */}
@@ -207,29 +216,14 @@ export default async function DashboardPage({
           Nueva Sesión
         </Link>
       </PageHeader>
-      {/* ── CHECK-IN / CHECK-OUT STATUS WIDGET (MOBILE-FIRST PARA EL ENTRENADOR) ── */}
-      <div className="bg-slate-900 border border-white/10 rounded-2xl p-4 md:p-5 space-y-3 text-white shadow-xl">
-        <div className="flex items-center justify-between">
+      {/* ── CHECK-IN / CHECK-OUT STATUS WIDGET (MONITORIZACIÓN DUAL EN TIEMPO REAL) ── */}
+      <div className="bg-slate-900 border border-white/10 rounded-2xl p-4 md:p-5 space-y-4 text-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-black uppercase tracking-wider text-emerald-400">
-              Check-in Pre-Entrenamiento Abierto
+            <span className="text-xs font-black uppercase tracking-wider text-slate-200">
+              Control de Asistencia & Cuestionarios Diarios
             </span>
-          </div>
-          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase">
-            18 / 22 Completados (81%)
-          </span>
-        </div>
-
-        {/* Mobile Progress Bar */}
-        <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-          <div className="bg-emerald-400 h-full transition-all duration-500" style={{ width: "81%" }} />
-        </div>
-
-        <div className="flex items-center justify-between text-xs text-slate-300 flex-wrap gap-2 pt-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-slate-400 font-medium">Pendientes por responder:</span>
-            <span className="text-xs font-bold text-emerald-400">Ninguno (Al día)</span>
           </div>
           <Link
             href="/performance/monitoring"
@@ -238,6 +232,50 @@ export default async function DashboardPage({
             <span>Ver Monitorización Completa</span>
             <ChevronRight className="size-3" />
           </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 1. CHECK-IN PRE-ENTRENAMIENTO */}
+          <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
+                Check-in Pre-Entrenamiento
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                {completedCheckinsCount} / {totalPlayers} ({checkinPct}%)
+              </span>
+            </div>
+            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+              <div className="bg-emerald-400 h-full transition-all duration-500" style={{ width: `${checkinPct}%` }} />
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-400">Pendientes:</span>
+              <span className={`font-bold ${pendingCheckinCount === 0 ? "text-emerald-400" : "text-amber-400"}`}>
+                {pendingCheckinCount === 0 ? "Ninguno (Al día)" : `${pendingCheckinCount} futbolistas`}
+              </span>
+            </div>
+          </div>
+
+          {/* 2. CHECK-OUT POST-ENTRENAMIENTO (RPE) */}
+          <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-400">
+                Check-out Post-Entrenamiento (RPE)
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                {completedCheckoutsCount} / {totalPlayers} ({checkoutPct}%)
+              </span>
+            </div>
+            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+              <div className="bg-sky-400 h-full transition-all duration-500" style={{ width: `${checkoutPct}%` }} />
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-400">Pendientes:</span>
+              <span className={`font-bold ${pendingCheckoutCount === 0 ? "text-emerald-400" : "text-sky-400"}`}>
+                {pendingCheckoutCount === 0 ? "Ninguno (Al día)" : `${pendingCheckoutCount} futbolistas`}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 

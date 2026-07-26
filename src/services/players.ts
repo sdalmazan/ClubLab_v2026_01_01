@@ -76,10 +76,10 @@ export interface UpdatePlayerInput {
  * Get all players in the current organisation with their
  * active team membership, latest wellness and injury status.
  */
-export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMembership[]> {
+export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean = false): Promise<PlayerWithMembership[]> {
   const supabase = await createClient();
 
-  let query = supabase
+  const query = supabase
     .from("players")
     .select(`
       *,
@@ -93,13 +93,7 @@ export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMember
         id, status, body_part, severity
       )
     `)
-    .in("player_team_memberships.status", ["active", "inactive"])
-    .in("injuries.status", ["active", "readaptation"])
     .order("last_name", { ascending: true });
-
-  if (teamId) {
-    query = query.eq("player_team_memberships.team_id", teamId);
-  }
 
   const { data, error } = await query;
 
@@ -114,11 +108,46 @@ export async function getSquadPlayers(teamId?: string): Promise<PlayerWithMember
     active_injury: Array.isArray(p.active_injury) ? p.active_injury[0] : p.active_injury,
   }));
 
-  if (teamId) {
-    return mappedPlayers.filter((p) => p.membership?.team_id === teamId);
+  // Fetch today's wellness and rpe entries to attach latest_wellness and latest_rpe
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: todayWellness } = await supabase
+    .from("wellness_entries")
+    .select("*")
+    .eq("date", todayStr);
+
+  const { data: todayCheckins } = await supabase
+    .from("player_wellness_checkins")
+    .select("*")
+    .eq("date", todayStr);
+
+  const { data: todayRpe } = await supabase
+    .from("rpe_entries")
+    .select("*")
+    .eq("date", todayStr);
+
+  const wellnessMap = new Map<string, any>();
+  (todayWellness ?? []).forEach((w: any) => wellnessMap.set(w.player_id, w));
+  (todayCheckins ?? []).forEach((c: any) => {
+    if (!wellnessMap.has(c.player_id)) {
+      wellnessMap.set(c.player_id, c);
+    }
+  });
+
+  const rpeMap = new Map<string, any>();
+  (todayRpe ?? []).forEach((r: any) => rpeMap.set(r.player_id, r));
+
+  const playersWithWellnessAndRpe = mappedPlayers.map((p) => ({
+    ...p,
+    latest_wellness: wellnessMap.get(p.id) || null,
+    latest_rpe: rpeMap.get(p.id) || null,
+  }));
+
+  if (teamId && strictTeamOnly) {
+    return playersWithWellnessAndRpe.filter((p) => p.membership?.team_id === teamId);
   }
 
-  return mappedPlayers;
+  // Return all squad players (main team + filial/juvenil/reserve)
+  return playersWithWellnessAndRpe;
 }
 
 /**
