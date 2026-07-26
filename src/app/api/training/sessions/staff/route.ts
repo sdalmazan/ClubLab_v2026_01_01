@@ -57,7 +57,7 @@ export async function GET() {
         })).filter((u) => {
           const email = u.email?.toLowerCase() || "";
           const name = u.name?.toLowerCase() || "";
-          return email !== "diego.ciria.lopez@gmail.com" && email !== "diecilo7@gmail.com" && !name.includes("diego ciria");
+          return email !== "diecilo7@gmail.com" && !name.includes("diego ciria");
         })
       );
     }
@@ -73,7 +73,7 @@ export async function GET() {
     }).filter((u) => {
       const email = u.email?.toLowerCase() || "";
       const name = u.name?.toLowerCase() || "";
-      return email !== "diego.ciria.lopez@gmail.com" && email !== "diecilo7@gmail.com" && !name.includes("diego ciria");
+      return email !== "diecilo7@gmail.com" && !name.includes("diego ciria");
     });
 
     return NextResponse.json(matchedUsers);

@@ -4,14 +4,27 @@ import { statsAdmin } from "@/lib/supabase/stats-admin";
 
 export const dynamic = "force-dynamic";
 
-function inferPosition(shirtNumber: number | null, goals: number, name: string): string {
-  if (shirtNumber === 1 || shirtNumber === 13 || shirtNumber === 25) {
+function inferPosition(
+  existingPos: string | null | undefined,
+  shirtNumber: number | null,
+  goals: number,
+  name: string
+): string {
+  if (existingPos) {
+    const p = existingPos.toLowerCase().trim();
+    if (["goalkeeper", "portero", "por", "pt", "gk"].includes(p)) return "goalkeeper";
+    if (["back", "defensa", "defender", "df", "lat", "cen", "ct", "cb", "lb", "rb"].includes(p)) return "back";
+    if (["midfielder", "centrocampista", "med", "mc", "piv", "vol"].includes(p)) return "midfielder";
+    if (["striker", "forward", "winger", "delantero", "extremo", "del", "ext", "fw"].includes(p)) return "striker";
+  }
+
+  if (shirtNumber && [1, 12, 13, 22, 25].includes(shirtNumber)) {
     return "goalkeeper";
   }
-  if (shirtNumber && [2, 3, 4, 5, 12, 15, 17, 18, 26, 27, 28].includes(shirtNumber)) {
+  if (shirtNumber && [2, 3, 4, 5, 15, 17, 18, 26, 27, 28].includes(shirtNumber)) {
     return "back";
   }
-  if (shirtNumber && [6, 8, 10, 14, 16, 20, 21, 22].includes(shirtNumber)) {
+  if (shirtNumber && [6, 8, 10, 14, 16, 20, 21].includes(shirtNumber)) {
     return "midfielder";
   }
   if (shirtNumber && [7, 9, 11, 19, 23, 24].includes(shirtNumber)) {
@@ -26,7 +39,7 @@ function inferPosition(shirtNumber: number | null, goals: number, name: string):
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const posArr = ["back", "midfielder", "winger", "striker"];
+  const posArr = ["goalkeeper", "back", "midfielder", "winger", "striker"];
   return posArr[Math.abs(hash) % posArr.length];
 }
 
@@ -67,7 +80,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const hasScoutingAccess = plan === "performance" || plan === "academy" || orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com" || user.email === "diego.ciria.lopez@gmail.com";
+    const hasScoutingAccess = plan === "performance" || plan === "academy" || orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com";
 
     // Extract search query params
     const { searchParams } = new URL(request.url);
@@ -94,7 +107,7 @@ export async function GET(request: Request) {
     }
 
     // Block non-premium (free) plans from querying historical seasons of their own team
-    const isPremium = plan === "performance" || plan === "academy" || orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com" || user.email === "diego.ciria.lopez@gmail.com";
+    const isPremium = plan === "performance" || plan === "academy" || orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com";
     
     // Fetch influence records in pages (PostgREST limit is 1000)
     let allInfluenceData: any[] = [];
@@ -204,6 +217,7 @@ export async function GET(request: Request) {
 
       const lineup = lineupsMap.get(row.lineup_id);
       const shirtNumber = lineup?.shirt_number ?? null;
+      const explicitPosition = lineup?.position || row.position || null;
 
       const key = `${row.player_name}|${row.team_name}|${row.season}`;
       
@@ -214,6 +228,7 @@ export async function GET(request: Request) {
           season: row.season,
           competition: match.competition,
           shirt_number: shirtNumber,
+          position: explicitPosition,
           matches_played: 0,
           starts: 0,
           minutes_on: 0,
@@ -235,6 +250,8 @@ export async function GET(request: Request) {
           // Track matches for chronological regularity
           match_history: [],
         };
+      } else if (!playerStats[key].position && explicitPosition) {
+        playerStats[key].position = explicitPosition;
       }
 
       const p = playerStats[key];
@@ -280,7 +297,7 @@ export async function GET(request: Request) {
 
     let list = Object.values(playerStats).map((p: any) => {
       // Infer position
-      const inferredPos = inferPosition(p.shirt_number, p.goals_scored, p.player_name);
+      const inferredPos = inferPosition(p.position, p.shirt_number, p.goals_scored, p.player_name);
       
       // Compute advanced metrics
       const totalCards = p.yellow_cards + p.red_cards;

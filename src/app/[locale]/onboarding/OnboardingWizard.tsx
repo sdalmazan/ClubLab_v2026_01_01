@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Shield, GraduationCap, User, Check } from "lucide-react";
-import { createInitialSubscription } from './actions';
+import {
+  checkUserOnboardingStatusAction,
+  completeOnboardingAction,
+} from "./actions";
 
 type OrgType = "club" | "academy" | "independent_coach";
 type Step = 1 | 2 | 3;
@@ -28,27 +31,14 @@ const POSITION_OPTIONS = [
   { value: "striker", label: "Delantero Centro" },
 ];
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
 export function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [role, setRole] = useState<string>("club_admin");
   const [fullName, setFullName] = useState("");
 
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  };
+  const [assignedOrg, setAssignedOrg] = useState<{ orgName: string; role: string } | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   // Base state
   const [orgType, setOrgType] = useState<OrgType>("club");
@@ -68,30 +58,56 @@ export function OnboardingWizard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    async function loadUser() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const userRole = user.user_metadata?.role || "club_admin";
-        setRole(userRole);
-        setFullName(user.user_metadata?.full_name || "");
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
-        // Pre-configure defaults based on role
-        if (userRole === "player") {
-          setOrgType("independent_coach");
-          setOrgName(`Espacio de ${user.user_metadata?.full_name || "Jugador"}`);
-          setClubName(`Espacio de ${user.user_metadata?.full_name || "Jugador"}`);
-          setTeamName("Mi Perfil");
-        } else if (userRole === "head_coach") {
-          setOrgType("independent_coach");
-          setOrgName(`Cantera de ${user.user_metadata?.full_name || "Entrenador"}`);
-          setClubName(`Club de ${user.user_metadata?.full_name || "Entrenador"}`);
-          setTeamName("Senior A");
+  useEffect(() => {
+    async function loadUserAndStatus() {
+      try {
+        setCheckingStatus(true);
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+          const userRole = user.user_metadata?.role || "club_admin";
+          setRole(userRole);
+          setFullName(user.user_metadata?.full_name || "");
+
+          // Check if user is already assigned or invited to an existing club (e.g. S.D. Almazán)
+          const status = await checkUserOnboardingStatusAction();
+          if (status.alreadyAssigned && status.orgName) {
+            setAssignedOrg({
+              orgName: status.orgName,
+              role: status.role || userRole,
+            });
+            setCheckingStatus(false);
+            return;
+          }
+
+          // Pre-configure defaults based on role
+          if (userRole === "player") {
+            setOrgType("independent_coach");
+            setOrgName(`Espacio de ${user.user_metadata?.full_name || "Jugador"}`);
+            setClubName(`Espacio de ${user.user_metadata?.full_name || "Jugador"}`);
+            setTeamName("Mi Perfil");
+          } else if (userRole === "head_coach") {
+            setOrgType("independent_coach");
+            setOrgName(`Cantera de ${user.user_metadata?.full_name || "Entrenador"}`);
+            setClubName(`Club de ${user.user_metadata?.full_name || "Entrenador"}`);
+            setTeamName("Senior A");
+          }
         }
+      } catch (err) {
+        console.error("Error loading onboarding user status:", err);
+      } finally {
+        setCheckingStatus(false);
       }
     }
-    loadUser();
+    loadUserAndStatus();
   }, []);
 
   async function handleFinish() {
@@ -99,118 +115,88 @@ export function OnboardingWizard() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-
-      // 1. Create organization
-      const finalOrgName = orgName || `${fullName} Space`;
-      const slug = slugify(finalOrgName) || `org-${Date.now()}`;
-      const { data: org, error: orgErr } = await supabase
-        .from("organizations")
-        .insert({ name: finalOrgName, slug, type: orgType })
-        .select("id")
-        .single();
-
-      if (orgErr) throw new Error(orgErr.message);
-
-      // 2. Assign free plan subscription (via Server Action — uses service_role)
-      await createInitialSubscription(org.id);
-
-      // 3. Create user role in user_organization_roles
-      const finalRole = role === "player" ? "player" : role === "head_coach" ? "head_coach" : "club_admin";
-      await supabase.from("user_organization_roles").insert({
-        user_id: user.id,
-        organization_id: org.id,
-        role: finalRole,
+      const res = await completeOnboardingAction({
+        orgType,
+        orgName,
+        clubName: clubName || orgName,
+        seasonName,
+        teamName,
+        role,
+        playerData: role === "player" ? {
+          dob,
+          nationality,
+          dominantFoot,
+          heightCm,
+          weightKg,
+          position,
+        } : undefined
       });
 
-      // 4. Create club
-      const { data: club, error: clubErr } = await supabase
-        .from("clubs")
-        .insert({ organization_id: org.id, name: clubName || finalOrgName })
-        .select("id")
-        .single();
-
-      if (clubErr) throw new Error(clubErr.message);
-
-      // 5. Create first season
-      const { data: season, error: seasonErr } = await supabase
-        .from("seasons")
-        .insert({
-          club_id: club.id,
-          name: seasonName,
-          start_date: "2026-07-01",
-          end_date: "2027-06-30",
-          is_active: true,
-        })
-        .select("id")
-        .single();
-
-      if (seasonErr) throw new Error(seasonErr.message);
-
-      // 6. Create first team
-      const { data: team, error: teamErr } = await supabase
-        .from("teams")
-        .insert({
-          club_id: club.id,
-          season_id: season.id,
-          name: teamName,
-          category: "Senior",
-        })
-        .select("id")
-        .single();
-
-      if (teamErr) throw new Error(teamErr.message);
-
-      // 7. Seed player-specific tables if role is player
-      if (role === "player") {
-        const nameParts = fullName.trim().split(" ");
-        const firstName = nameParts[0] || "Jugador";
-        const lastName = nameParts.slice(1).join(" ") || "Individual";
-
-        const { data: playerRecord, error: playerErr } = await supabase
-          .from("players")
-          .insert({
-            organization_id: org.id,
-            first_name: firstName,
-            last_name: lastName,
-            date_of_birth: dob || null,
-            nationality: nationality,
-            dominant_foot: dominantFoot,
-            height_cm: heightCm ? parseFloat(heightCm) : null,
-            weight_kg: weightKg ? parseFloat(weightKg) : null,
-          })
-          .select("id")
-          .single();
-
-        if (playerErr) throw new Error(playerErr.message);
-
-        // Link player to the default team
-        const { error: memberErr } = await supabase
-          .from("player_team_memberships")
-          .insert({
-            player_id: playerRecord.id,
-            team_id: team.id,
-            season_id: season.id,
-            jersey_number: 10,
-            positions: [position],
-            status: "active",
-          });
-
-        if (memberErr) throw new Error(memberErr.message);
+      if (res.success) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        setError(res.error || "Error al configurar la entidad.");
+        setLoading(false);
       }
-
-      router.push("/dashboard");
-      router.refresh();
     } catch (err: any) {
-      setError(err.message ?? "Error al configurar el onboarding.");
+      setError(err.message ?? "Error inesperado al completar la configuración.");
       setLoading(false);
     }
+  }
+
+  if (checkingStatus) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-8 text-center text-slate-400 space-y-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto" />
+        <p className="text-xs font-semibold">Comprobando vinculación de tu club...</p>
+      </div>
+    );
+  }
+
+  // If player is invited or linked to an existing organization (e.g. S.D. Almazán)
+  if (assignedOrg) {
+    return (
+      <div className="bg-card rounded-xl border border-border p-8 animate-fade-in text-center space-y-6 shadow-2xl">
+        <div className="mx-auto size-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-950/40">
+          <Shield className="size-8" />
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+            Perfil vinculado oficialmente
+          </span>
+          <h2 className="text-2xl font-black text-white tracking-tight">
+            ¡Te has unido a {assignedOrg.orgName}!
+          </h2>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed font-medium">
+            Tu cuenta ha sido asignada a <strong>{assignedOrg.orgName}</strong> con el perfil de{" "}
+            <strong className="text-emerald-400 font-bold">
+              {assignedOrg.role === "player" ? "Jugador" : assignedOrg.role === "head_coach" ? "Entrenador" : "Administrador"}
+            </strong>. No necesitas crear un club nuevo.
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            router.push("/dashboard");
+            router.refresh();
+          }}
+          className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-sm py-3 transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
+        >
+          ¡Aceptar y acceder a mi plantilla! ⚽
+        </button>
+
+        <div className="pt-2 border-t border-white/[0.06]">
+          <button
+            onClick={handleSignOut}
+            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            ¿No eres tú? Cambiar de cuenta
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -532,7 +518,7 @@ export function OnboardingWizard() {
                 id="onboarding-finish"
                 disabled={loading}
                 onClick={handleFinish}
-                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? "Configurando..." : "¡Empezar!"}
               </button>

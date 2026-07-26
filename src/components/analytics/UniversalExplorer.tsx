@@ -477,9 +477,10 @@ export const UniversalExplorer: React.FC<UniversalExplorerProps> = ({
 
     const getPosCat = (pos: string | undefined): string => {
       if (!pos) return "mc";
-      if (pos === "goalkeeper") return "gk";
-      if (pos === "back") return "df";
-      if (pos === "midfielder") return "mc";
+      const p = pos.toLowerCase().trim();
+      if (["goalkeeper", "portero", "por", "pt", "gk"].includes(p)) return "gk";
+      if (["back", "defensa", "defender", "df", "lat", "cen", "ct", "cb", "lb", "rb"].includes(p)) return "df";
+      if (["midfielder", "centrocampista", "med", "mc", "piv", "vol"].includes(p)) return "mc";
       return "fw";
     };
 

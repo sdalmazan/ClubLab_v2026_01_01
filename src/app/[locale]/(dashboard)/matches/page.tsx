@@ -390,7 +390,7 @@ export default function MatchesPage() {
     return matchDetail.events;
   };
 
-  // Filter matches list based on active tab
+  // Filter matches list based on active tab and sort with most recent past match at the top
   const getMatchesToRender = () => {
     let list = matches;
     if (activeTab === "squad") {
@@ -407,7 +407,7 @@ export default function MatchesPage() {
       );
     }
 
-    return list.filter((m) => {
+    const filtered = list.filter((m) => {
       const home = displayTeamName(m.home_team).toLowerCase();
       const away = displayTeamName(m.away_team).toLowerCase();
       const term = search.toLowerCase();
@@ -416,6 +416,40 @@ export default function MatchesPage() {
 
       return matchesSearch && matchesJornada;
     });
+
+    const now = new Date();
+    const pastMatches: Match[] = [];
+    const futureMatches: Match[] = [];
+
+    for (const m of filtered) {
+      const isPlayed = m.home_score !== null && m.away_score !== null;
+      const mDate = m.match_date ? new Date(m.match_date) : null;
+      const isPast = isPlayed || (mDate && mDate <= now) || m.status === "finished";
+
+      if (isPast) {
+        pastMatches.push(m);
+      } else {
+        futureMatches.push(m);
+      }
+    }
+
+    // Past matches: most recent past match at top -> descending
+    pastMatches.sort((a, b) => {
+      if (a.match_date && b.match_date && a.match_date !== b.match_date) {
+        return new Date(b.match_date).getTime() - new Date(a.match_date).getTime();
+      }
+      return b.matchday - a.matchday;
+    });
+
+    // Future matches: upcoming matches ascending (nearest future match first)
+    futureMatches.sort((a, b) => {
+      if (a.match_date && b.match_date && a.match_date !== b.match_date) {
+        return new Date(a.match_date).getTime() - new Date(b.match_date).getTime();
+      }
+      return a.matchday - b.matchday;
+    });
+
+    return [...pastMatches, ...futureMatches];
   };
 
   const calculatedMatches = getMatchesToRender();

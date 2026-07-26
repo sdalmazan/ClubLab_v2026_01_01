@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "69d4dd8e-ab88-41ee-aa9f-35f97fba04ba"; // Default to Diego
+    const userId = searchParams.get("userId") || "";
 
     diagnostics.targetUserId = userId;
 

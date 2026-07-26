@@ -7,7 +7,7 @@ const INITIAL_MOCK_TALKS: TalkRequest[] = [
     id: "talk-1",
     sender_type: "coach",
     sender_id: "coach-1",
-    sender_name: "Diego Ciria (Míster)",
+    sender_name: "Cuerpo Técnico (Míster)",
     recipient_type: "player",
     recipient_id: "p-1",
     recipient_name: "Gonzalo de Miguel",

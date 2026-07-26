@@ -37,13 +37,14 @@ export const BenchmarkingCard: React.FC<BenchmarkingCardProps> = ({
 
   const cleanMyTeam = normalizeTeamName(myTeamName);
 
-  // Position category helper
+  // Position category helper with alias support
   const getPositionCategory = (pos: string | undefined): "gk" | "df" | "mc" | "fw" => {
     if (!pos) return "mc";
-    if (pos === "goalkeeper") return "gk";
-    if (pos === "back") return "df";
-    if (pos === "midfielder") return "mc";
-    return "fw"; // winger, striker
+    const p = pos.toLowerCase().trim();
+    if (["goalkeeper", "portero", "por", "pt", "gk"].includes(p)) return "gk";
+    if (["back", "defensa", "defender", "df", "lat", "cen", "ct", "cb", "lb", "rb"].includes(p)) return "df";
+    if (["midfielder", "centrocampista", "med", "mc", "piv", "vol"].includes(p)) return "mc";
+    return "fw"; // winger, striker, delantero, extremo, fw, del
   };
 
   const categories = [
@@ -106,7 +107,7 @@ export const BenchmarkingCard: React.FC<BenchmarkingCardProps> = ({
           for (const p of otherPosPlayers) {
             const val = Number(p.metrics?.[cat.metricId]) || 0;
             const matches = Number(p.metrics?.matches) || 0;
-            const minMatches = (cat.key === "gk" || cat.key === "df") ? 15 : 5;
+            const minMatches = 3; // Allow players with 3+ matches in the league to qualify
             
             if (matches >= minMatches && val > bestVal) {
               bestVal = val;

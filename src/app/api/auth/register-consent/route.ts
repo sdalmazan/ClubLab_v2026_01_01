@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendWhatsAppWelcome } from "@/lib/whatsapp/service";
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +14,18 @@ export async function POST(request: Request) {
     }
 
     const adminSupabase = createAdminClient();
+
+    // Trigger WhatsApp welcome/confirmation message if phone is provided
+    if (preferredChannel === "whatsapp" && phoneNumber) {
+      try {
+        await sendWhatsAppWelcome({
+          phoneNumber: phoneNumber.trim(),
+          recipientName: email ? email.split("@")[0] : "Usuario",
+        });
+      } catch (wsErr) {
+        console.error("[WhatsApp Dispatch Error]", wsErr);
+      }
+    }
 
     // 1. Record GDPR Privacy Policy Consent in user_data_consents
     const ipAddress = request.headers.get("x-forwarded-for") || "unknown";

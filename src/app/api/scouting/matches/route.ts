@@ -22,8 +22,8 @@ export async function GET(request: Request) {
       .select("*")
       .eq("season", season)
       .eq("competition", competition)
-      .order("match_date", { ascending: true })
-      .order("matchday", { ascending: true });
+      .order("match_date", { ascending: false })
+      .order("matchday", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

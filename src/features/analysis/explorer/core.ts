@@ -147,8 +147,8 @@ export class ExplorerEngine {
     for (const r of records) {
       const canonicalName = r.player_name.toUpperCase().trim();
       
-      // Resolve position overrides
-      let finalPos = r.position || "midfielder";
+      // Resolve position overrides or infer from database record
+      let finalPos = r.position ? this.inferPosition(r.position, r.shirt_number ?? null, r.goals ?? 0, r.player_name) : "midfielder";
       const pKey = canonicalName.toLowerCase();
       const override = playerPositionOverrides[pKey];
       if (override && override.position && override.status === "approved") {
@@ -660,17 +660,30 @@ export class ExplorerEngine {
   }
 
   /**
-   * Helper to infer player position category based on shirt number and goals scored.
+   * Helper to infer player position category based on shirt number, goals scored, or existing position string.
    * Matches the standard platform rules.
    */
-  private static inferPosition(shirtNumber: number | null, goals: number, name: string): string {
-    if (shirtNumber === 1 || shirtNumber === 13 || shirtNumber === 25) {
+  private static inferPosition(
+    existingPos: string | null | undefined,
+    shirtNumber: number | null,
+    goals: number,
+    name: string
+  ): string {
+    if (existingPos) {
+      const p = existingPos.toLowerCase().trim();
+      if (["goalkeeper", "portero", "por", "pt", "gk"].includes(p)) return "goalkeeper";
+      if (["back", "defensa", "defender", "df", "lat", "cen", "ct", "cb", "lb", "rb"].includes(p)) return "back";
+      if (["midfielder", "centrocampista", "med", "mc", "piv", "vol"].includes(p)) return "midfielder";
+      if (["striker", "forward", "winger", "delantero", "extremo", "del", "ext", "fw"].includes(p)) return "striker";
+    }
+
+    if (shirtNumber && [1, 12, 13, 22, 25].includes(shirtNumber)) {
       return "goalkeeper";
     }
-    if (shirtNumber && [2, 3, 4, 5, 12, 15, 17, 18, 26, 27, 28].includes(shirtNumber)) {
+    if (shirtNumber && [2, 3, 4, 5, 15, 17, 18, 26, 27, 28].includes(shirtNumber)) {
       return "back";
     }
-    if (shirtNumber && [6, 8, 10, 14, 16, 20, 21, 22].includes(shirtNumber)) {
+    if (shirtNumber && [6, 8, 10, 14, 16, 20, 21].includes(shirtNumber)) {
       return "midfielder";
     }
     if (shirtNumber && [7, 9, 11, 19, 23, 24].includes(shirtNumber)) {
@@ -685,7 +698,7 @@ export class ExplorerEngine {
     for (let i = 0; i < name.length; i++) {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
-    const posArr = ["back", "midfielder", "winger", "striker"];
+    const posArr = ["goalkeeper", "back", "midfielder", "winger", "striker"];
     return posArr[Math.abs(hash) % posArr.length];
   }
 }
