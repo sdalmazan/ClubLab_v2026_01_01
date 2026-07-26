@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   Users,
+  User,
   CalendarDays,
   HeartPulse,
   Activity,
@@ -62,7 +63,7 @@ const NAV_TABS: NavTab[] = [
   {
     id: "player_portal",
     labelKey: "player_portal",
-    icon: Users,
+    icon: User,
     href: "/player",
   },
   {

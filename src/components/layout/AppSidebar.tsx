@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   Users,
+  User,
   CalendarDays,
   Activity,
   HeartPulse,
