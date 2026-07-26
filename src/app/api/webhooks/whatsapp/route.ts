@@ -1,12 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
 import { updateWhatsAppMessageStatus } from "@/lib/whatsapp/service";
+
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/webhooks/whatsapp
  * Meta initial webhook verification (hub.mode, hub.verify_token, hub.challenge)
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const mode = searchParams.get("hub.mode");
