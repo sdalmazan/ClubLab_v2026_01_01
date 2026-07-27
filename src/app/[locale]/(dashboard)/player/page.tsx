@@ -33,6 +33,24 @@ export default function PlayerTodayPage() {
   const [addInjuryOpen, setAddInjuryOpen] = useState(false);
 
   useEffect(() => {
+    // Load authenticated user name from client Supabase session
+    const { createClient } = require("@/lib/supabase/client");
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }: any) => {
+      if (user?.user_metadata?.full_name || user?.email) {
+        const rawName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Jugador";
+        const firstName = rawName.trim().split(" ")[0] || "Jugador";
+        setSummary((prev) => ({
+          ...prev,
+          player: {
+            ...prev.player,
+            first_name: firstName,
+            sporting_name: rawName,
+          },
+        }));
+      }
+    });
+
     // Check if player has already completed checkin today in local session
     const todayStr = new Date().toISOString().split("T")[0];
     const completedToday = localStorage.getItem(`cl_player_checkin_done_${todayStr}`);

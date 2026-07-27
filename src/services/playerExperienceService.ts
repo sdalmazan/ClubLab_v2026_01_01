@@ -97,9 +97,9 @@ export function getMockPlayerSummary(): PlayerDailySummary {
   return {
     player: {
       id: "demo-player-1",
-      first_name: "Diego",
+      first_name: "Jugador",
       last_name: "Almazán",
-      sporting_name: "Diego A.",
+      sporting_name: "Jugador",
       height_cm: 182,
       weight_kg: 76,
       dominant_foot: "right",

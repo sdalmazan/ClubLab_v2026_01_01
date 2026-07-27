@@ -13,15 +13,15 @@ function InviteFormContent() {
   const tokenParam = searchParams.get("token");
   const emailParam = searchParams.get("email");
 
-  const [fullName, setFullName] = useState("Diego Ciria");
-  const [email, setEmail] = useState(emailParam || "diego.ciria.lopez@gmail.com");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState(emailParam || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<"player" | "head_coach" | "club_admin">("player");
   const [invitationOrg, setInvitationOrg] = useState<string>("S.D. Almazán");
 
   const [preferredChannel, setPreferredChannel] = useState<"whatsapp" | "email">("email");
-  const [phoneNumber, setPhoneNumber] = useState("+34685284495");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [channelVerified, setChannelVerified] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
