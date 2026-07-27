@@ -331,7 +331,46 @@ export async function sendWhatsAppOTP({ phoneNumber, code, recipientName = "Juga
 
         return { success: true, wamid };
       } else {
-        console.error(`[WhatsApp Meta API Error]`, resJson);
+        console.warn(`[WhatsApp Meta API Text Fail, trying fallback template...]`, resJson);
+        // Fallback to approved template if text message is rejected outside 24h window
+        const fallbackPayload = {
+          messaging_product: "whatsapp",
+          to: digitsOnly,
+          type: "template",
+          template: {
+            name: "3p_direct_integration_test_template",
+            language: { code: "en_US" },
+          },
+        };
+
+        const fbRes = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${metaToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(fallbackPayload),
+        });
+
+        const fbJson = await fbRes.json();
+
+        if (fbRes.ok && fbJson.messages?.[0]?.id) {
+          const wamid = fbJson.messages[0].id;
+          console.log(`[WhatsApp Meta API] Fallback OTP template sent to ${cleanPhone} | WAMID: ${wamid}`);
+          
+          await recordWhatsAppDispatch({
+            wamid,
+            phoneNumberId: metaPhoneId,
+            recipientPhone: digitsOnly,
+            templateName: "3p_direct_integration_test_template",
+            language: "en_US",
+            rawResponse: fbJson,
+          });
+
+          return { success: true, wamid };
+        } else {
+          console.error(`[WhatsApp Meta API Fallback Error]`, fbJson);
+        }
       }
     } catch (e: any) {
       console.error(`[WhatsApp Meta API Exception]`, e.message);

@@ -32,11 +32,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Rate limiting check (max 1 OTP request per 60 seconds)
+    // Rate limiting check (max 1 OTP request per 15 seconds)
     const now = Date.now();
     const lastSent = lastSentTimestamps.get(cleanIdentifier);
-    if (lastSent && now - lastSent < 60000) {
-      const remainingSecs = Math.ceil((60000 - (now - lastSent)) / 1000);
+    if (lastSent && now - lastSent < 15000) {
+      const remainingSecs = Math.ceil((15000 - (now - lastSent)) / 1000);
       return NextResponse.json({
         error: `Por favor espera ${remainingSecs} segundos antes de solicitar otro código OTP.`,
       }, { status: 429 });
