@@ -20,7 +20,7 @@ function InviteFormContent() {
   const [role, setRole] = useState<"player" | "head_coach" | "club_admin">("player");
   const [invitationOrg, setInvitationOrg] = useState<string>("S.D. Almazán");
 
-  const [preferredChannel, setPreferredChannel] = useState<"whatsapp" | "email">("whatsapp");
+  const [preferredChannel, setPreferredChannel] = useState<"whatsapp" | "email">("email");
   const [phoneNumber, setPhoneNumber] = useState("+34685284495");
   const [channelVerified, setChannelVerified] = useState(false);
   const [otpCode, setOtpCode] = useState("");
@@ -287,111 +287,38 @@ function InviteFormContent() {
           />
         </div>
 
-        {/* Notification Channel Preference */}
-        <div className="space-y-2 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
-          <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-            Canal de Notificaciones Preferido
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setPreferredChannel("whatsapp")}
-              className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between relative overflow-hidden ${
-                preferredChannel === "whatsapp"
-                  ? "border-emerald-500 bg-emerald-500/15 text-white"
-                  : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1 flex-wrap w-full">
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1 shrink-0">
-                  💬 WhatsApp
-                </span>
-                <span className="text-[8.5px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                  ⚡ RECOMENDADO
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-400 mt-1.5 leading-tight block">
-                Mayor rapidez para convocatorias y avisos urgentes.
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPreferredChannel("email")}
-              className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between ${
-                preferredChannel === "email"
-                  ? "border-emerald-500 bg-emerald-500/15 text-white"
-                  : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
-              }`}
-            >
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                📧 Correo Electrónico
-              </span>
-              <span className="text-[10px] text-slate-400 mt-1.5 leading-tight block">
-                Avisos en tu bandeja de entrada tradicional.
-              </span>
-            </button>
+        {/* CANAL DE NOTIFICACIONES Y VERIFICACIÓN */}
+        <div className="space-y-3 p-4 rounded-2xl bg-slate-900/60 border border-white/10 shadow-inner">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+              Canal de Notificaciones del Club
+            </label>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Correo Electrónico
+            </span>
           </div>
 
           {/* CHANNEL VERIFICATION SECTION */}
-          <div className="pt-2 animate-fade-in space-y-3 w-full">
-            {preferredChannel === "whatsapp" ? (
-              <div className="space-y-2 w-full">
-                <label htmlFor="invite-phone" className="text-[11px] font-semibold text-slate-300 block">
-                  Número de Teléfono (WhatsApp)
-                </label>
-                
-                <input
-                  id="invite-phone"
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => {
-                    setPhoneNumber(e.target.value);
-                    setChannelVerified(false);
-                    setOtpSent(false);
-                    setOtpMessage(null);
-                  }}
-                  disabled={channelVerified}
-                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-60"
-                  placeholder="+34 685 284 495"
-                />
-
-                {!channelVerified ? (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={sendingOtp}
-                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md disabled:opacity-50 text-center block"
-                  >
-                    {sendingOtp ? "Enviando..." : otpSent ? "Reenviar Código OTP" : "Enviar Código OTP a WhatsApp"}
-                  </button>
-                ) : (
-                  <span className="w-full py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5">
-                    <Check className="w-4 h-4" /> WhatsApp Verificado
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2 w-full">
-                <span className="text-[11px] font-semibold text-slate-300 block">
-                  Verificación de Correo Electrónico ({email})
+          <div className="pt-1 animate-fade-in space-y-3 w-full">
+            <div className="space-y-2 w-full">
+              <span className="text-xs font-medium text-slate-300 block">
+                Verificación de Correo Electrónico: <strong className="text-white">{email}</strong>
+              </span>
+              {!channelVerified ? (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={sendingOtp}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md disabled:opacity-50 text-center block"
+                >
+                  {sendingOtp ? "Enviando..." : otpSent ? "Reenviar Código OTP a Email" : "Enviar Código OTP a Email"}
+                </button>
+              ) : (
+                <span className="w-full py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5">
+                  <Check className="w-4 h-4" /> Correo Electrónico Verificado
                 </span>
-                {!channelVerified ? (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={sendingOtp}
-                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md disabled:opacity-50 text-center block"
-                  >
-                    {sendingOtp ? "Enviando..." : otpSent ? "Reenviar Código OTP" : "Enviar OTP a Email"}
-                  </button>
-                ) : (
-                  <span className="w-full py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5">
-                    <Check className="w-4 h-4" /> Email Verificado
-                  </span>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
             {/* OTP Status Info */}
             {otpMessage && (
@@ -404,7 +331,7 @@ function InviteFormContent() {
             {otpSent && !channelVerified && (
               <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-fade-in w-full">
                 <div className="text-xs text-emerald-300 font-semibold text-center">
-                  🔑 Introduce el código de 6 dígitos recibido:
+                  🔑 Introduce el código de 6 dígitos recibido en tu bandeja de correo:
                 </div>
 
                 <div className="space-y-2 w-full">
