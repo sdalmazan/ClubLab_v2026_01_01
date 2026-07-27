@@ -225,6 +225,7 @@ function InviteFormContent() {
         </div>
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 text-center">
           Redirigiendo a tu Portal de Jugador...
+        </div>
       </div>
     );
   }
