@@ -5,7 +5,7 @@ import { CheckCircle2, AlertTriangle, RefreshCw, Zap } from "lucide-react";
 
 interface HeroStatusCardProps {
   playerName: string;
-  status: "GOOD" | "READY" | "RECOVER" | "ATTENTION";
+  status: "GOOD" | "READY" | "RECOVER" | "ATTENTION" | "PENDING";
   message: string;
 }
 
@@ -34,6 +34,12 @@ export function HeroStatusCard({ playerName, status, message }: HeroStatusCardPr
       badgeBg: "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400",
       icon: AlertTriangle,
       glowColor: "from-rose-500/20 via-transparent to-transparent",
+    },
+    PENDING: {
+      label: "PENDIENTE",
+      badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400",
+      icon: RefreshCw,
+      glowColor: "from-amber-500/20 via-transparent to-transparent",
     },
   };
 

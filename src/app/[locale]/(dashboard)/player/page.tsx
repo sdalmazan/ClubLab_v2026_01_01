@@ -15,7 +15,16 @@ import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
 import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle } from "lucide-react";
 
 export default function PlayerTodayPage() {
-  const [summary, setSummary] = useState(getMockPlayerSummary());
+  const [hasCompletedCheckin, setHasCompletedCheckin] = useState(false);
+  const [summary, setSummary] = useState(() => {
+    const base = getMockPlayerSummary();
+    return {
+      ...base,
+      status: "PENDING" as const,
+      statusMessage: "Completa tu primer check-in pre-entrenamiento para registrar tus métricas de salud y recuperación de hoy.",
+      checkinPending: true,
+    };
+  });
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
@@ -24,6 +33,19 @@ export default function PlayerTodayPage() {
   const [addInjuryOpen, setAddInjuryOpen] = useState(false);
 
   useEffect(() => {
+    // Check if player has already completed checkin today in local session
+    const todayStr = new Date().toISOString().split("T")[0];
+    const completedToday = localStorage.getItem(`cl_player_checkin_done_${todayStr}`);
+    if (completedToday) {
+      setHasCompletedCheckin(true);
+      setSummary((prev) => ({
+        ...prev,
+        checkinPending: false,
+        status: "GOOD",
+        statusMessage: "Check-in completado. Estás en un estado óptimo para entrenar.",
+      }));
+    }
+
     // Check if player has already completed or acknowledged injury history
     const isDone = localStorage.getItem("cl_player_injury_history_done");
     const dismissedThisSession = sessionStorage.getItem("cl_player_injury_reminder_dismissed");
@@ -62,6 +84,9 @@ export default function PlayerTodayPage() {
 
   const handleCheckinSuccess = () => {
     setCheckinOpen(false);
+    setHasCompletedCheckin(true);
+    const todayStr = new Date().toISOString().split("T")[0];
+    localStorage.setItem(`cl_player_checkin_done_${todayStr}`, "true");
     setSummary((prev) => ({
       ...prev,
       checkinPending: false,
@@ -136,52 +161,73 @@ export default function PlayerTodayPage() {
       )}
 
       {/* Synthetic Resumen Metrics */}
-      <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-lg space-y-3">
-        <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
-          Resumen Sintético de Salud
-        </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
-            <Moon className="w-5 h-5 text-indigo-500" />
-            <div>
-              <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Sueño</span>
-              <span className="text-sm font-bold text-foreground">
-                {summary.metricsSummary.sleepQuality} / 5 (Bueno)
-              </span>
-            </div>
+      {!hasCompletedCheckin ? (
+        <div className="rounded-3xl border border-dashed border-border bg-card/60 p-6 text-center space-y-3 shadow-md">
+          <div className="mx-auto size-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
+            <HeartPulse className="size-6" />
           </div>
-
-          <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
-            <HeartPulse className="w-5 h-5 text-emerald-500" />
-            <div>
-              <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Fatiga</span>
-              <span className="text-sm font-bold text-foreground">
-                {summary.metricsSummary.fatigue} / 5 (Baja)
-              </span>
-            </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-foreground">Resumen Sintético de Salud</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Sin registros hoy. Completa tu Check-in Pre-Entrenamiento para activar tus métricas de salud, descanso y fatiga.
+            </p>
           </div>
-
-          <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
-            <Zap className="w-5 h-5 text-amber-500" />
-            <div>
-              <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Carga Semanal</span>
-              <span className="text-sm font-bold text-foreground">
-                +{summary.metricsSummary.weeklyLoadChangePercent}% (Óptimo)
-              </span>
+          <button
+            onClick={() => setCheckinOpen(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5"
+          >
+            <HeartPulse className="size-4" />
+            <span>Completar Check-in Ahora</span>
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-lg space-y-3">
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+            Resumen Sintético de Salud
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
+              <Moon className="w-5 h-5 text-indigo-500" />
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Sueño</span>
+                <span className="text-sm font-bold text-foreground">
+                  {summary.metricsSummary.sleepQuality} / 5 (Bueno)
+                </span>
+              </div>
             </div>
-          </div>
 
-          <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-500" />
-            <div>
-              <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Molestias</span>
-              <span className="text-sm font-bold text-foreground">
-                {summary.metricsSummary.hasDiscomfort ? "Sí" : "Ninguna"}
-              </span>
+            <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
+              <HeartPulse className="w-5 h-5 text-emerald-500" />
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Fatiga</span>
+                <span className="text-sm font-bold text-foreground">
+                  {summary.metricsSummary.fatigue} / 5 (Baja)
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
+              <Zap className="w-5 h-5 text-amber-500" />
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Carga Semanal</span>
+                <span className="text-sm font-bold text-foreground">
+                  +{summary.metricsSummary.weeklyLoadChangePercent}% (Óptimo)
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-accent/40 border border-border/40 flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-blue-500" />
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Molestias</span>
+                <span className="text-sm font-bold text-foreground">
+                  {summary.metricsSummary.hasDiscomfort ? "Sí" : "Ninguna"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Active Staff Recommendation */}
       {summary.activeRecommendation && (
