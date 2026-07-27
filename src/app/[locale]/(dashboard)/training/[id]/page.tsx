@@ -49,9 +49,10 @@ export default async function SessionDetailsPage({
   const isPlayer = orgRole.role === "player";
   const wantPreview = Boolean(preview);
 
-  // Server-side filtering of exercises & comments
+  // Server-side filtering of exercises & comments (only applied for players)
   const filteredExercises = (session.exercises || [])
     .filter((ex: any) => {
+      if (!isPlayer) return true; // Super admin and staff see all exercises
       const gs = ex.group_setup || {};
       const vis = gs.visibility || { visible_to_players: true };
       return vis.visible_to_players !== false;
@@ -59,9 +60,9 @@ export default async function SessionDetailsPage({
     .map((ex: any) => {
       const gs = ex.group_setup || {};
       const vis = gs.visibility || { show_comments_to_players: true };
-      const showComments = vis.show_comments_to_players !== false;
+      const showComments = isPlayer ? vis.show_comments_to_players !== false : true;
 
-      // Clean rules & notes if coach marked them invisible
+      // Clean rules & notes if coach marked them invisible for players
       return {
         ...ex,
         group_setup: {
@@ -83,6 +84,8 @@ export default async function SessionDetailsPage({
     <PlayerSessionView
       session={sanitizedSession}
       isPreview={wantPreview}
+      userRole={orgRole.role}
+      isPlayer={isPlayer}
       orgSettings={orgSettings}
     />
   );

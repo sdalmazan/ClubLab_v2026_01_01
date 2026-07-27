@@ -115,7 +115,11 @@ export async function POST(request: Request) {
       { onConflict: "user_id,organization_id" }
     );
 
-    // 5. Link Player Profile in players table
+    // 5. Link Player Profile in players table (ONLY if role is player or explicit player_id exists)
+    const userRole = role || "player";
+    const isPlayerRole = userRole === "player";
+    const redirectUrl = isPlayerRole ? "/player" : "/dashboard";
+
     const playerUpdateData: any = {
       user_id: authUserId,
       email: targetEmail,
@@ -148,7 +152,8 @@ export async function POST(request: Request) {
       if (matchingPlayer) {
         targetPlayerId = matchingPlayer.id;
         await adminSupabase.from("players").update(playerUpdateData).eq("id", targetPlayerId);
-      } else {
+      } else if (isPlayerRole) {
+        // Create new player record ONLY for player role
         const nameParts = fullName.trim().split(" ");
         const { data: newPlayer } = await adminSupabase
           .from("players")
@@ -191,7 +196,7 @@ export async function POST(request: Request) {
       await sendRegistrationNotificationAlert({
         newUserName: fullName,
         newUserEmail: targetEmail,
-        newUserRole: role || "player",
+        newUserRole: userRole,
         organizationName: orgName,
       });
     } catch (alertErr) {
@@ -203,16 +208,16 @@ export async function POST(request: Request) {
       await dispatchClubNotification({
         playerId: targetPlayerId,
         title: `¡Bienvenido a ${orgName}!`,
-        body: `Hola ${fullName}, tu cuenta de Jugador ha sido activada correctamente en ${orgName}. Tu canal de notificaciones activo es ${preferredChannel === "whatsapp" ? "WhatsApp" : "Correo Electrónico"}.`,
-        actionUrl: "/player",
-        actionText: "Entrar a Mi Perfil de Jugador",
+        body: `Hola ${fullName}, tu cuenta de ${isPlayerRole ? "Jugador" : "Entrenador/Staff"} ha sido activada correctamente en ${orgName}. Tu canal de notificaciones activo es ${preferredChannel === "whatsapp" ? "WhatsApp" : "Correo Electrónico"}.`,
+        actionUrl: redirectUrl,
+        actionText: isPlayerRole ? "Entrar a Mi Perfil de Jugador" : "Acceder al Panel de Control",
       });
     }
 
     return NextResponse.json({
       success: true,
-      role: "player",
-      redirectUrl: "/player",
+      role: userRole,
+      redirectUrl: redirectUrl,
       message: "Cuenta activada correctamente.",
     });
   } catch (err: any) {

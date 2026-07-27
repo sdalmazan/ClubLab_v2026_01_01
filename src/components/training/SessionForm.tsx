@@ -61,6 +61,52 @@ interface SessionFormProps {
   userRole?: string | null;
 }
 
+export function getExerciseTotalDuration(ex: any): number {
+  if (!ex) return 0;
+  if (ex.use_variable_series && Array.isArray(ex.series) && ex.series.length > 0) {
+    return ex.series.reduce((sum: number, s: any) => sum + Number(s.duration_min || 0), 0);
+  }
+  const nSeries = Number(ex.num_series || 1);
+  const sDuration = Number(ex.series_duration_min || ex.duration_min || 15);
+  return nSeries * sDuration;
+}
+
+export function isGoalkeeper(p: any): boolean {
+  if (!p) return false;
+  const playerObj = p.player || p;
+  
+  const positionsArray: string[] = 
+    playerObj.membership?.positions || 
+    playerObj.positions || 
+    p.membership?.positions || 
+    p.positions || 
+    [];
+  
+  if (Array.isArray(positionsArray) && positionsArray.length > 0) {
+    if (positionsArray.some((pos: string) => {
+      const s = String(pos).toLowerCase();
+      return s.includes("goalkeeper") || s.includes("por") || s === "gk";
+    })) {
+      return true;
+    }
+  }
+
+  const posStr = String(
+    playerObj.primary_position || 
+    playerObj.position || 
+    p.primary_position || 
+    p.position || 
+    ""
+  ).toLowerCase();
+
+  return (
+    posStr.includes("goalkeeper") ||
+    posStr.includes("portero") ||
+    posStr.includes("por") ||
+    posStr === "gk"
+  );
+}
+
 export function SessionForm({
   organizationId,
   userId,
@@ -485,9 +531,43 @@ export function SessionForm({
     return defaultRecords;
   });
 
+  // Sync attendance for activeSquadPlayers when loaded
+  useEffect(() => {
+    if (!activeSquadPlayers || activeSquadPlayers.length === 0) return;
+    setAttendance((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      activeSquadPlayers.forEach((p) => {
+        if (!next[p.id]) {
+          changed = true;
+          const activeInjury = p.active_injury;
+          let status: "present" | "partial" | "readaptation" | "injured" | "absent" = "present";
+          let notes = "";
+
+          if (activeInjury) {
+            const injStatus = (activeInjury.status || "").toLowerCase();
+            if (injStatus.includes("readap") || injStatus.includes("rehab")) {
+              status = "readaptation";
+              notes = `Readaptación: ${activeInjury.body_part || "Muscular"}`;
+            } else if (injStatus === "active" || injStatus === "injured") {
+              status = "injured";
+              notes = `Lesión: ${activeInjury.body_part || "General"}`;
+            }
+          }
+
+          next[p.id] = { status, notes };
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [activeSquadPlayers]);
+
   // Computed: list of present player objects
   const presentPlayers = activeSquadPlayers
-    .filter((p) => attendance[p.id]?.status === "present")
+    .filter((p) => {
+      const st = attendance[p.id]?.status ?? (p.active_injury?.status === "active" ? "injured" : "present");
+      return st === "present";
+    })
     .map((p) => ({
       id: p.id,
       first_name: p.first_name,
@@ -500,11 +580,19 @@ export function SessionForm({
   const stats = useMemo(() => {
     const total = activeSquadPlayers.length;
     const injured = activeSquadPlayers.filter(p => p.active_injury && p.active_injury.status === "active").length;
-    const present = activeSquadPlayers.filter(p => attendance[p.id]?.status === "present").length;
+    const present = activeSquadPlayers.filter(p => {
+      const st = attendance[p.id]?.status ?? (p.active_injury?.status === "active" ? "injured" : "present");
+      return st === "present";
+    }).length;
     
     // Goalkeepers availability count
-    const totalGKs = activeSquadPlayers.filter(p => p.membership?.positions?.includes("goalkeeper")).length;
-    const availableGKs = activeSquadPlayers.filter(p => p.membership?.positions?.includes("goalkeeper") && (!p.active_injury || p.active_injury.status !== "active") && attendance[p.id]?.status === "present").length;
+    const totalGKs = activeSquadPlayers.filter(p => isGoalkeeper(p)).length;
+    const availableGKs = activeSquadPlayers.filter(p => {
+      const isGK = isGoalkeeper(p);
+      const notInjured = !p.active_injury || p.active_injury.status !== "active";
+      const st = attendance[p.id]?.status ?? (p.active_injury?.status === "active" ? "injured" : "present");
+      return isGK && notInjured && st === "present";
+    }).length;
 
     return {
       total,
@@ -558,11 +646,11 @@ export function SessionForm({
   const handleTogglePlayerAttendance = (playerId: string) => {
     setAttendance((prev) => {
       const current = prev[playerId]?.status ?? "present";
-      let next: "present" | "partial" | "readaptation" | "injured" | "absent";
-      if (current === "present") next = "partial";
-      else if (current === "partial") next = "readaptation";
-      else if (current === "readaptation") next = "injured";
+      let next: "present" | "injured" | "absent" | "readaptation" | "partial";
+      if (current === "present") next = "injured";
       else if (current === "injured") next = "absent";
+      else if (current === "absent") next = "readaptation";
+      else if (current === "readaptation") next = "partial";
       else next = "present";
       
       return {
@@ -645,9 +733,12 @@ export function SessionForm({
   const [isCreatingExercise, setIsCreatingExercise] = useState(false);
   const [newExTitle, setNewExTitle] = useState("");
   const [newExCategory, setNewExCategory] = useState("General");
-  const [newExDifficulty, setNewExDifficulty] = useState("intermediate");
-  const [newExScope, setNewExScope] = useState("coach");
+  const [newExDifficulty, setNewExDifficulty] = useState("medium");
+  const [newExScope, setNewExScope] = useState("none");
   const [newExDesc, setNewExDesc] = useState("");
+  const [newExDuration, setNewExDuration] = useState(10);
+  const [newExSeries, setNewExSeries] = useState(1);
+  const [newExRecovery, setNewExRecovery] = useState(2);
   const [creatingExLoading, setCreatingExLoading] = useState(false);
 
   const handleCreateExerciseInline = async (e: React.FormEvent) => {
@@ -658,6 +749,7 @@ export function SessionForm({
     setError(null);
 
     try {
+      // Create exercise row in DB (even if library_scope === "none") to get a valid UUID for relational integrity
       const res = await fetch("/api/training/exercises", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -665,17 +757,17 @@ export function SessionForm({
           title: newExTitle.trim(),
           category: newExCategory,
           difficulty: newExDifficulty,
-          library_scope: newExScope,
+          library_scope: newExScope || "none",
           description: newExDesc.trim(),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error ?? "Error al crear el ejercicio");
+        throw new Error(data.error ?? "Error al crear la tarea en la base de datos.");
       }
 
-      // Add to session exercises list directly
+      // Add to session exercises list directly with duration, series, recovery
       addExercise({
         id: data.id,
         title: data.title,
@@ -683,17 +775,25 @@ export function SessionForm({
         difficulty: data.difficulty,
         library_scope: data.library_scope,
         description: data.description,
+        num_series: newExSeries || 1,
+        series_duration_min: newExDuration || 10,
+        series_recovery_min: newExRecovery || 2,
       } as any);
 
       // Reset form states
       setNewExTitle("");
       setNewExCategory("General");
-      setNewExDifficulty("intermediate");
-      setNewExScope("coach");
+      setNewExDifficulty("medium");
+      setNewExScope("none");
       setNewExDesc("");
+      setNewExDuration(10);
+      setNewExSeries(1);
+      setNewExRecovery(2);
       setIsCreatingExercise(false);
+      setIsLibraryOpen(false);
     } catch (err: any) {
       setError(err.message ?? "Error en la petición");
+      alert("No se pudo crear la tarea: " + (err.message ?? "Error desconocido"));
     } finally {
       setCreatingExLoading(false);
     }
@@ -767,10 +867,13 @@ export function SessionForm({
     }
   };
 
-  // Add exercise from library
+  // Add exercise from library or quick creation
   const addExercise = (item: ExerciseLibraryItem) => {
-    const exists = exercises.some((ex) => ex.exercise_id === item.id);
-    if (exists) return; // Prevent duplicates
+    // Generate a unique exercise_id for session task instance
+    const baseId = item.id || `local_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const exerciseId = exercises.some((ex) => ex.exercise_id === baseId)
+      ? `${baseId}_${Date.now()}`
+      : baseId;
 
     // If needs_groups is true, pre-fill groups based on item.num_groups
     const defaultGroups: any[] = [];
@@ -784,41 +887,43 @@ export function SessionForm({
       }
     }
 
-    setExercises([
-      ...exercises,
-      {
-        exercise_id: item.id,
-        title: item.title,
-        category: item.category ?? "General",
-        duration_min: 15,
-        recovery_min: 2,
-        pitch_zones: [],
-        equipment: [],
-        group_setup: { groups: defaultGroups },
-        needs_groups: false,
-        num_groups: item.num_groups ?? 2,
-        players_per_group: item.players_per_group ?? "",
-        image_url: item.image_url ?? "",
-        video_url: item.video_url ?? "",
-        whiteboard_data: item.whiteboard_data ?? null,
-        whiteboard_zone: item.whiteboard_zone ?? "full_field",
-        space_dimensions: item.space_dimensions ?? "",
-        tactical_concepts: item.tactical_concepts ?? [],
-        muscle_groups: item.muscle_groups ?? [],
+    const numSeries = (item as any).num_series ?? 1;
+    const seriesDuration = (item as any).series_duration_min ?? 15;
+    const seriesRecovery = (item as any).series_recovery_min ?? 2;
 
-        // Custom fields
-        block_type: activeBlockType,
-        use_variable_series: false,
-        series: [],
-        num_series: 1,
-        series_duration_min: 15,
-        series_recovery_min: 2,
-        transition_rest_min: 2,
-        rules: "",
-        objective_notes: "",
-      },
-    ]);
-    setExpandedExercises(prev => ({ ...prev, [item.id]: true }));
+    const newItem = {
+      exercise_id: exerciseId,
+      title: item.title || "Tarea",
+      category: item.category ?? "General",
+      duration_min: seriesDuration,
+      recovery_min: seriesRecovery,
+      pitch_zones: [],
+      equipment: [],
+      group_setup: { groups: defaultGroups },
+      needs_groups: false,
+      num_groups: item.num_groups ?? 2,
+      players_per_group: item.players_per_group ?? "",
+      image_url: item.image_url ?? "",
+      video_url: item.video_url ?? "",
+      whiteboard_data: item.whiteboard_data ?? null,
+      whiteboard_zone: item.whiteboard_zone ?? "full_field",
+      space_dimensions: item.space_dimensions ?? "",
+      tactical_concepts: item.tactical_concepts ?? [],
+      muscle_groups: item.muscle_groups ?? [],
+
+      // Custom fields
+      block_type: activeBlockType,
+      use_variable_series: false,
+      series: [],
+      num_series: numSeries,
+      series_duration_min: seriesDuration,
+      series_recovery_min: seriesRecovery,
+      transition_rest_min: 2,
+      rules: "",
+      objective_notes: "",
+    };
+
+    setExercises((prev) => [...prev, newItem]);
     setIsLibraryOpen(false);
   };
 
@@ -1188,11 +1293,13 @@ export function SessionForm({
         facility_id: ex.facility_id || null,
       };
 
+      const cleanExerciseId = (ex.exercise_id || "").split("_dup_")[0].split("_copy_")[0];
+
       return {
-        exercise_id: ex.exercise_id,
+        exercise_id: cleanExerciseId,
         order_index: index,
-        duration_min: Number(ex.duration_min),
-        recovery_min: Number(ex.recovery_min),
+        duration_min: Number(ex.duration_min || ex.series_duration_min || 15),
+        recovery_min: Number(ex.recovery_min || ex.series_recovery_min || 2),
         pitch_zones: ex.pitch_zones,
         equipment: ex.equipment,
         group_setup: serializedGroupSetup,
@@ -1259,7 +1366,9 @@ export function SessionForm({
       router.push("/training");
       router.refresh();
     } catch (err: any) {
+      console.error("[SessionForm handleSave Error]:", err);
       setError(err.message ?? "Error en la petición");
+      alert("Error al guardar la sesión: " + (err.message ?? "Error de servidor al guardar la sesión."));
       setSaving(false);
     }
   };
@@ -1877,25 +1986,25 @@ export function SessionForm({
                   
                   const badgeStyle =
                     currentStatus === "present"
-                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      : currentStatus === "partial"
-                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                      : currentStatus === "readaptation"
-                      ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                      ? "bg-emerald-600 text-white border-emerald-500"
                       : currentStatus === "injured"
-                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                      : "bg-slate-500/10 text-slate-400 border-slate-500/20 opacity-60";
+                      ? "bg-rose-600 text-white border-rose-500"
+                      : currentStatus === "absent"
+                      ? "bg-amber-600 text-white border-amber-500"
+                      : currentStatus === "readaptation"
+                      ? "bg-pink-600 text-white border-pink-500"
+                      : "bg-yellow-400 text-slate-950 border-yellow-300";
 
                   const statusLabel =
                     currentStatus === "present"
-                      ? "Disponible"
-                      : currentStatus === "partial"
-                      ? "Parte Sesión"
-                      : currentStatus === "readaptation"
-                      ? "Readaptación"
+                      ? "ENTRENA [S]"
                       : currentStatus === "injured"
-                      ? "Lesionado"
-                      : "Ausente";
+                      ? "LESIÓN [L]"
+                      : currentStatus === "absent"
+                      ? "VARIOS [V]"
+                      : currentStatus === "readaptation"
+                      ? "ENFERMO / REA [E]"
+                      : "PARCIAL [P]";
 
                   return (
                     <div
@@ -1911,7 +2020,7 @@ export function SessionForm({
                           type="button"
                           onClick={() => handleTogglePlayerAttendance(p.id)}
                           className={cn(
-                            "text-[8.5px] font-extrabold px-2 py-0.5 rounded border transition-all cursor-pointer truncate",
+                            "text-[8.5px] font-black px-2 py-0.5 rounded border transition-all cursor-pointer truncate shadow-sm",
                             badgeStyle
                           )}
                           title="Haz clic para alternar estado"
@@ -1924,11 +2033,11 @@ export function SessionForm({
                           onChange={(e) => handleAttendanceChange(p.id, e.target.value as any)}
                           className="text-[8px] bg-slate-900 border border-white/10 text-slate-300 rounded px-1 py-0.5 focus:outline-none cursor-pointer"
                         >
-                          <option value="present">Disponible (Verde)</option>
-                          <option value="partial">Parte Sesión (Amarillo)</option>
-                          <option value="readaptation">Readaptación (Naranja)</option>
-                          <option value="injured">Lesionado (Rojo)</option>
-                          <option value="absent">Ausente (Gris)</option>
+                          <option value="present" className="bg-slate-900 text-emerald-400">S - ENTRENA (Verde)</option>
+                          <option value="injured" className="bg-slate-900 text-rose-400">L - LESIÓN (Rojo)</option>
+                          <option value="absent" className="bg-slate-900 text-amber-400">V - VARIOS (Naranja)</option>
+                          <option value="readaptation" className="bg-slate-900 text-pink-400">E - ENFERMO / REA (Rosa)</option>
+                          <option value="partial" className="bg-slate-900 text-yellow-400">P - PARCIAL (Amarillo)</option>
                         </select>
                       </div>
                     </div>
@@ -1947,9 +2056,9 @@ export function SessionForm({
                     .map(p => {
                       const att = attendance[p.id] || { status: "absent", notes: "" };
                       const labelText =
-                        att.status === "injured" ? "Lesionado" :
-                        att.status === "readaptation" ? "Readaptación" :
-                        att.status === "partial" ? "Parte de Sesión" : "Ausente";
+                        att.status === "injured" ? "LESIÓN (L)" :
+                        att.status === "absent" ? "VARIOS (V)" :
+                        att.status === "readaptation" ? "ENFERMO / REA (E)" : "PARCIAL (P)";
 
                       return (
                         <div key={p.id} className="flex items-center gap-2 bg-white/2 border border-white/5 rounded-xl p-2.5">
@@ -2061,11 +2170,16 @@ export function SessionForm({
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
                     <div>
-                      <span className="text-xs font-extrabold text-purple-300 block">
-                        Bloque 0: Vídeo / Trabajo de Fuerza / Activación Previa (Oculto)
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-extrabold text-purple-300 block">
+                          Bloque 0: Vídeo / Fuerza / Activación
+                        </span>
+                        <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          ⚡ Previo al Entrenamiento
+                        </span>
+                      </div>
                       <span className="text-[10px] text-slate-400">
-                        Actívalo para incluir sesiones de vídeo, gimnasio o calentamiento previo.
+                        Actívalo para incluir sesiones de vídeo en vestuario, gimnasio o calentamiento previo antes de saltar al campo.
                       </span>
                     </div>
                   </div>
@@ -2082,11 +2196,18 @@ export function SessionForm({
                 <div className="bg-card rounded-lg p-5 border border-purple-500/30 space-y-4">
                   <div className="flex items-center justify-between border-b border-white/5 pb-2 flex-wrap gap-2">
                     <div>
-                      <h3 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                        Bloque 0: Vídeo / Fuerza / Activación Previa ({block0Exercises.length} tareas)
-                      </h3>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Vídeo táctico previo, trabajo de fuerza en gimnasio o activación individual.</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                          Bloque 0: Vídeo / Fuerza / Activación Previa ({block0Exercises.length} tareas)
+                        </h3>
+                        <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          ⚡ Previo al Entrenamiento
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-purple-200/80 mt-1 font-medium">
+                        ℹ️ <strong>Aviso:</strong> Este bloque se ejecuta previamente a la sesión de entrenamiento en campo (ej. vídeo táctico en vestuario, fuerza en gimnasio o prevención).
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -2713,15 +2834,17 @@ export function SessionForm({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Dificultad</label>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Carga</label>
                       <select
                         value={newExDifficulty}
                         onChange={(e) => setNewExDifficulty(e.target.value)}
                         className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none"
                       >
-                        <option value="beginner">Principiante</option>
-                        <option value="intermediate">Intermedio</option>
-                        <option value="advanced">Avanzado</option>
+                        <option value="very_low">Muy baja</option>
+                        <option value="low">Baja</option>
+                        <option value="medium">Media</option>
+                        <option value="high">Alta</option>
+                        <option value="very_high">Muy alta</option>
                       </select>
                     </div>
                     <div>
@@ -2731,6 +2854,7 @@ export function SessionForm({
                         onChange={(e) => setNewExScope(e.target.value)}
                         className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none"
                       >
+                        <option value="none">No exportar (Solo esta sesión)</option>
                         <option value="coach">Personal (Entrenador / Prep Físico)</option>
                         {(userRole === "super_admin" || userRole === "admin" || userRole === "owner" || userRole === "head_coach") && (
                           <option value="academy">Academia (Coordinador / Admin)</option>
@@ -2739,6 +2863,38 @@ export function SessionForm({
                           <option value="global">ClubLab (Superadmin)</option>
                         )}
                       </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Duración (min)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newExDuration}
+                        onChange={(e) => setNewExDuration(Math.max(1, Number(e.target.value)))}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Nº Series</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newExSeries}
+                        onChange={(e) => setNewExSeries(Math.max(1, Number(e.target.value)))}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Recup. (min)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={newExRecovery}
+                        onChange={(e) => setNewExRecovery(Math.max(0, Number(e.target.value)))}
+                        className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white"
+                      />
                     </div>
                   </div>
                   <div>
@@ -2763,6 +2919,7 @@ export function SessionForm({
                 <div className="space-y-2">
                   {(() => {
                     const filtered = exerciseLibrary.filter((item) => {
+                      if (item.library_scope === "none") return false;
                       if (libraryTab === "all") return true;
                       const category = (item.category || "").toLowerCase();
                       
@@ -2984,191 +3141,389 @@ export function SessionForm({
               `}} />
               
               <div>
-                {/* Header Row */}
-                <div className="border-b border-slate-200 pb-5 mb-5 flex justify-between items-start gap-4">
-                  <div className="flex items-start gap-4">
-                    {organizationSettings?.club_logo_url && (
-                      <img
-                        src={organizationSettings.club_logo_url}
-                        alt="Escudo"
-                        className="h-12 w-12 object-contain shrink-0 rounded-lg border border-slate-100 p-1"
-                      />
-                    )}
-                    <div>
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600">Sesión de Entrenamiento Grupal</span>
-                      <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-1">{title || "Sin título"}</h1>
-                      <p className="text-xs text-slate-500 mt-1">Equipo: {teams.find(t => t.id === teamId)?.name || "—"}</p>
-                    </div>
-                  </div>
-                  <div className="text-right text-xs">
-                    <p className="text-sm font-extrabold text-slate-900">{new Date(date).toLocaleDateString()}</p>
-                    <p className="text-slate-500 mt-0.5">Hora: {startTime} h</p>
-                    <p className="text-slate-500 mt-0.5">Duración: {durationMin} min</p>
-                    <p className="text-slate-500 mt-0.5">Día de Microciclo: {initialData?.metrics ? `${initialData.metrics.orden_semana} (Meso: ${initialData.metrics.meso}, Micro: Semana ${initialData.metrics.micro})` : "(cálculo automático)"}</p>
-                  </div>
-                </div>
+                {/* ── ALMAZÁN / CLUB REPORT HEADER GRID ── */}
+                {(() => {
+                  const nonBlock0Exercises = exercises.filter((ex) => ex.block_type !== 'block_0');
+                  const nonBlock0Duration = nonBlock0Exercises.reduce(
+                    (acc, ex) => acc + getExerciseTotalDuration(ex),
+                    0
+                  );
+                  const block0Duration = exercises
+                    .filter((ex) => ex.block_type === 'block_0')
+                    .reduce((acc, ex) => acc + getExerciseTotalDuration(ex), 0);
 
-                {/* Session Goals & Stats */}
-                <div className="grid grid-cols-3 gap-6 pb-5 mb-5 border-b border-slate-200 text-xs">
-                  <div>
-                    <h3 className="font-bold text-slate-800 uppercase tracking-wider text-[9px] mb-1.5">Objetivos Tácticos</h3>
-                    {sessionTacticalConcepts.length === 0 ? (
-                      <p className="text-slate-500 italic">—</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {sessionTacticalConcepts.map((key) => (
-                          <span key={key} className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-semibold text-slate-700 text-[10px]">
-                            {key.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800 uppercase tracking-wider text-[9px] mb-1.5">Objetivos Físicos</h3>
-                    {sessionMuscleGroups.length === 0 ? (
-                      <p className="text-slate-500 italic">—</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {sessionMuscleGroups.map((key) => (
-                          <span key={key} className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-semibold text-slate-700 text-[10px]">
-                            {key.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  const effectiveDuration = nonBlock0Duration > 0 ? nonBlock0Duration : Math.max(0, Number(durationMin) - block0Duration);
 
-                {/* Convocatoria y Roster Completo en Informe (Sin Scroll - Colores por Estado) */}
-                <div className="border-t border-b border-slate-200 py-4 mb-5 text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px]">
-                      Convocatoria y Estado Físico del Equipo ({activeSquadPlayers.length} Jugadores)
-                    </h3>
-                    <div className="flex items-center gap-3 text-[9px] font-semibold text-slate-600">
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Disponible</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> Parte Sesión</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> Readaptación</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> Lesionado</span>
-                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-slate-400" /> Ausente</span>
-                    </div>
-                  </div>
+                  const entrenaPlayers = activeSquadPlayers.filter((p) => (attendance[p.id]?.status ?? 'present') === 'present');
+                  const lesionPlayers = activeSquadPlayers.filter((p) => attendance[p.id]?.status === 'injured');
+                  const variosPlayers = activeSquadPlayers.filter((p) => attendance[p.id]?.status === 'absent');
+                  const enfermoPlayers = activeSquadPlayers.filter((p) => attendance[p.id]?.status === 'readaptation');
+                  const parcialPlayers = activeSquadPlayers.filter((p) => attendance[p.id]?.status === 'partial');
 
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 text-[9.5px]">
-                    {activeSquadPlayers.map((p) => {
-                      const st = attendance[p.id]?.status ?? "present";
-                      const printColor =
-                        st === "present"
-                          ? "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold"
-                          : st === "partial"
-                          ? "bg-amber-50 text-amber-900 border-amber-300 font-bold"
-                          : st === "readaptation"
-                          ? "bg-orange-50 text-orange-900 border-orange-300 font-bold"
-                          : st === "injured"
-                          ? "bg-rose-50 text-rose-900 border-rose-300 font-bold"
-                          : "bg-slate-100 text-slate-500 border-slate-300 opacity-70";
+                  const presentGoalkeepers = entrenaPlayers.filter((p) =>
+                    p.membership?.positions?.includes("goalkeeper")
+                  );
+                  const presentFieldPlayersCount = entrenaPlayers.length - presentGoalkeepers.length;
+                  const presentGoalkeepersCount = presentGoalkeepers.length;
+                  const presentTotalCount = entrenaPlayers.length;
 
-                      const stLabel =
-                        st === "present"
-                          ? "Disponible"
-                          : st === "partial"
-                          ? "Parte Sesión"
-                          : st === "readaptation"
-                          ? "Readaptación"
-                          : st === "injured"
-                          ? "Lesionado"
-                          : "Ausente";
+                  const activeTeam = teams.find((t) => t.id === teamId);
+                  const activeSeasonLabel = activeTeam?.season_id ? `${activeTeam.season_id}` : "2026-2027";
 
-                      return (
-                        <div key={p.id} className={cn("p-1.5 rounded-lg border flex flex-col justify-between leading-tight", printColor)}>
-                          <span className="font-extrabold truncate" title={`${p.first_name} ${p.last_name}`}>
-                            {p.first_name} {p.last_name}
-                          </span>
-                          <span className="text-[8px] uppercase tracking-wider font-semibold opacity-90 mt-0.5">
-                            {stLabel}
-                          </span>
+                  return (
+                    <div className="border-2 border-slate-900 mb-6 text-slate-900 font-sans text-xs overflow-hidden">
+                      {/* Row 1: Logo & Session Metadata Bar */}
+                      <div className="flex border-b-2 border-slate-900">
+                        {/* Club Logo Box */}
+                        <div className="w-28 border-r-2 border-slate-900 p-1 flex flex-col items-center justify-center bg-white shrink-0">
+                          {organizationSettings?.club_logo_url ? (
+                            <img
+                              src={organizationSettings.club_logo_url}
+                              alt="Escudo"
+                              className="h-16 w-16 object-contain"
+                            />
+                          ) : (
+                            <span className="text-[10px] font-black text-center uppercase tracking-tighter text-slate-800">CLUB LAB</span>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
 
-                {/* Exercises Timeline */}
-                <div className="space-y-6">
-                  {exercises.map((ex, idx) => {
-                    const blockLabel = ex.block_type === 'warmup' ? 'Calentamiento' : ex.block_type === 'cooldown' ? 'Vuelta a la Calma' : 'Parte Principal';
-                    const blockColor = ex.block_type === 'warmup' ? 'text-amber-600 bg-amber-50 border-amber-100' : ex.block_type === 'cooldown' ? 'text-sky-600 bg-sky-50 border-sky-100' : 'text-emerald-600 bg-emerald-50 border-emerald-100';
-
-                    return (
-                      <div key={idx} className="border border-slate-250 rounded-2xl p-4 grid grid-cols-3 gap-6 print:break-inside-avoid">
-                        <div className="col-span-2 space-y-3">
-                          <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                            <span className="h-5 w-5 rounded bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center">
-                              {idx + 1}
-                            </span>
-                            <div>
-                              <h4 className="font-extrabold text-slate-900 text-xs">{ex.title}</h4>
-                              <span className={cn("inline-block rounded px-1.5 py-0.5 text-[8px] font-bold border mt-0.5 uppercase tracking-wide", blockColor)}>
-                                {blockLabel}
-                              </span>
-                            </div>
-                            
-                            <div className="ml-auto text-right text-[10px] font-semibold text-slate-500">
-                              <span>Duración: {ex.duration_min} min | Recuperación: {ex.recovery_min} min</span>
-                              {ex.transition_rest_min && (
-                                <p className="text-[8px] text-slate-400">Rest Transición: {ex.transition_rest_min} min</p>
-                              )}
-                            </div>
+                        {/* Metadata Table Grid */}
+                        <div className="flex-1 grid grid-cols-8 divide-x-2 divide-slate-900 text-center font-bold">
+                          <div className="flex flex-col">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">TEMPORADA</div>
+                            <div className="py-2 text-xs font-black">{activeSeasonLabel}</div>
                           </div>
-
-                          <div className="grid grid-cols-2 gap-4 text-[10px] leading-relaxed">
-                            {ex.objective_notes && (
-                              <div>
-                                <span className="block font-bold text-slate-800 uppercase tracking-wider text-[8px]">Objetivos de la tarea:</span>
-                                <p className="text-slate-600 whitespace-pre-wrap">{ex.objective_notes}</p>
-                              </div>
-                            )}
-                            {ex.rules && (
-                              <div>
-                                <span className="block font-bold text-slate-800 uppercase tracking-wider text-[8px]">Normas / Pautas:</span>
-                                <p className="text-slate-600 whitespace-pre-wrap">{ex.rules}</p>
-                              </div>
-                            )}
+                          <div className="flex flex-col">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">FECHA</div>
+                            <div className="py-2 text-xs font-black">{date ? new Date(date).toLocaleDateString("es-ES") : "—"}</div>
                           </div>
+                          <div className="flex flex-col">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">HORA</div>
+                            <div className="py-2 text-xs font-black">{startTime || "10:00"}</div>
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">MESO</div>
+                            <div className="py-2 text-xs font-black">{initialData?.metrics?.meso || mesocycle || "1"}</div>
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">MICRO</div>
+                            <div className="py-2 text-xs font-black">{initialData?.metrics?.micro || microcycleDay || "1"}</div>
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">ORDEN SEM.</div>
+                            <div className="py-2 text-xs font-black">{sessionWeekSeq || "1"}</div>
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">SESIÓN</div>
+                            <div className="py-2 text-xs font-black">{sessionTotalSeq || "1"}</div>
+                          </div>
+                          <div className="flex flex-col bg-sky-100">
+                            <div className="bg-sky-800 text-white text-[9px] py-0.5 uppercase tracking-wider">DURACIÓN</div>
+                            <div className="py-2 text-sm font-black text-sky-950">{effectiveDuration} min</div>
+                          </div>
+                        </div>
+                      </div>
 
-                          {/* Groups list */}
-                          {ex.group_setup?.groups && ex.group_setup.groups.length > 0 && (
-                            <div className="space-y-1 border-t border-slate-100 pt-2 text-[9px]">
-                              <span className="block font-bold text-slate-450 uppercase tracking-wider text-[8px]">Equipos Asignados</span>
-                              <div className="grid grid-cols-3 gap-2">
-                                {ex.group_setup.groups.map((g: any, gIdx: number) => (
-                                  <div key={gIdx} className="bg-slate-50 border border-slate-100 p-1.5 rounded-lg">
-                                    <span className="block font-bold text-slate-700">{g.name}</span>
-                                    <p className="text-slate-500 leading-snug truncate">
-                                      {(g.players ?? []).map((pId: string) => presentPlayers.find(pl => pl.id === pId)?.first_name).filter(Boolean).join(", ")}
-                                    </p>
+                      {/* Row 2: Objetivos de la Sesión Header */}
+                      <div className="bg-slate-200 border-b-2 border-slate-900 text-center py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-800">
+                        OBJETIVOS DE LA SESIÓN
+                      </div>
+
+                      {/* Row 3: Objetivos Físicos */}
+                      <div className="flex border-b-2 border-slate-900">
+                        <div className="w-28 bg-sky-800 text-white text-[10px] font-extrabold flex items-center justify-center uppercase tracking-wider border-r-2 border-slate-900 shrink-0 py-1">
+                          FÍSICOS
+                        </div>
+                        <div className="flex-1 px-3 py-1 text-xs font-extrabold uppercase tracking-wide flex items-center text-slate-900">
+                          {sessionMuscleGroups.length > 0
+                            ? sessionMuscleGroups.map(key => MUSCLE_GROUPS.find(m => m.key === key)?.label || key).join(", ").toUpperCase()
+                            : "—"}
+                        </div>
+                      </div>
+
+                      {/* Row 4: Objetivos Tácticos */}
+                      <div className="flex border-b-2 border-slate-900">
+                        <div className="w-28 bg-sky-800 text-white text-[10px] font-extrabold flex items-center justify-center uppercase tracking-wider border-r-2 border-slate-900 shrink-0 py-1">
+                          TÁCTICOS
+                        </div>
+                        <div className="flex-1 px-3 py-1 text-xs font-extrabold uppercase tracking-wide flex items-center text-slate-900">
+                          {sessionTacticalConcepts.length > 0
+                            ? sessionTacticalConcepts.map(key => TACTICAL_CONCEPTS.find(c => c.key === key)?.label || key).join(", ").toUpperCase()
+                            : "—"}
+                        </div>
+                      </div>
+
+                      {/* Row 5: Convocatoria Grid Table */}
+                      <div className="flex">
+                        {/* Left Roster Counts Box */}
+                        <div className="w-28 border-r-2 border-slate-900 flex flex-col justify-between text-center shrink-0 bg-slate-50">
+                          <div className="bg-sky-800 text-white text-[9px] font-extrabold py-0.5 uppercase tracking-wider">PLANTILLA</div>
+                          <div className="py-1 border-b border-slate-300">
+                            <span className="block text-[8px] font-bold text-slate-600 uppercase">Jug. Dispo.</span>
+                            <span className="text-xs font-extrabold text-slate-900">{presentFieldPlayersCount}</span>
+                          </div>
+                          <div className="py-1 border-b border-slate-300">
+                            <span className="block text-[8px] font-bold text-slate-600 uppercase">Port. Dispo.</span>
+                            <span className="text-xs font-extrabold text-slate-900">{presentGoalkeepersCount}</span>
+                          </div>
+                          <div className="py-1 bg-sky-100">
+                            <span className="block text-[8px] font-bold text-sky-900 uppercase">Total Dispo.</span>
+                            <span className="text-sm font-black text-sky-950">{presentTotalCount}</span>
+                          </div>
+                        </div>
+
+                        {/* Right Attendance Grid of 5 Rows */}
+                        {(() => {
+                          const allSquadList = activeSquadPlayers.map((p) => {
+                            const isGK = p.membership?.positions?.includes("goalkeeper");
+                            const nameStr = `${p.first_name} ${p.last_name?.charAt(0) || ""}.`;
+                            const displayName = isGK ? `${nameStr} (P)` : nameStr;
+                            const status = attendance[p.id]?.status ?? "present";
+                            return { id: p.id, displayName, status };
+                          });
+
+                          const ROWS_COUNT = 5;
+                          const colsCount = Math.max(1, Math.ceil(allSquadList.length / ROWS_COUNT));
+
+                          const gridRows = Array.from({ length: ROWS_COUNT }, (_, rowIndex) => {
+                            return Array.from({ length: colsCount }, (_, colIndex) => {
+                              const playerIndex = colIndex * ROWS_COUNT + rowIndex;
+                              return allSquadList[playerIndex] || null;
+                            });
+                          });
+
+                          return (
+                            <div className="flex-1 overflow-x-auto">
+                              {/* Legend Header Bar */}
+                              <div className="bg-slate-800 text-white px-2 py-0.5 flex items-center justify-around text-[9px] font-extrabold uppercase tracking-wider border-b-2 border-slate-900">
+                                <span className="flex items-center gap-1">
+                                  <span className="bg-emerald-600 text-white px-1 rounded text-[7.5px]">S</span> ENTRENA
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <span className="bg-rose-600 text-white px-1 rounded text-[7.5px]">L</span> LESIÓN
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <span className="bg-amber-600 text-white px-1 rounded text-[7.5px]">V</span> VARIOS
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <span className="bg-pink-600 text-white px-1 rounded text-[7.5px]">E</span> ENFERMO / REA
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <span className="bg-yellow-400 text-slate-950 px-1 rounded text-[7.5px]">P</span> PARCIAL
+                                </span>
+                              </div>
+
+                              {/* 5-Row Grid Table */}
+                              <div className="p-1 space-y-0.5 bg-white">
+                                {gridRows.map((row, rIdx) => (
+                                  <div key={rIdx} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${colsCount}, minmax(100px, 1fr))` }}>
+                                    {row.map((p, cIdx) => {
+                                      if (!p) return <div key={cIdx} className="h-5" />;
+
+                                      let badgeLetter = "S";
+                                      let badgeBg = "bg-emerald-600 text-white";
+                                      let textColor = "text-slate-900 font-extrabold";
+                                      let borderBg = "border-emerald-300 bg-emerald-50";
+
+                                      if (p.status === "injured") {
+                                        badgeLetter = "L";
+                                        badgeBg = "bg-rose-600 text-white";
+                                        textColor = "text-rose-900 font-extrabold";
+                                        borderBg = "border-rose-300 bg-rose-50";
+                                      } else if (p.status === "absent") {
+                                        badgeLetter = "V";
+                                        badgeBg = "bg-amber-600 text-white";
+                                        textColor = "text-amber-900 font-extrabold";
+                                        borderBg = "border-amber-300 bg-amber-50";
+                                      } else if (p.status === "readaptation") {
+                                        badgeLetter = "E";
+                                        badgeBg = "bg-pink-600 text-white";
+                                        textColor = "text-pink-900 font-extrabold";
+                                        borderBg = "border-pink-300 bg-pink-50";
+                                      } else if (p.status === "partial") {
+                                        badgeLetter = "P";
+                                        badgeBg = "bg-yellow-400 text-slate-950";
+                                        textColor = "text-yellow-900 font-extrabold";
+                                        borderBg = "border-yellow-300 bg-yellow-50";
+                                      }
+
+                                      return (
+                                        <div
+                                          key={p.id || cIdx}
+                                          className={cn("flex justify-between items-center px-1.5 py-0.5 rounded border text-[9px] h-5", borderBg, textColor)}
+                                        >
+                                          <span className="truncate">{p.displayName}</span>
+                                          <span className={cn("text-[7.5px] font-black rounded px-1 ml-0.5 shrink-0", badgeBg)}>
+                                            {badgeLetter}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 ))}
                               </div>
                             </div>
-                          )}
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* ── BLOQUES DE LA SESIÓN (BLOQUE 0, BLOQUE 1, BLOQUE 2, BLOQUE 3) ── */}
+                <div className="space-y-6">
+                  {([
+                    {
+                      key: "block_0",
+                      blockLabel: "Bloque 0",
+                      title: "PREVIO AL ENTRENAMIENTO",
+                      badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
+                    },
+                    {
+                      key: "warmup",
+                      blockLabel: "Bloque 1",
+                      title: "CALENTAMIENTO",
+                      badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
+                    },
+                    {
+                      key: "main",
+                      blockLabel: "Bloque 2",
+                      title: "PARTE PRINCIPAL",
+                      badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
+                    },
+                    {
+                      key: "cooldown",
+                      blockLabel: "Bloque 3",
+                      title: "VUELTA A LA CALMA",
+                      badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
+                    },
+                  ] as const).map((blockConfig) => {
+                    const blockExercises = exercises.filter((ex) => {
+                      const bt = String(ex.block_type || ex.group_setup?.block_type || "").toLowerCase();
+                      const isB0 = bt === "block0" || bt === "block_0";
+                      const isWarmup = bt === "warmup";
+                      const isCooldown = bt === "cooldown";
+                      const isMain = bt === "main" || (!bt && !isB0 && !isWarmup && !isCooldown);
+
+                      if (blockConfig.key === "block_0") return isB0;
+                      if (blockConfig.key === "warmup") return isWarmup;
+                      if (blockConfig.key === "cooldown") return isCooldown;
+                      if (blockConfig.key === "main") return isMain;
+                      return false;
+                    });
+
+                    if (blockExercises.length === 0) return null;
+
+                    const blockTotalDuration = blockExercises.reduce(
+                      (sum, ex) => sum + getExerciseTotalDuration(ex),
+                      0
+                    );
+
+                    return (
+                      <div key={blockConfig.key} className="space-y-2 print:break-inside-avoid">
+                        {/* Block Header Divider Line */}
+                        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 bg-slate-200 px-2 py-0.5 rounded border border-slate-400">
+                              {blockConfig.blockLabel}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded text-xs font-black uppercase tracking-wider border bg-slate-100 text-slate-800 border-slate-300">
+                              {blockConfig.title}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-700">
+                            ({blockExercises.length} tarea{blockExercises.length !== 1 ? 's' : ''} — {blockTotalDuration} min)
+                          </span>
                         </div>
 
-                        {/* Tactical Whiteboard Image */}
-                        <div className="col-span-1 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-xl aspect-[4/3] p-1.5 overflow-hidden">
-                          {ex.whiteboard_data?.imageDataUrl ? (
-                            <img
-                              src={ex.whiteboard_data.imageDataUrl}
-                              alt="Tactical diagram"
-                              className="w-full h-full object-contain"
-                            />
-                          ) : (
-                            <div className="text-center p-4">
-                              <Sparkles className="h-6 w-6 text-slate-350 mx-auto" />
-                              <span className="block text-[8px] text-slate-400 mt-1 uppercase tracking-wider font-bold">Sin Dibujo Táctico</span>
+                        {/* Exercises List inside this block */}
+                        <div className="space-y-2.5">
+                          {blockExercises.map((ex, idx) => {
+                            const totalExDuration = getExerciseTotalDuration(ex);
+                            const nSeries = ex.num_series || 1;
+                            const sDuration = ex.series_duration_min || ex.duration_min || 10;
+                            const sRecovery = ex.series_recovery_min || ex.recovery_min || 2;
+
+                            const rawGroups = ex.group_setup?.groups || [];
+                            const assignedGroups = rawGroups.filter((g: any) => {
+                              const playerIds = g.players ?? [];
+                              return Array.isArray(playerIds) && playerIds.length > 0;
+                            });
+
+                            return (
+                              <div key={idx} className="border border-slate-300 rounded-xl p-3 grid grid-cols-3 gap-4 print:break-inside-avoid bg-white shadow-none">
+                                <div className="col-span-2 space-y-2">
+                                  <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
+                                    <span className="h-4.5 w-4.5 rounded bg-slate-900 text-white font-extrabold text-[10px] flex items-center justify-center">
+                                      {idx + 1}
+                                    </span>
+                                    <div>
+                                      <h4 className="font-extrabold text-slate-900 text-xs">{ex.title}</h4>
+                                      <span className="inline-block rounded px-1 py-0.2 text-[8px] font-bold border mt-0.5 uppercase tracking-wide bg-slate-100 text-slate-700 border-slate-200">
+                                        {ex.category || "General"}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="ml-auto text-right text-[9px] font-semibold text-slate-600">
+                                      <span>{totalExDuration} min ({nSeries}x{sDuration}m | Rec: {sRecovery}m)</span>
+                                      {ex.transition_rest_min && (
+                                        <p className="text-[8px] text-slate-400">Transición: {ex.transition_rest_min} min</p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-[9px] leading-snug">
+                                  {ex.objective_notes && (
+                                    <div>
+                                      <span className="block font-bold text-slate-800 uppercase tracking-wider text-[8px]">Objetivos de la tarea:</span>
+                                      <p className="text-slate-600 whitespace-pre-wrap">{ex.objective_notes}</p>
+                                    </div>
+                                  )}
+                                  {ex.rules && (
+                                    <div>
+                                      <span className="block font-bold text-slate-800 uppercase tracking-wider text-[8px]">Normas / Pautas:</span>
+                                      <p className="text-slate-600 whitespace-pre-wrap">{ex.rules}</p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Groups list - ONLY RENDERED IF AT LEAST 1 PLAYER IS ASSIGNED */}
+                                {assignedGroups.length > 0 && (
+                                  <div className="space-y-1 border-t border-slate-100 pt-1.5 text-[9px]">
+                                    <span className="block font-bold text-slate-700 uppercase tracking-wider text-[8px]">Equipos Asignados</span>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                      {assignedGroups.map((g: any, gIdx: number) => {
+                                        const names = (g.players ?? []).map((pId: string) => presentPlayers.find(pl => pl.id === pId)?.first_name).filter(Boolean).join(", ");
+                                        return (
+                                          <div key={gIdx} className="bg-slate-50 border border-slate-200 p-1 rounded">
+                                            <span className="block font-bold text-slate-800 text-[8.5px]">{g.name}</span>
+                                            <p className="text-slate-600 leading-tight truncate text-[8px]">{names}</p>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Tactical Whiteboard Image */}
+                              <div className="col-span-1 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-xl aspect-[4/3] p-1.5 overflow-hidden">
+                                {ex.whiteboard_data?.imageDataUrl ? (
+                                  <img
+                                    src={ex.whiteboard_data.imageDataUrl}
+                                    alt="Tactical diagram"
+                                    className="w-full h-full object-contain"
+                                  />
+                                ) : (
+                                  <div className="text-center p-4">
+                                    <Sparkles className="h-6 w-6 text-slate-350 mx-auto" />
+                                    <span className="block text-[8px] text-slate-400 mt-1 uppercase tracking-wider font-bold">Sin Dibujo Táctico</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
+                          );
+                        })}
                         </div>
                       </div>
                     );
@@ -3615,6 +3970,29 @@ export function SessionForm({
         {/* Card Body */}
         {isExpanded && (
           <div className="space-y-4 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-200">
+            {/* Title & Category Edit Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white/2 p-3 rounded-xl border border-white/5">
+              <div>
+                <label className={labelClass}>Nombre / Título de la Tarea</label>
+                <input
+                  type="text"
+                  value={ex.title ?? ""}
+                  onChange={(e) => updateExerciseField(index, "title", e.target.value)}
+                  placeholder="Ej: Rondo 5v2 en zona..."
+                  className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Tipo / Categoría de Tarea</label>
+                <input
+                  type="text"
+                  value={ex.category ?? ""}
+                  onChange={(e) => updateExerciseField(index, "category", e.target.value)}
+                  placeholder="Ej: Táctica, Calentamiento, Fuerza..."
+                  className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                />
+              </div>
+            </div>
 
         {/* Block & Location assignment selectors */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -705,15 +705,17 @@ export default function ExercisesLibraryPage() {
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Dificultad</label>
+                  <label className={labelClass}>Carga</label>
                   <select
                     value={difficulty}
                     onChange={(e) => setDifficulty(e.target.value)}
                     className={selectClass}
                   >
-                    <option value="beginner" className="bg-slate-950">Principiante</option>
-                    <option value="intermediate" className="bg-slate-950">Intermedio</option>
-                    <option value="advanced" className="bg-slate-950">Avanzado</option>
+                    <option value="very_low" className="bg-slate-950">Muy baja</option>
+                    <option value="low" className="bg-slate-950">Baja</option>
+                    <option value="medium" className="bg-slate-950">Media</option>
+                    <option value="high" className="bg-slate-950">Alta</option>
+                    <option value="very_high" className="bg-slate-950">Muy alta</option>
                   </select>
                 </div>
                 <div>

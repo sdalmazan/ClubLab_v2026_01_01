@@ -200,8 +200,9 @@ function InviteFormContent() {
       });
 
       setCompletedSuccess(true);
+      const targetUrl = data.redirectUrl || (data.role === "player" ? "/player" : "/dashboard");
       setTimeout(() => {
-        router.push("/player");
+        router.push(targetUrl);
         router.refresh();
       }, 1200);
     } catch (err: any) {

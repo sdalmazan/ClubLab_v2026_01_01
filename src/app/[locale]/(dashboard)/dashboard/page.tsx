@@ -22,6 +22,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 
+import { CoachMobileView } from "@/components/dashboard/CoachMobileView";
+
 export const metadata: Metadata = {
   title: "Inicio — ClubLab",
   description: "Plataforma de gestión deportiva y estadísticas de rendimiento",
@@ -217,7 +219,32 @@ export default async function DashboardPage({
   const pendingCheckoutCount = totalPlayers - completedCheckoutsCount;
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto">
+    <>
+      {/* ── MOBILE COACH INTERFACE ── */}
+      <CoachMobileView
+        clubName={clubName}
+        userRole={userRole || "head_coach"}
+        totalPlayers={totalPlayers}
+        availableCount={availableCount}
+        injuredCount={injuredCount}
+        readaptCount={readaptCount}
+        fatiguedCount={fatiguedCount}
+        availabilityRate={availabilityRate}
+        completedCheckinsCount={completedCheckinsCount}
+        checkinPct={checkinPct}
+        pendingCheckinCount={pendingCheckinCount}
+        completedCheckoutsCount={completedCheckoutsCount}
+        checkoutPct={checkoutPct}
+        pendingCheckoutCount={pendingCheckoutCount}
+        todaySession={todaySession}
+        weekSessions={weekSessions}
+        alertsList={alertsList}
+        injuredList={injuredList}
+        players={players}
+      />
+
+      {/* ── DESKTOP DASHBOARD VIEW ── */}
+      <div className="hidden md:block space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto">
       {/* ── Standard PageHeader ── */}
       <PageHeader 
         title="Inicio" 
@@ -484,6 +511,7 @@ export default async function DashboardPage({
           Debug Active: Team {resolvedTeamId || "None"} | Players {players.length} | Sessions {dbSessions.length}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

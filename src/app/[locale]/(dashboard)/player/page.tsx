@@ -14,7 +14,11 @@ import { getMockPlayerSummary } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
 import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle } from "lucide-react";
 
+import { useRouter, useSearchParams } from "next/navigation";
+
 export default function PlayerTodayPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [hasCompletedCheckin, setHasCompletedCheckin] = useState(false);
   const [summary, setSummary] = useState(() => {
     const base = getMockPlayerSummary();
@@ -33,21 +37,49 @@ export default function PlayerTodayPage() {
   const [addInjuryOpen, setAddInjuryOpen] = useState(false);
 
   useEffect(() => {
-    // Load authenticated user name from client Supabase session
+    // Load authenticated user name & check role from client Supabase session
     const { createClient } = require("@/lib/supabase/client");
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }: any) => {
-      if (user?.user_metadata?.full_name || user?.email) {
-        const rawName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Jugador";
-        const firstName = rawName.trim().split(" ")[0] || "Jugador";
-        setSummary((prev) => ({
-          ...prev,
-          player: {
-            ...prev.player,
-            first_name: firstName,
-            sporting_name: rawName,
-          },
-        }));
+    supabase.auth.getUser().then(async ({ data: { user } }: any) => {
+      if (user) {
+        // Fetch organization role
+        const { data: orgRole } = await supabase
+          .from("user_organization_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+
+        const userRole = orgRole?.role || "player";
+        const isCoachRole = [
+          "head_coach",
+          "assistant_coach",
+          "coach",
+          "physical_coach",
+          "club_admin",
+          "super_admin",
+          "physio",
+          "sporting_director",
+        ].includes(userRole);
+
+        // Redirect coaches to dashboard unless preview query param is present
+        const isPreview = searchParams.get("preview") === "1";
+        if (isCoachRole && !isPreview) {
+          router.replace("/dashboard");
+          return;
+        }
+
+        if (user?.user_metadata?.full_name || user?.email) {
+          const rawName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Jugador";
+          const firstName = rawName.trim().split(" ")[0] || "Jugador";
+          setSummary((prev) => ({
+            ...prev,
+            player: {
+              ...prev.player,
+              first_name: firstName,
+              sporting_name: rawName,
+            },
+          }));
+        }
       }
     });
 

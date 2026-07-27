@@ -1,6 +1,24 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+function normalizeDifficulty(diff?: string): "beginner" | "intermediate" | "advanced" {
+  if (!diff) return "intermediate";
+  const d = diff.toLowerCase().trim();
+  if (d === "very_low" || d === "low" || d === "beginner" || d.includes("baja")) {
+    return "beginner";
+  }
+  if (d === "high" || d === "very_high" || d === "advanced" || d.includes("alta")) {
+    return "advanced";
+  }
+  return "intermediate";
+}
+
+function normalizeScope(scope?: string): "coach" | "academy" | "global" {
+  if (!scope || scope === "none") return "coach";
+  if (scope === "academy" || scope === "global") return scope;
+  return "coach";
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -55,10 +73,10 @@ export async function POST(request: Request) {
         title: title.trim(),
         description: description?.trim() || null,
         category: category?.trim() || "General",
-        difficulty: difficulty || "intermediate",
+        difficulty: normalizeDifficulty(difficulty),
         is_shared: !!is_shared,
         tags: tags || [],
-        library_scope: library_scope || "coach",
+        library_scope: normalizeScope(library_scope),
         tactical_concepts: tactical_concepts || [],
         muscle_groups: muscle_groups || [],
         space_dimensions: space_dimensions || null,
@@ -116,7 +134,7 @@ export async function PUT(request: Request) {
     } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "El ID es obligatorio para actualizar" }, { status: 400 });
+      return NextResponse.json({ error: "ID de ejercicio obligatorio" }, { status: 400 });
     }
 
     if (!title?.trim()) {
@@ -162,10 +180,10 @@ export async function PUT(request: Request) {
         title: title.trim(),
         description: description?.trim() || null,
         category: category?.trim() || "General",
-        difficulty: difficulty || "intermediate",
+        difficulty: normalizeDifficulty(difficulty),
         is_shared: !!is_shared,
         tags: tags || [],
-        library_scope: library_scope || "coach",
+        library_scope: normalizeScope(library_scope),
         tactical_concepts: tactical_concepts || [],
         muscle_groups: muscle_groups || [],
         space_dimensions: space_dimensions || null,

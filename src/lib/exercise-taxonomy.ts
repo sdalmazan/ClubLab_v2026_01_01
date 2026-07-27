@@ -40,6 +40,7 @@ export const EXERCISE_CATEGORIES = [
 
 export const TACTICAL_CONCEPTS = [
   // Fase Ofensiva
+  { key: 'toma_contacto_tecnico', label: 'Toma de Contacto Técnico', category: 'Fase Ofensiva' },
   { key: 'salida_balon', label: 'Salida de Balón', category: 'Fase Ofensiva' },
   { key: 'progresion_canalizacion', label: 'Progresión / Canalización', category: 'Fase Ofensiva' },
   { key: 'amplitud_profundidad', label: 'Amplitud y Profundidad', category: 'Fase Ofensiva' },
@@ -73,6 +74,8 @@ export const MUSCLE_GROUPS = [
   { key: 'aductores', label: 'Aductores / Pubis', zone: 'Cadera-Ingle' },
   { key: 'flexores_cadera', label: 'Flexores de Cadera (Psóas Ilíaco)', zone: 'Cadera-Ingle' },
   // General
+  { key: 'resistencia', label: 'Resistencia', zone: 'General' },
+  { key: 'velocidad', label: 'Velocidad', zone: 'General' },
   { key: 'general_aerobico', label: 'Resistencia Aeróbica (General)', zone: 'General' },
   { key: 'velocidad_sprint', label: 'Velocidad / Sprint', zone: 'General' },
   { key: 'fuerza_explosiva', label: 'Fuerza Explosiva / Salto', zone: 'General' },
