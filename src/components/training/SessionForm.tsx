@@ -3171,7 +3171,8 @@ export function SessionForm({
                   const activeSeasonLabel = activeTeam?.season_id ? `${activeTeam.season_id}` : "2026-2027";
 
                   return (
-                    <div className="border-2 border-slate-900 mb-6 text-slate-900 font-sans text-xs overflow-hidden">
+                    <div className="w-full overflow-x-auto border-2 border-slate-900 mb-6 text-slate-900 font-sans text-xs rounded-lg">
+                      <div className="min-w-[650px]">
                       {/* Row 1: Logo & Session Metadata Bar */}
                       <div className="flex border-b-2 border-slate-900">
                         {/* Club Logo Box */}
@@ -3367,7 +3368,8 @@ export function SessionForm({
                         })()}
                       </div>
                     </div>
-                  );
+                  </div>
+                );
                 })()}
 
                 {/* ── BLOQUES DE LA SESIÓN (BLOQUE 0, BLOQUE 1, BLOQUE 2, BLOQUE 3) ── */}

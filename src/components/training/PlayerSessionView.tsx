@@ -311,58 +311,59 @@ export function PlayerSessionView({
               const seasonVal = session.season?.name || "2026-2027";
 
               return (
-                <div className="divide-y-2 divide-slate-700">
-                  {/* Row 1: Logo & Session Metadata Grid */}
-                  <div className="flex flex-col md:flex-row">
-                    {/* Club Logo Box */}
-                    <div className="w-full md:w-32 border-b-2 md:border-b-0 md:border-r-2 border-slate-700 p-2 flex flex-col items-center justify-center bg-slate-950 shrink-0">
-                      {orgSettings.club_logo_url ? (
-                        <img
-                          src={orgSettings.club_logo_url}
-                          alt="Escudo"
-                          className="h-14 w-14 object-contain"
-                        />
-                      ) : (
-                        <span className="text-[10px] font-black text-center uppercase tracking-tighter text-slate-300">CLUB LAB</span>
-                      )}
-                    </div>
+                <div className="w-full overflow-x-auto rounded-2xl border-2 border-slate-700">
+                  <div className="min-w-[650px] divide-y-2 divide-slate-700">
+                    {/* Row 1: Logo & Session Metadata Grid */}
+                    <div className="flex flex-row">
+                      {/* Club Logo Box */}
+                      <div className="w-28 border-r-2 border-slate-700 p-2 flex flex-col items-center justify-center bg-slate-950 shrink-0">
+                        {orgSettings.club_logo_url ? (
+                          <img
+                            src={orgSettings.club_logo_url}
+                            alt="Escudo"
+                            className="h-14 w-14 object-contain"
+                          />
+                        ) : (
+                          <span className="text-[10px] font-black text-center uppercase tracking-tighter text-slate-300">CLUB LAB</span>
+                        )}
+                      </div>
 
-                    {/* Metadata Table Grid */}
-                    <div className="flex-1 grid grid-cols-4 md:grid-cols-8 divide-x divide-y md:divide-y-0 divide-slate-700 text-center font-bold">
-                      <div className="flex flex-col p-1">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">TEMPORADA</div>
-                        <div className="py-1.5 text-xs font-black text-slate-100">{seasonVal}</div>
-                      </div>
-                      <div className="flex flex-col p-1">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">FECHA</div>
-                        <div className="py-1.5 text-xs font-black text-slate-100">{date.toLocaleDateString("es-ES")}</div>
-                      </div>
-                      <div className="flex flex-col p-1">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">HORA</div>
-                        <div className="py-1.5 text-xs font-black text-slate-100">{startTime}</div>
-                      </div>
-                      <div className="flex flex-col p-1">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">MESO</div>
-                        <div className="py-1.5 text-xs font-black text-slate-100">{mesoVal}</div>
-                      </div>
-                      <div className="flex flex-col p-1">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">MICRO</div>
-                        <div className="py-1.5 text-xs font-black text-slate-100">{microVal}</div>
-                      </div>
-                      <div className="flex flex-col p-1">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">ORDEN SEM.</div>
-                        <div className="py-1.5 text-xs font-black text-slate-100">{weekSeqVal}</div>
-                      </div>
-                      <div className="flex flex-col p-1">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">SESIÓN</div>
-                        <div className="py-1.5 text-xs font-black text-slate-100">{totalSeqVal}</div>
-                      </div>
-                      <div className="flex flex-col p-1 bg-sky-950/60">
-                        <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">DURACIÓN</div>
-                        <div className="py-1.5 text-xs font-black text-sky-200">{effectiveDuration} min</div>
+                      {/* Metadata Table Grid */}
+                      <div className="flex-1 grid grid-cols-8 divide-x divide-slate-700 text-center font-bold">
+                        <div className="flex flex-col p-1">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">TEMPORADA</div>
+                          <div className="py-1.5 text-xs font-black text-slate-100">{seasonVal}</div>
+                        </div>
+                        <div className="flex flex-col p-1">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">FECHA</div>
+                          <div className="py-1.5 text-xs font-black text-slate-100">{date.toLocaleDateString("es-ES")}</div>
+                        </div>
+                        <div className="flex flex-col p-1">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">HORA</div>
+                          <div className="py-1.5 text-xs font-black text-slate-100">{startTime}</div>
+                        </div>
+                        <div className="flex flex-col p-1">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">MESO</div>
+                          <div className="py-1.5 text-xs font-black text-slate-100">{mesoVal}</div>
+                        </div>
+                        <div className="flex flex-col p-1">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">MICRO</div>
+                          <div className="py-1.5 text-xs font-black text-slate-100">{microVal}</div>
+                        </div>
+                        <div className="flex flex-col p-1">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">ORDEN SEM.</div>
+                          <div className="py-1.5 text-xs font-black text-slate-100">{weekSeqVal}</div>
+                        </div>
+                        <div className="flex flex-col p-1">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">SESIÓN</div>
+                          <div className="py-1.5 text-xs font-black text-slate-100">{totalSeqVal}</div>
+                        </div>
+                        <div className="flex flex-col p-1 bg-sky-950/60">
+                          <div className="bg-sky-600 text-white text-[9px] py-0.5 uppercase tracking-wider rounded-sm">DURACIÓN</div>
+                          <div className="py-1.5 text-xs font-black text-sky-200">{effectiveDuration} min</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
                   {/* Row 2: Objetivos Header */}
                   <div className="bg-slate-800 text-center py-1 text-[10px] font-black uppercase tracking-widest text-slate-300">
@@ -500,6 +501,7 @@ export function PlayerSessionView({
                         </div>
                       );
                     })()}
+                    </div>
                   </div>
                 </div>
               );
@@ -657,8 +659,17 @@ export function PlayerSessionView({
                     </span>
                   </div>
 
-                  {/* Grid Compacto de Ejercicios del Bloque */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
+                  {/* Grid Dinámico de Ejercicios del Bloque (Ajustado según cantidad 1, 2 o 3 tareas) */}
+                  <div className={cn(
+                    "grid gap-3 w-full",
+                    deviceLayout === "mobile"
+                      ? "grid-cols-1"
+                      : blockExercises.length === 1
+                      ? "grid-cols-1"
+                      : blockExercises.length === 2
+                      ? "grid-cols-1 md:grid-cols-2"
+                      : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                  )}>
                     {blockExercises.map((ex: any, idx: number) => {
                       const gs = ex.group_setup || {};
                       const rawGroups = gs.groups || [];
@@ -676,40 +687,40 @@ export function PlayerSessionView({
                       const seriesDuration = Number(gs.series_duration_min || ex.series_duration_min || ex.duration_min || 15);
 
                       return (
-                        <div key={idx} className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-3 hover:border-slate-700 transition-all shadow-sm flex flex-col justify-between print:break-inside-avoid">
-                          <div className="space-y-3">
+                        <div key={idx} className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-3 hover:border-slate-700 transition-all shadow-sm flex flex-col justify-between w-full min-w-0 overflow-hidden print:break-inside-avoid">
+                          <div className="space-y-3 w-full min-w-0">
                             {/* Card Header Compacto */}
-                            <div className="flex justify-between items-start gap-2 border-b border-slate-800/80 pb-2">
-                              <div className="flex gap-2 items-start">
-                                <span className="h-5 w-5 rounded bg-slate-800 border border-slate-700 font-bold text-slate-300 text-[11px] flex items-center justify-center shrink-0">
+                            <div className="flex justify-between items-start gap-2 border-b border-slate-800/80 pb-2 w-full min-w-0">
+                              <div className="flex gap-2 items-start min-w-0 flex-1">
+                                <span className="h-5 w-5 rounded bg-slate-800 border border-slate-700 font-extrabold text-slate-300 text-[11px] flex items-center justify-center shrink-0 mt-0.5">
                                   {idx + 1}
                                 </span>
-                                <div>
-                                  <h4 className="font-extrabold text-xs text-white leading-snug">{ex.title || ex.exercise?.title}</h4>
-                                  <span className="inline-block rounded px-1.5 py-0.2 text-[8px] font-bold border mt-0.5 uppercase tracking-wider bg-slate-800 text-slate-300 border-slate-700">
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="font-extrabold text-xs sm:text-sm text-white leading-snug break-words">{ex.title || ex.exercise?.title}</h4>
+                                  <span className="inline-block rounded px-1.5 py-0.5 text-[8px] font-bold border mt-1 uppercase tracking-wider bg-slate-800 text-slate-300 border-slate-700">
                                     {ex.category || "General"}
                                   </span>
                                 </div>
                               </div>
-                              <div className="text-right text-[11px] font-bold text-slate-300 shrink-0">
-                                <span>{totalExDuration} min</span>
+                              <div className="text-right text-[11px] font-bold text-slate-300 shrink-0 ml-1">
+                                <span className="whitespace-nowrap">{totalExDuration} min</span>
                                 {numSeries > 1 && (
-                                  <p className="text-[9px] text-slate-400 font-normal mt-0.5">{numSeries}x{seriesDuration}m</p>
+                                  <p className="text-[9px] text-slate-400 font-normal mt-0.5 whitespace-nowrap">{numSeries}x{seriesDuration}m</p>
                                 )}
                               </div>
                             </div>
 
                             {/* Whiteboard / Pitch Zone */}
                             {ex.whiteboard_data?.imageDataUrl ? (
-                              <div className="border border-slate-800 rounded-lg bg-slate-950 aspect-[16/9] w-full overflow-hidden flex items-center justify-center p-1.5">
+                              <div className="border border-slate-800 rounded-lg bg-slate-950 w-full overflow-hidden flex items-center justify-center p-1.5">
                                 <img
                                   src={ex.whiteboard_data.imageDataUrl}
                                   alt={`Pizarra táctica ${ex.title}`}
-                                  className="w-full h-full object-contain max-h-36 rounded"
+                                  className="w-full h-auto max-h-48 object-contain rounded"
                                 />
                               </div>
                             ) : ex.pitch_zones && ex.pitch_zones.length > 0 && (
-                              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 text-center">
+                              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 text-center w-full">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest">Zonas del campo</span>
                                 <span className="text-[10px] font-bold text-slate-300 mt-0.5 block">{ex.pitch_zones.join(", ")}</span>
                               </div>
@@ -717,12 +728,12 @@ export function PlayerSessionView({
 
                             {/* Group Divisions - ONLY RENDERED IF PLAYERS ARE ASSIGNED */}
                             {assignedGroups.length > 0 && (
-                              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1.5">
+                              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1.5 w-full min-w-0">
                                 <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
                                   <Users className="h-3 w-3 text-slate-400" />
                                   DISTRIBUCIÓN DE EQUIPOS / GRUPOS
                                 </span>
-                                <div className="grid grid-cols-1 gap-1.5">
+                                <div className="grid grid-cols-1 gap-1.5 w-full min-w-0">
                                   {assignedGroups.map((g: any, gIdx: number) => {
                                     const playerNames = (g.players ?? []).map((pId: string) => {
                                       const pl = session.attendance?.find((at: any) => (at.player?.id || at.player_id) === pId)?.player;
@@ -730,9 +741,9 @@ export function PlayerSessionView({
                                     }).filter(Boolean).join(", ");
 
                                     return (
-                                      <div key={gIdx} className="bg-slate-900 border border-slate-800 p-1.5 rounded text-[10px]">
+                                      <div key={gIdx} className="bg-slate-900 border border-slate-800 p-1.5 rounded text-[10px] w-full min-w-0">
                                         <span className="block font-bold text-slate-300 uppercase tracking-wide text-[9px]">{g.name}</span>
-                                        <p className="text-slate-400 leading-tight mt-0.5 font-medium">{playerNames}</p>
+                                        <p className="text-slate-400 leading-tight mt-0.5 font-medium break-words">{playerNames}</p>
                                       </div>
                                     );
                                   })}
@@ -742,17 +753,17 @@ export function PlayerSessionView({
 
                             {/* Rules / Notes - ONLY RENDERED IF NOT EMPTY */}
                             {(rules || notes) && (
-                              <div className="space-y-1.5 border-t border-slate-800/80 pt-2 text-[10px] leading-snug">
+                              <div className="space-y-1.5 border-t border-slate-800/80 pt-2 text-[10px] leading-snug w-full min-w-0">
                                 {notes && (
                                   <div>
                                     <span className="block font-bold text-slate-400 uppercase tracking-wider text-[9px]">Pautas del Ejercicio</span>
-                                    <p className="text-slate-300 whitespace-pre-wrap mt-0.5 bg-slate-950 border border-slate-800 rounded-lg p-2 font-medium">{notes}</p>
+                                    <p className="text-slate-300 whitespace-pre-wrap mt-0.5 bg-slate-950 border border-slate-800 rounded-lg p-2 font-medium break-words">{notes}</p>
                                   </div>
                                 )}
                                 {rules && (
                                   <div>
                                     <span className="block font-bold text-slate-400 uppercase tracking-wider text-[9px]">Normas / Consignas</span>
-                                    <p className="text-slate-300 whitespace-pre-wrap mt-0.5 bg-slate-950 border border-slate-800 rounded-lg p-2 font-medium">{rules}</p>
+                                    <p className="text-slate-300 whitespace-pre-wrap mt-0.5 bg-slate-950 border border-slate-800 rounded-lg p-2 font-medium break-words">{rules}</p>
                                   </div>
                                 )}
                               </div>
