@@ -11,32 +11,46 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const dateStr = searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const dateParam = searchParams.get("date");
+    const todayStr = new Date().toISOString().split("T")[0];
 
-    // Find player row for organization
+    // Find organization_id from player row or user_organization_roles
     const { data: player } = await supabase
       .from("players")
       .select("id, organization_id, team_id")
       .or(`user_id.eq.${user.id},email.eq.${user.email}`)
       .maybeSingle();
 
-    const orgId = player?.organization_id;
+    const { data: orgRole } = await supabase
+      .from("user_organization_roles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = player?.organization_id || orgRole?.organization_id;
 
     if (!orgId) {
       return NextResponse.json({ slots: [] });
     }
-
-    // Fetch slots for date
-    const { data: slots, error: slotsErr } = await supabase
+    let query = supabase
       .from("physio_slots")
       .select(`
         *,
         physio_bookings(id, player_id, status, notes)
       `)
       .eq("organization_id", orgId)
-      .eq("date", dateStr)
       .eq("is_cancelled", false)
+      .order("date", { ascending: true })
       .order("start_time", { ascending: true });
+
+    if (dateParam) {
+      query = query.eq("date", dateParam);
+    } else {
+      // If no date specified, return slots for TODAY and all upcoming dates!
+      query = query.gte("date", todayStr);
+    }
+
+    const { data: slots, error: slotsErr } = await query;
 
     if (slotsErr) {
       return NextResponse.json({ slots: [], error: slotsErr.message });

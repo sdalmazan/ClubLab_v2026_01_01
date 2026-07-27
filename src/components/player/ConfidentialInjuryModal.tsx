@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { X, Check, ShieldCheck, Lock, HeartPulse, HelpCircle } from "lucide-react";
 import { ConfidentialInjuryInput } from "@/services/playerExperienceService";
 
+import { createClient } from "@/lib/supabase/client";
+
 interface ConfidentialInjuryModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,11 +26,37 @@ export function ConfidentialInjuryModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: player } = await supabase
+          .from("players")
+          .select("id, organization_id, team_id")
+          .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+          .maybeSingle();
+
+        if (player) {
+          await supabase.from("injuries").insert({
+            organization_id: player.organization_id,
+            team_id: player.team_id,
+            player_id: player.id,
+            injury_type: injuryType,
+            body_part: bodyPart,
+            occurred_date: occurredDate,
+            notes: notes || null,
+            severity: "medium",
+            status: "active",
+            is_confidential: isConfidential,
+          });
+        }
+      }
+
       onSubmitSuccess({
         injuryType,
         bodyPart,
@@ -36,11 +64,16 @@ export function ConfidentialInjuryModal({
         isConfidential,
         notes,
       });
-    }, 600);
+      onClose();
+    } catch (err: any) {
+      console.error("Error saving injury:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
         {/* Header */}
         <div className="p-4 border-b border-border/50 flex items-center justify-between bg-blue-500/5">

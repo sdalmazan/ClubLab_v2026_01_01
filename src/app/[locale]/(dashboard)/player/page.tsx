@@ -13,9 +13,10 @@ import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { RecommendationCard } from "@/components/player/RecommendationCard";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
+import { ConfirmAttendanceWeightModal } from "@/components/player/ConfirmAttendanceWeightModal";
 import { evalPlayerTemporalState } from "@/services/playerTemporalStateService";
 import Link from "next/link";
-import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock, ChevronRight, X } from "lucide-react";
+import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock, ChevronRight, X, CheckCircle2 } from "lucide-react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -48,6 +49,10 @@ export default function PlayerTodayPage() {
   const [realRoutine, setRealRoutine] = useState<any | null>(null);
   const [clubInfo, setClubInfo] = useState<{ name: string; logoUrl: string | null } | null>(null);
   const [hasCompletedCheckout, setHasCompletedCheckout] = useState(false);
+
+  // Attendance & Weight state
+  const [confirmAttendanceOpen, setConfirmAttendanceOpen] = useState(false);
+  const [attendanceWeight, setAttendanceWeight] = useState<number | null>(null);
 
   // Physio Slot Modal state
   const [physioModalOpen, setPhysioModalOpen] = useState(false);
@@ -118,7 +123,7 @@ export default function PlayerTodayPage() {
         if (user?.user_metadata?.full_name || user?.email) {
           const rawName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Jugador";
           const firstName = rawName.trim().split(" ")[0] || "Jugador";
-          setSummary((prev) => ({
+          setSummary((prev: any) => ({
             ...prev,
             player: {
               ...prev.player,
@@ -149,7 +154,7 @@ export default function PlayerTodayPage() {
         if (data?.completed) {
           setHasCompletedCheckin(true);
           localStorage.setItem(`cl_player_checkin_done_${todayStr}`, "true");
-          setSummary((prev) => ({
+          setSummary((prev: any) => ({
             ...prev,
             checkinPending: false,
             status: "GOOD",
@@ -173,6 +178,15 @@ export default function PlayerTodayPage() {
         }
       })
       .catch((err) => console.error("Error loading physio slots:", err));
+
+    // Check if player has already confirmed attendance with weight today
+    const attendanceLocal = localStorage.getItem(`cl_player_attendance_confirmed_${todayStr}`);
+    if (attendanceLocal) {
+      try {
+        const parsed = JSON.parse(attendanceLocal);
+        if (parsed?.weight) setAttendanceWeight(parsed.weight);
+      } catch (e) {}
+    }
 
     // Check if player has already completed or acknowledged injury history
     const isDone = localStorage.getItem("cl_player_injury_history_done");
@@ -204,7 +218,7 @@ export default function PlayerTodayPage() {
   const handleInjurySubmittedSuccess = () => {
     setAddInjuryOpen(false);
     localStorage.setItem("cl_player_injury_history_done", "true");
-    setSummary((prev) => ({
+    setSummary((prev: any) => ({
       ...prev,
       statusMessage: "Histórico lesional actualizado. Los servicios médicos han sido notificados.",
     }));
@@ -215,7 +229,7 @@ export default function PlayerTodayPage() {
     setHasCompletedCheckin(true);
     const todayStr = new Date().toISOString().split("T")[0];
     localStorage.setItem(`cl_player_checkin_done_${todayStr}`, "true");
-    setSummary((prev) => ({
+    setSummary((prev: any) => ({
       ...prev,
       checkinPending: false,
       status: "GOOD",
@@ -225,7 +239,7 @@ export default function PlayerTodayPage() {
 
   const handleCheckoutSuccess = () => {
     setCheckoutOpen(false);
-    setSummary((prev) => ({
+    setSummary((prev: any) => ({
       ...prev,
       checkoutPending: false,
     }));
@@ -242,7 +256,7 @@ export default function PlayerTodayPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 px-4 py-6 max-w-lg mx-auto space-y-5">
+    <div className="min-h-screen bg-background text-foreground pb-36 px-4 py-6 max-w-lg mx-auto space-y-5">
       {/* Hero Status Card */}
       <HeroStatusCard
         playerName={summary.player.first_name || "Jugador"}
@@ -532,9 +546,18 @@ export default function PlayerTodayPage() {
         sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "10:00"}h)` : "Entrenamiento Matinal (10:00h)"}
       />
 
+      {/* Confirm Attendance Weight Modal */}
+      <ConfirmAttendanceWeightModal
+        isOpen={confirmAttendanceOpen}
+        onClose={() => setConfirmAttendanceOpen(false)}
+        onSuccess={(weight) => setAttendanceWeight(weight)}
+        initialWeight={attendanceWeight || ""}
+        sessionId={todaySession?.id || null}
+      />
+
       {/* Physio Slot Booking Modal */}
       {physioModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-card w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-border shadow-2xl overflow-hidden p-5 space-y-4 mb-16 sm:mb-0 animate-in slide-in-from-bottom duration-200">
             <div className="flex items-center justify-between border-b border-border/50 pb-3">
               <div className="flex items-center gap-2">

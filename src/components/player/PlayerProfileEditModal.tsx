@@ -26,6 +26,7 @@ export function PlayerProfileEditModal({
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [nationality, setNationality] = useState("Española");
   const [jerseyNumber, setJerseyNumber] = useState<number | "">(10);
+  const [injuries, setInjuries] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,6 +57,16 @@ export function PlayerProfileEditModal({
           if (player.weight_kg) setWeightKg(player.weight_kg);
           if (player.date_of_birth) setDateOfBirth(player.date_of_birth);
           if (player.nationality) setNationality(player.nationality);
+          if (player.jersey_number) setJerseyNumber(player.jersey_number);
+
+          // Fetch player's injuries
+          const { data: injData } = await supabase
+            .from("injuries")
+            .select("*")
+            .eq("player_id", player.id)
+            .order("occurred_date", { ascending: false });
+
+          if (injData) setInjuries(injData);
         }
       }
       setLoading(false);
@@ -100,6 +111,7 @@ export function PlayerProfileEditModal({
             weight_kg: weightKg !== "" ? Number(weightKg) : null,
             date_of_birth: dateOfBirth || null,
             nationality: nationality || "Española",
+            jersey_number: jerseyNumber !== "" ? Number(jerseyNumber) : null,
           })
           .eq("id", playerRow.id);
 
@@ -127,7 +139,7 @@ export function PlayerProfileEditModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-border shadow-2xl overflow-hidden max-h-[85vh] sm:max-h-[90vh] mb-16 sm:mb-0 flex flex-col animate-in slide-in-from-bottom duration-300">
         {/* Header */}
         <div className="p-4 border-b border-border/50 flex items-center justify-between bg-blue-500/10 shrink-0">

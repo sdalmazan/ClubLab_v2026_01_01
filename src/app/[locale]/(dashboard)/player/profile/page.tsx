@@ -22,7 +22,7 @@ export default function PlayerProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 px-4 py-6 max-w-lg mx-auto space-y-5">
+    <div className="min-h-screen bg-background text-foreground pb-36 px-4 py-6 max-w-lg mx-auto space-y-5">
       {/* Header Profile Hero */}
       <div className="rounded-3xl border border-blue-500/30 bg-card p-6 shadow-xl relative overflow-hidden flex items-center justify-between">
         <div className="flex items-center gap-4">
