@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
-import { updateWhatsAppMessageStatus } from "@/lib/whatsapp/service";
+import { updateWhatsAppMessageStatus, maskPhoneNumber } from "@/lib/whatsapp/service";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * GET /api/webhooks/whatsapp
+ * Meta initial webhook verification (hub.mode, hub.verify_token, hub.challenge)
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
@@ -15,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   if (mode === "subscribe" && token === expectedVerifyToken) {
     console.log("[WhatsApp Webhook GET] Verification successful from Meta.");
-    return new Response(challenge, {
+    return new Response(challenge || "OK", {
       status: 200,
       headers: { "Content-Type": "text/plain" },
     });
@@ -25,6 +29,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ error: "Forbidden - Invalid verify token" }, { status: 403 });
 }
 
+/**
+ * Validate Meta X-Hub-Signature-256 HMAC
+ */
 function verifyMetaSignature(rawBody: string, signatureHeader: string | null, appSecret: string): boolean {
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
     return false;
@@ -38,11 +45,16 @@ function verifyMetaSignature(rawBody: string, signatureHeader: string | null, ap
   return crypto.timingSafeEqual(Buffer.from(signature, "utf8"), Buffer.from(expectedHash, "utf8"));
 }
 
+/**
+ * POST /api/webhooks/whatsapp
+ * Handles Meta status updates (sent, delivered, read, failed) and incoming messages.
+ */
 export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
     const appSecret = process.env.WHATSAPP_APP_SECRET;
 
+    // 1. Verify Meta Signature if App Secret is configured
     if (appSecret) {
       const signatureHeader = request.headers.get("x-hub-signature-256");
       const isValid = verifyMetaSignature(rawBody, signatureHeader, appSecret);
@@ -64,10 +76,11 @@ export async function POST(request: NextRequest) {
           if (change.field === "messages") {
             const value = change.value || {};
 
+            // A. Process Outbound Message Status Updates
             if (value.statuses && Array.isArray(value.statuses)) {
               for (const statusObj of value.statuses) {
                 const wamid = statusObj.id;
-                const status = statusObj.status;
+                const status = statusObj.status; // 'sent' | 'delivered' | 'read' | 'failed'
                 const timestamp = statusObj.timestamp;
                 const recipientId = statusObj.recipient_id;
 
@@ -82,7 +95,10 @@ export async function POST(request: NextRequest) {
                   };
                 }
 
-                console.log(`[WhatsApp Status Event] WAMID: ${wamid} | Target: ${recipientId} | Status: ${status}`);
+                console.log(`[WhatsApp Status Event] WAMID: ${wamid} | Target: ${maskPhoneNumber(recipientId)} | Status: ${status}`);
+                if (errorPayload) {
+                  console.error(`[WhatsApp Failure Details] Code: ${errorPayload.code} | Title: ${errorPayload.title} | Details: ${errorPayload.details}`);
+                }
 
                 await updateWhatsAppMessageStatus({
                   wamid,
@@ -99,6 +115,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Always respond 200 OK to Meta to acknowledge receipt
     return NextResponse.json({ status: "SUCCESS" }, { status: 200 });
   } catch (error: any) {
     console.error("[WhatsApp Webhook POST Exception]", error.message);

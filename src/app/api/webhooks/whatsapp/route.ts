@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
-import { updateWhatsAppMessageStatus } from "@/lib/whatsapp/service";
+import { updateWhatsAppMessageStatus, maskPhoneNumber } from "@/lib/whatsapp/service";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   if (mode === "subscribe" && token === expectedVerifyToken) {
     console.log("[WhatsApp Webhook GET] Verification successful from Meta.");
-    return new Response(challenge, {
+    return new Response(challenge || "OK", {
       status: 200,
       headers: { "Content-Type": "text/plain" },
     });
@@ -49,7 +49,7 @@ function verifyMetaSignature(rawBody: string, signatureHeader: string | null, ap
  * POST /api/webhooks/whatsapp
  * Handles Meta status updates (sent, delivered, read, failed) and incoming messages.
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
     const appSecret = process.env.WHATSAPP_APP_SECRET;
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
                   };
                 }
 
-                console.log(`[WhatsApp Status Event] WAMID: ${wamid} | Target: ${recipientId} | Status: ${status}`);
+                console.log(`[WhatsApp Status Event] WAMID: ${wamid} | Target: ${maskPhoneNumber(recipientId)} | Status: ${status}`);
                 if (errorPayload) {
                   console.error(`[WhatsApp Failure Details] Code: ${errorPayload.code} | Title: ${errorPayload.title} | Details: ${errorPayload.details}`);
                 }
@@ -110,13 +110,6 @@ export async function POST(request: Request) {
                 });
               }
             }
-
-            // B. Process Incoming Messages if any
-            if (value.messages && Array.isArray(value.messages)) {
-              for (const msg of value.messages) {
-                console.log(`[WhatsApp Incoming Message Event] From: ${msg.from} | Type: ${msg.type}`);
-              }
-            }
           }
         }
       }
@@ -126,7 +119,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "SUCCESS" }, { status: 200 });
   } catch (error: any) {
     console.error("[WhatsApp Webhook POST Exception]", error.message);
-    // Respond 200 to prevent Meta from retrying broken payloads endlessly
     return NextResponse.json({ status: "ERROR_HANDLED", message: error.message }, { status: 200 });
   }
 }

@@ -17,6 +17,16 @@ export function normalizePhoneNumber(phone: string): { cleanPhone: string; digit
   return { cleanPhone, digitsOnly };
 }
 
+/**
+ * Safely masks phone numbers for logging (e.g. "+34 685 *** 495").
+ */
+export function maskPhoneNumber(phone: string): string {
+  if (!phone) return "";
+  const clean = phone.replace(/\s+/g, "");
+  if (clean.length <= 6) return clean;
+  return `${clean.slice(0, 7)} *** ${clean.slice(-3)}`;
+}
+
 export interface WhatsAppLogRecord {
   wamid: string;
   waba_id?: string;
@@ -24,8 +34,9 @@ export interface WhatsAppLogRecord {
   recipient_phone: string;
   template_name?: string;
   language?: string;
-  initial_status: string;
-  current_status: string;
+  purpose?: string;
+  initial_status: string; // 'dispatch_requested'
+  current_status: string; // 'dispatch_requested' | 'sent' | 'delivered' | 'read' | 'failed'
   error_code?: number | null;
   error_title?: string | null;
   error_message?: string | null;
@@ -51,6 +62,60 @@ function readFromLocalLog(wamid: string): WhatsAppLogRecord | null {
 }
 
 /**
+ * Audit Meta WhatsApp Token & Ecosystem configuration live against Graph API.
+ * Checks Token -> WABA -> Phone Number ID correspondence. Never leaks full token.
+ */
+export async function auditWhatsAppTokenConfig() {
+  const token = process.env.WHATSAPP_CLOUD_TOKEN || "";
+  const phoneId = process.env.WHATSAPP_CLOUD_PHONE_ID || "1295911476932384";
+  const wabaId = process.env.WHATSAPP_WABA_ID || "1635059935292068";
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || "";
+  const appSecret = process.env.WHATSAPP_APP_SECRET || "";
+
+  const tokenPreview = token
+    ? `${token.slice(0, 4)}...${token.slice(-4)}`
+    : "MISSING";
+
+  let graphApiValid = false;
+  let graphPhoneDetails: any = null;
+  let metaError: any = null;
+
+  if (token && phoneId) {
+    try {
+      const res = await fetch(`https://graph.facebook.com/v19.0/${phoneId}?fields=id,display_phone_number,verified_name,code_verification_status,quality_rating,platform_type`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.id) {
+        graphApiValid = true;
+        graphPhoneDetails = data;
+      } else {
+        metaError = data.error || data;
+      }
+    } catch (e: any) {
+      metaError = { message: e.message };
+    }
+  }
+
+  return {
+    environment: process.env.NODE_ENV || "development",
+    isVercel: !!process.env.VERCEL,
+    tokenConfigured: !!token,
+    tokenPreview,
+    tokenLength: token.length,
+    phoneIdConfigured: !!phoneId,
+    phoneId,
+    wabaIdConfigured: !!wabaId,
+    wabaId,
+    verifyTokenConfigured: !!verifyToken,
+    appSecretConfigured: !!appSecret,
+    graphApiValid,
+    graphPhoneDetails,
+    metaError,
+  };
+}
+
+/**
  * Record a newly dispatched WhatsApp message in Supabase and local logs.
  */
 export async function recordWhatsAppDispatch(params: {
@@ -60,6 +125,7 @@ export async function recordWhatsAppDispatch(params: {
   recipientPhone: string;
   templateName?: string;
   language?: string;
+  purpose?: string;
   rawResponse?: any;
 }): Promise<void> {
   const now = new Date().toISOString();
@@ -70,8 +136,9 @@ export async function recordWhatsAppDispatch(params: {
     recipient_phone: params.recipientPhone,
     template_name: params.templateName || "custom_message",
     language: params.language || "es",
-    initial_status: "accepted",
-    current_status: "accepted",
+    purpose: params.purpose || "onboarding",
+    initial_status: "dispatch_requested",
+    current_status: "dispatch_requested",
     created_at: now,
     updated_at: now,
     raw_initial_response: params.rawResponse || null,
@@ -91,6 +158,7 @@ export async function recordWhatsAppDispatch(params: {
         recipient_phone: record.recipient_phone,
         template_name: record.template_name,
         language: record.language,
+        purpose: record.purpose,
         initial_status: record.initial_status,
         current_status: record.current_status,
         created_at: record.created_at,
@@ -106,11 +174,11 @@ export async function recordWhatsAppDispatch(params: {
 
 // Order of statuses for state transitions
 const STATUS_RANK: Record<string, number> = {
-  accepted: 1,
+  dispatch_requested: 1,
   sent: 2,
   delivered: 3,
   read: 4,
-  failed: 99,
+  failed: 99, // Terminal state
 };
 
 /**
