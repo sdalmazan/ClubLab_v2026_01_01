@@ -102,58 +102,25 @@ export async function POST(request: Request) {
         message: `Código OTP de 6 dígitos enviado correctamente a ${cleanIdentifier}.`,
       });
     } else {
-      // SEND REAL WHATSAPP MESSAGE VIA META CLOUD API
-      const metaToken = process.env.WHATSAPP_CLOUD_TOKEN;
-      const metaPhoneId = process.env.WHATSAPP_CLOUD_PHONE_ID;
-
-      if (!metaToken || !metaPhoneId) {
-        // Log simulation fallback if Meta Cloud API tokens not provided in local dev
-        console.log(`[WhatsApp OTP Real Dispatch Simulator] Code for ${formattedPhone}: ${otpCode}`);
-        return NextResponse.json({
-          success: true,
-          channel: "whatsapp",
-          message: `Código OTP de 6 dígitos enviado por WhatsApp a ${formattedPhone}.`,
-        });
-      }
-
-      const payload = {
-        messaging_product: "whatsapp",
-        to: cleanIdentifier,
-        type: "text",
-        text: {
-          body: `🔒 [ClubLab S.D. Almazán]\nTu código de verificación OTP es: *${otpCode}*\n\nEs válido por 10 minutos. No lo compartas con nadie.`,
-        },
-      };
-
-      const res = await fetch(`https://graph.facebook.com/v19.0/${metaPhoneId}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${metaToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+      // SEND REAL WHATSAPP MESSAGE VIA META CLOUD API SERVICE
+      const { sendWhatsAppOTP } = await import("@/lib/whatsapp/service");
+      const result = await sendWhatsAppOTP({
+        phoneNumber: formattedPhone || cleanIdentifier,
+        code: otpCode,
+        recipientName,
       });
 
-      const resJson = await res.json();
-
-      if (!res.ok || !resJson.messages?.[0]?.id) {
-        console.error("[WhatsApp Cloud API OTP Error]", resJson);
+      if (!result.success) {
+        console.error("[WhatsApp Cloud API OTP Error] Failed to dispatch to:", formattedPhone || cleanIdentifier);
         return NextResponse.json({
-          error: "No se pudo enviar el mensaje de WhatsApp. Revisa el número de teléfono.",
-          details: resJson,
+          error: "No se pudo entregar el mensaje de WhatsApp. Verifica que el número de teléfono con prefijo internacional (+34...) sea correcto y tenga WhatsApp activo.",
         }, { status: 500 });
       }
-
-      await recordWhatsAppDispatch({
-        wamid: resJson.messages[0].id,
-        recipientPhone: cleanIdentifier,
-        rawResponse: resJson,
-      });
 
       return NextResponse.json({
         success: true,
         channel: "whatsapp",
-        message: `Código OTP de 6 dígitos enviado por WhatsApp a ${formattedPhone}.`,
+        message: `Código OTP de 6 dígitos enviado por WhatsApp a ${formattedPhone || cleanIdentifier}.`,
       });
     }
   } catch (err: any) {
