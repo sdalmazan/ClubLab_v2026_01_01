@@ -7,12 +7,14 @@ interface CheckoutRpeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmitSuccess: () => void;
+  sessionTitle?: string;
 }
 
 export function CheckoutRpeModal({
   isOpen,
   onClose,
   onSubmitSuccess,
+  sessionTitle = "Entrenamiento Matinal (10:00h)",
 }: CheckoutRpeModalProps) {
   const [rpe, setRpe] = useState<number>(7);
   const [postFeeling, setPostFeeling] = useState<"very_good" | "good" | "loaded" | "very_loaded">("good");
@@ -54,8 +56,8 @@ export function CheckoutRpeModal({
         {/* Header */}
         <div className="p-4 border-b border-border/50 flex items-center justify-between bg-blue-500/5">
           <div>
-            <span className="text-[11px] font-bold text-blue-500 uppercase tracking-wider">
-              Check-out Post-Entrenamiento
+            <span className="text-[11px] font-bold text-blue-500 uppercase tracking-wider block">
+              Check-out Post-Entrenamiento • {sessionTitle}
             </span>
             <h2 className="text-lg font-bold text-foreground">¿Cómo ha sido el esfuerzo?</h2>
           </div>

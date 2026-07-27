@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   CalendarDays,
   Clock,
@@ -17,9 +18,11 @@ import {
   HelpCircle,
   Monitor,
   Smartphone,
-  Lock
+  Lock,
+  Edit3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SessionPrintReport } from "./SessionPrintReport";
 
 interface PlayerSessionViewProps {
   session: any;
@@ -195,7 +198,8 @@ export function PlayerSessionView({
   }
 
   return (
-    <div className="bg-slate-950 text-white min-h-screen pb-16 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-white">
+    <>
+      <div className="bg-slate-950 text-white min-h-screen pb-16 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-white print:hidden">
       {/* ── TOP NAV BAR ── */}
       <div className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/90 border-b border-slate-800 px-4 md:px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -220,8 +224,19 @@ export function PlayerSessionView({
           </div>
         </div>
 
-        {/* Smart Device Layout Switcher Toggle */}
-        <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+        <div className="flex items-center gap-2">
+          {!isPlayer && session?.id && (
+            <Link
+              href={`/training/${session.id}/edit`}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Edit3 className="h-4 w-4" />
+              <span>Editar Sesión</span>
+            </Link>
+          )}
+
+          {/* Smart Device Layout Switcher Toggle */}
+          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
           <button
             type="button"
             onClick={() => setDeviceLayout("desktop")}
@@ -780,5 +795,14 @@ export function PlayerSessionView({
         </div>
       </div>
     </div>
+
+      {/* ── PRINT-ONLY ECO-INK A4 SHEET REPORT ── */}
+      <div className="hidden print:block font-sans bg-white text-slate-900 min-h-screen">
+        <SessionPrintReport
+          session={session}
+          organizationSettings={orgSettings}
+        />
+      </div>
+    </>
   );
 }

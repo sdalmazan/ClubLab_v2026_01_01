@@ -511,7 +511,7 @@ function InviteFormContent() {
         <button
           id="invite-submit"
           type="submit"
-          disabled={loading || !isPasswordValid || !passwordsMatch || !privacyAccepted}
+          disabled={loading}
           className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-sm py-3.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {loading ? "Activando cuenta..." : `Completar Registro en ${invitationOrg} →`}

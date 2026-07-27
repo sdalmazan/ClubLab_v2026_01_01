@@ -7,12 +7,14 @@ interface WellnessCheckinModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmitSuccess: () => void;
+  sessionTitle?: string;
 }
 
 export function WellnessCheckinModal({
   isOpen,
   onClose,
   onSubmitSuccess,
+  sessionTitle = "Entrenamiento Matinal (10:00h)",
 }: WellnessCheckinModalProps) {
   const [sleepQuality, setSleepQuality] = useState<number>(4);
   const [fatigue, setFatigue] = useState<number>(2);
@@ -124,8 +126,8 @@ export function WellnessCheckinModal({
         {/* Header */}
         <div className="p-4 border-b border-border/50 flex items-center justify-between bg-blue-500/5">
           <div>
-            <span className="text-[11px] font-bold text-blue-500 uppercase tracking-wider">
-              Check-in Pre-Entrenamiento
+            <span className="text-[11px] font-bold text-blue-500 uppercase tracking-wider block">
+              Check-in Pre-Entrenamiento • {sessionTitle}
             </span>
             <h2 className="text-lg font-bold text-foreground">¿Cómo te sientes hoy?</h2>
           </div>

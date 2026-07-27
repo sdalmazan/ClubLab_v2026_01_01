@@ -4,14 +4,21 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
 import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
-import { PlayerSettingsModal } from "@/components/player/PlayerSettingsModal";
-import { User, ShieldCheck, Dumbbell, Activity, HeartPulse, ChevronRight, Lock, Settings } from "lucide-react";
+import { PlayerProfileEditModal } from "@/components/player/PlayerProfileEditModal";
+import { User, ShieldCheck, Dumbbell, Activity, HeartPulse, ChevronRight, Lock, Settings, Edit3 } from "lucide-react";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 
 export default function PlayerProfilePage() {
   const summary = getMockPlayerSummary();
   const player = summary.player;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | undefined>();
+
+  const handleOpenEdit = (fieldKey?: string) => {
+    setFocusedField(fieldKey);
+    setEditModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24 px-4 py-6 max-w-lg mx-auto space-y-5">
@@ -35,20 +42,30 @@ export default function PlayerProfilePage() {
           </div>
         </div>
 
-        {/* Settings Button */}
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="p-3 bg-accent hover:bg-accent/80 text-foreground rounded-2xl border border-border/50 transition-all active:scale-95"
-          title="Ajustes del Jugador"
-        >
-          <Settings className="w-5 h-5 text-blue-500" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleOpenEdit()}
+            className="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+            title="Editar Mi Perfil"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-3 bg-accent hover:bg-accent/80 text-foreground rounded-2xl border border-border/50 transition-all active:scale-95 cursor-pointer"
+            title="Ajustes del Jugador"
+          >
+            <Settings className="w-5 h-5 text-blue-500" />
+          </button>
+        </div>
       </div>
 
       {/* Profile Completion Bar */}
       <ProfileCompletionBar
         percentage={summary.completionPercentage}
         missingFields={summary.missingFields}
+        onCompleteField={(key) => handleOpenEdit(key)}
       />
 
       {/* Section: Privacy & Data Governance Button */}
@@ -132,6 +149,13 @@ export default function PlayerProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      <PlayerProfileEditModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        initialFieldFocus={focusedField}
+      />
 
       {/* Settings Modal */}
       <PlayerSettingsModal

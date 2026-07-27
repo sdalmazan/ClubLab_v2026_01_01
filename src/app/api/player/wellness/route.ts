@@ -1,6 +1,39 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+export async function GET(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const { data: playerRow } = await supabase
+      .from("players")
+      .select("id")
+      .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+      .maybeSingle();
+
+    if (!playerRow) {
+      return NextResponse.json({ completed: false });
+    }
+
+    const { data: checkin } = await supabase
+      .from("player_wellness_checkins")
+      .select("*")
+      .eq("player_id", playerRow.id)
+      .eq("date", todayStr)
+      .maybeSingle();
+
+    return NextResponse.json({ completed: !!checkin, checkin: checkin || null });
+  } catch (e: any) {
+    return NextResponse.json({ completed: false, error: e.message });
+  }
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

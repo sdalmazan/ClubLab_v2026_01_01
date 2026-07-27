@@ -362,23 +362,95 @@ export default function PerformanceMonitoringPage() {
         </div>
       )}
 
-      {/* ── TAB 2: WELLNESS & PESO ── */}
+      {/* ── TAB 2: WELLNESS & PESAJES MATUTINOS (CUMPLIMIENTO DE PLANTILLA) ── */}
       {activeTab === "wellness_weight" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filteredRoster.map(p => (
-              <div key={p.id} className="bg-slate-900 border border-white/10 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white text-sm">{p.name}</span>
-                  <span className="text-xs font-mono font-bold text-emerald-400">{p.wellnessScore}/25</span>
-                </div>
-                <div className="text-xs text-slate-400 space-y-1">
-                  <div className="flex justify-between"><span>Sueño:</span><span className="font-bold text-white">{p.sleepQuality}/5</span></div>
-                  <div className="flex justify-between"><span>Fatiga:</span><span className="font-bold text-white">{p.fatigueLevel}/5</span></div>
-                  <div className="flex justify-between"><span>Peso:</span><span className="font-bold font-mono text-sky-400">{p.weightKg} kg</span></div>
-                </div>
+        <div className="space-y-5">
+          {/* Wellness Compliance Summary Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-900 border border-white/10 p-4 rounded-2xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Plantilla</span>
+                <span className="text-2xl font-black text-white font-mono">{roster.length}</span>
               </div>
-            ))}
+              <div className="p-3 bg-slate-800 text-slate-300 rounded-xl">
+                <User className="size-5" />
+              </div>
+            </div>
+
+            <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Check-in Completado</span>
+                <span className="text-2xl font-black text-emerald-400 font-mono">
+                  {roster.filter(p => p.completedWellnessToday).length}
+                </span>
+              </div>
+              <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                <CheckCircle2 className="size-5" />
+              </div>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Check-in Pendiente</span>
+                <span className="text-2xl font-black text-amber-400 font-mono">
+                  {roster.filter(p => !p.completedWellnessToday).length}
+                </span>
+              </div>
+              <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl">
+                <Clock className="size-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Roster Cards with Status & Reminder trigger */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredRoster.map(p => {
+              const isDone = p.completedWellnessToday;
+              return (
+                <div key={p.id} className={cn(
+                  "bg-slate-900 border rounded-2xl p-4 space-y-3 shadow-md transition-all",
+                  isDone ? "border-emerald-500/30" : "border-amber-500/30 bg-amber-500/5"
+                )}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-white text-sm block">{p.name}</span>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{p.position}</span>
+                    </div>
+                    {isDone ? (
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <CheckCircle2 className="size-3" /> Completado
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                        <Clock className="size-3" /> Pendiente
+                      </span>
+                    )}
+                  </div>
+
+                  {isDone ? (
+                    <div className="text-xs text-slate-400 space-y-1.5 pt-1 border-t border-white/5">
+                      <div className="flex justify-between"><span>Puntuación Wellness:</span><span className="font-bold text-emerald-400">{p.wellnessScore}/25</span></div>
+                      <div className="flex justify-between"><span>Sueño:</span><span className="font-bold text-white">{p.sleepQuality}/5</span></div>
+                      <div className="flex justify-between"><span>Fatiga:</span><span className="font-bold text-white">{p.fatigueLevel}/5</span></div>
+                      <div className="flex justify-between"><span>Peso Matutino:</span><span className="font-bold font-mono text-sky-400">{p.weightKg} kg</span></div>
+                    </div>
+                  ) : (
+                    <div className="pt-1 border-t border-white/5 space-y-2">
+                      <p className="text-[11px] text-amber-400/90 italic">
+                        Sin registro de salud hoy.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => alert(`Recordatorio enviado a ${p.name} por WhatsApp/Correo`)}
+                        className="w-full py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 font-bold text-[11px] rounded-xl border border-amber-500/30 transition-all cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <Clock className="size-3" /> Recordar por WhatsApp
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

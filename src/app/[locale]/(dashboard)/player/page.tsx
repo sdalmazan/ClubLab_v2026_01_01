@@ -7,12 +7,13 @@ import { WellnessCheckinModal } from "@/components/player/WellnessCheckinModal";
 import { CheckoutRpeModal } from "@/components/player/CheckoutRpeModal";
 import { ConfidentialInjuryModal } from "@/components/player/ConfidentialInjuryModal";
 import { PlayerInjuryReminderModal } from "@/components/player/PlayerInjuryReminderModal";
+import { PlayerProfileEditModal } from "@/components/player/PlayerProfileEditModal";
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
 import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { RecommendationCard } from "@/components/player/RecommendationCard";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
-import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle } from "lucide-react";
+import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock } from "lucide-react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -32,14 +33,32 @@ export default function PlayerTodayPage() {
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
+  // Profile Edit Modal State
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [editFocusedField, setEditFocusedField] = useState<string | undefined>();
+
   // Injury Reminder & Creation Modals
   const [injuryReminderOpen, setInjuryReminderOpen] = useState(false);
   const [addInjuryOpen, setAddInjuryOpen] = useState(false);
+
+  // Today's real session state
+  const [todaySession, setTodaySession] = useState<any | null>(null);
 
   useEffect(() => {
     // Load authenticated user name & check role from client Supabase session
     const { createClient } = require("@/lib/supabase/client");
     const supabase = createClient();
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    supabase
+      .from("training_sessions")
+      .select("*")
+      .eq("date", todayStr)
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (data) setTodaySession(data);
+      });
+
     supabase.auth.getUser().then(async ({ data: { user } }: any) => {
       if (user) {
         // Fetch organization role
@@ -83,10 +102,10 @@ export default function PlayerTodayPage() {
       }
     });
 
-    // Check if player has already completed checkin today in local session
+    // Check if player has already completed checkin today in DB or local session
     const todayStr = new Date().toISOString().split("T")[0];
-    const completedToday = localStorage.getItem(`cl_player_checkin_done_${todayStr}`);
-    if (completedToday) {
+    const completedLocal = localStorage.getItem(`cl_player_checkin_done_${todayStr}`);
+    if (completedLocal) {
       setHasCompletedCheckin(true);
       setSummary((prev) => ({
         ...prev,
@@ -95,6 +114,23 @@ export default function PlayerTodayPage() {
         statusMessage: "Check-in completado. Estás en un estado óptimo para entrenar.",
       }));
     }
+
+    // Verify DB checkin state directly
+    fetch("/api/player/wellness")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.completed) {
+          setHasCompletedCheckin(true);
+          localStorage.setItem(`cl_player_checkin_done_${todayStr}`, "true");
+          setSummary((prev) => ({
+            ...prev,
+            checkinPending: false,
+            status: "GOOD",
+            statusMessage: "Check-in completado. Estás en un estado óptimo para entrenar.",
+          }));
+        }
+      })
+      .catch((err) => console.error("Error checking wellness status:", err));
 
     // Check if player has already completed or acknowledged injury history
     const isDone = localStorage.getItem("cl_player_injury_history_done");
@@ -178,6 +214,81 @@ export default function PlayerTodayPage() {
           <PlusCircle className="w-3.5 h-3.5" />
           <span>Añadir</span>
         </button>
+      </div>
+
+      {/* Today's Training Session Card (Loaded Automatically 2h before or active) */}
+      <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card p-5 shadow-lg space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs">
+              HOY
+            </span>
+            <div>
+              <span className="text-[10px] font-extrabold text-emerald-500 uppercase tracking-wider block">
+                Sesión de Entrenamiento
+              </span>
+              <h3 className="text-sm font-bold text-foreground">
+                {todaySession?.title || "Entrenamiento de Plantilla — Senior A"}
+              </h3>
+            </div>
+          </div>
+          <span className="text-xs font-mono font-extrabold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+            {todaySession?.start_time ? todaySession.start_time.slice(0, 5) : "10:00"} hs
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground bg-accent/40 p-3 rounded-2xl border border-border/40">
+          <span className="flex items-center gap-1 font-semibold text-foreground">
+            <Clock className="w-3.5 h-3.5 text-emerald-500" />
+            {todaySession?.duration_min || 90} min
+          </span>
+          <span className="flex items-center gap-1 font-semibold text-foreground">
+            <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+            Campo La Arboleda
+          </span>
+          <span className="flex items-center gap-1 font-semibold text-emerald-400">
+            {todaySession?.microcycle_day || "MD-2"} • Carga {todaySession?.planned_load || "Media-Alta"}
+          </span>
+        </div>
+
+        {todaySession?.notes && (
+          <p className="text-xs text-muted-foreground italic px-1">
+            "{todaySession.notes}"
+          </p>
+        )}
+      </div>
+
+      {/* Routine Assignment Status Banner */}
+      <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <Zap className="w-4 h-4 text-blue-400 shrink-0" />
+          <span className="text-xs font-bold text-foreground">
+            Rutina de Prevención Asignada por el Staff: <strong className="text-blue-400">8 min Isquiotibiales & Core</strong>
+          </span>
+        </div>
+        <span className="text-[10px] font-extrabold uppercase bg-blue-600 text-white px-2 py-0.5 rounded-lg shrink-0">
+          Asignada
+        </span>
+      </div>
+
+      {/* Physio & Medical Consultation Notification Card */}
+      <div className="rounded-3xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-card to-card p-4 shadow-lg flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-indigo-600 text-white font-bold text-xs shadow-md shrink-0">
+            🩺
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 block">
+              Consulta de Fisioterapia Abierta
+            </span>
+            <h4 className="text-xs font-bold text-foreground">
+              Cita disponible para este Viernes (Tratamiento & Valoración)
+            </h4>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Revisa la sección de charlas o responde a tu propuesta individual abajo.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* "What Should I Do Now?" Dynamic Priority Card */}
@@ -296,6 +407,9 @@ export default function PlayerTodayPage() {
         onCompleteField={(key) => {
           if (key === "injury_history") {
             setAddInjuryOpen(true);
+          } else {
+            setEditFocusedField(key);
+            setEditProfileOpen(true);
           }
         }}
       />
@@ -324,17 +438,26 @@ export default function PlayerTodayPage() {
         onSubmitSuccess={handleInjurySubmittedSuccess}
       />
 
+      {/* Player Profile Edit Modal */}
+      <PlayerProfileEditModal
+        isOpen={editProfileOpen}
+        onClose={() => setEditProfileOpen(false)}
+        initialFieldFocus={editFocusedField}
+      />
+
       {/* Check-in & Check-out Modals */}
       <WellnessCheckinModal
         isOpen={checkinOpen}
         onClose={() => setCheckinOpen(false)}
         onSubmitSuccess={handleCheckinSuccess}
+        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "10:00"}h)` : "Entrenamiento Matinal (10:00h)"}
       />
 
       <CheckoutRpeModal
         isOpen={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         onSubmitSuccess={handleCheckoutSuccess}
+        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "10:00"}h)` : "Entrenamiento Matinal (10:00h)"}
       />
 
       {/* Mobile Glassmorphism Bottom Navigation */}
