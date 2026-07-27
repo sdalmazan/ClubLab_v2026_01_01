@@ -263,6 +263,7 @@ export function PlayerSessionView({
           </button>
         </div>
       </div>
+    </div>
 
       {/* ── BODY CONTAINER ── */}
       <div className={cn("p-4 md:p-8 space-y-6 flex-1", deviceLayout === "mobile" ? "max-w-md mx-auto w-full" : "max-w-6xl mx-auto w-full")}>

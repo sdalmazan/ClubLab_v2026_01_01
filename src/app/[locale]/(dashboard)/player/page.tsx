@@ -103,7 +103,6 @@ export default function PlayerTodayPage() {
     });
 
     // Check if player has already completed checkin today in DB or local session
-    const todayStr = new Date().toISOString().split("T")[0];
     const completedLocal = localStorage.getItem(`cl_player_checkin_done_${todayStr}`);
     if (completedLocal) {
       setHasCompletedCheckin(true);
