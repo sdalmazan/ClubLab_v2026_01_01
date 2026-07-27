@@ -41,8 +41,18 @@ export default function PlayerTodayPage() {
   const [injuryReminderOpen, setInjuryReminderOpen] = useState(false);
   const [addInjuryOpen, setAddInjuryOpen] = useState(false);
 
-  // Today's real session state
+  // Today's real session state & routine assignment
   const [todaySession, setTodaySession] = useState<any | null>(null);
+  const [realRoutine, setRealRoutine] = useState<any | null>(null);
+
+  // Physio Slot Modal state
+  const [physioModalOpen, setPhysioModalOpen] = useState(false);
+  const [physioSlotSelected, setPhysioSlotSelected] = useState("Viernes 16:30h - 17:00h");
+  const [physioBookedSuccess, setPhysioBookedSuccess] = useState(false);
+
+  // Time-based check-out logic (if hour >= 14, check-in window is closed, show check-out)
+  const currentHour = new Date().getHours();
+  const isPostSessionTime = currentHour >= 14 || currentHour < 6;
 
   useEffect(() => {
     // Load authenticated user name & check role from client Supabase session
@@ -255,20 +265,31 @@ export default function PlayerTodayPage() {
             "{todaySession.notes}"
           </p>
         )}
+
+        {/* Link to view full training session report */}
+        <Link
+          href={todaySession?.id ? `/training/${todaySession.id}` : "/training"}
+          className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer mt-1"
+        >
+          <span>Ver Informe Completo y Ejercicios</span>
+          <ChevronRight className="w-4 h-4" />
+        </Link>
       </div>
 
-      {/* Routine Assignment Status Banner */}
-      <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Zap className="w-4 h-4 text-blue-400 shrink-0" />
-          <span className="text-xs font-bold text-foreground">
-            Rutina de Prevención Asignada por el Staff: <strong className="text-blue-400">8 min Isquiotibiales & Core</strong>
+      {/* Routine Assignment Status Banner — ONLY show if a REAL routine is assigned */}
+      {realRoutine && (
+        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Zap className="w-4 h-4 text-blue-400 shrink-0" />
+            <span className="text-xs font-bold text-foreground">
+              Rutina Asignada por el Staff: <strong className="text-blue-400">{realRoutine.title}</strong>
+            </span>
+          </div>
+          <span className="text-[10px] font-extrabold uppercase bg-blue-600 text-white px-2 py-0.5 rounded-lg shrink-0">
+            Asignada
           </span>
         </div>
-        <span className="text-[10px] font-extrabold uppercase bg-blue-600 text-white px-2 py-0.5 rounded-lg shrink-0">
-          Asignada
-        </span>
-      </div>
+      )}
 
       {/* Physio & Medical Consultation Notification Card */}
       <div className="rounded-3xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-card to-card p-4 shadow-lg flex items-center justify-between gap-3">
@@ -278,20 +299,36 @@ export default function PlayerTodayPage() {
           </div>
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 block">
-              Consulta de Fisioterapia Abierta
+              Consulta de Fisioterapia
             </span>
             <h4 className="text-xs font-bold text-foreground">
-              Cita disponible para este Viernes (Tratamiento & Valoración)
+              Citas abiertas para este Viernes
             </h4>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Revisa la sección de charlas o responde a tu propuesta individual abajo.
+              {physioBookedSuccess ? "¡Reserva solicitada para el viernes!" : "Solicita o confirma tu cita con el fisio."}
             </p>
           </div>
         </div>
+
+        <button
+          onClick={() => setPhysioModalOpen(true)}
+          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+        >
+          {physioBookedSuccess ? "Ver Cita" : "Apuntarme"}
+        </button>
       </div>
 
-      {/* "What Should I Do Now?" Dynamic Priority Card */}
-      {summary.checkinPending ? (
+      {/* "What Should I Do Now?" Dynamic Priority Card — Prioritize Check-out in the evening/night */}
+      {isPostSessionTime ? (
+        <WhatShouldIDoNowCard
+          title="Completa tu Check-out RPE Post-Sesión"
+          subtitle="Evalúa la percepción del esfuerzo del entrenamiento realizado."
+          estimatedSeconds={20}
+          actionText="Completar Check-out RPE"
+          onAction={() => setCheckoutOpen(true)}
+          type="checkout"
+        />
+      ) : summary.checkinPending ? (
         <WhatShouldIDoNowCard
           title="Completa tu Check-in Pre-Entrenamiento"
           subtitle="Registra cómo te sientes hoy antes del entrenamiento de la plantilla."
@@ -458,6 +495,56 @@ export default function PlayerTodayPage() {
         onSubmitSuccess={handleCheckoutSuccess}
         sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "10:00"}h)` : "Entrenamiento Matinal (10:00h)"}
       />
+
+      {/* Physio Slot Booking Modal */}
+      {physioModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-card w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-border shadow-2xl overflow-hidden p-5 space-y-4 mb-16 sm:mb-0 animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-indigo-600 text-white font-bold text-xs">🩺</span>
+                <div>
+                  <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider block">Cita Fisioterapia</span>
+                  <h3 className="text-sm font-bold text-foreground">Selecciona Horario (Este Viernes)</h3>
+                </div>
+              </div>
+              <button onClick={() => setPhysioModalOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground block">Franja horaria disponible:</label>
+              <div className="grid grid-cols-2 gap-2">
+                {["Viernes 16:00h - 16:30h", "Viernes 16:30h - 17:00h", "Viernes 17:00h - 17:30h", "Viernes 17:30h - 18:00h"].map((slot) => (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setPhysioSlotSelected(slot)}
+                    className={`p-3 rounded-xl text-xs font-bold transition-all border ${
+                      physioSlotSelected === slot
+                        ? "bg-indigo-600 text-white border-indigo-500 shadow-md"
+                        : "bg-accent/40 text-foreground border-border/50 hover:bg-accent"
+                    }`}
+                  >
+                    {slot.replace("Viernes ", "")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setPhysioBookedSuccess(true);
+                setPhysioModalOpen(false);
+              }}
+              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer"
+            >
+              Confirmar Reserva ({physioSlotSelected.replace("Viernes ", "")})
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Glassmorphism Bottom Navigation */}
       <PlayerBottomNav />

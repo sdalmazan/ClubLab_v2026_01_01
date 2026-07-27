@@ -142,16 +142,23 @@ export function SessionPrintReport({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm;
+            margin: 5mm;
           }
           html, body {
             background: #ffffff !important;
             color: #000000 !important;
-            font-size: 11px !important;
+            font-size: 10.5px !important;
+            margin: 0 !important;
+            padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+          /* Hide all web UI chrome, headers, navigation bars and modal overlays */
+          header, nav, aside, footer, button, .print\\:hidden, .no-print, [role="navigation"] {
+            display: none !important;
+          }
           .session-print-container {
+            position: relative !important;
             width: 100% !important;
             max-width: 100% !important;
             margin: 0 !important;

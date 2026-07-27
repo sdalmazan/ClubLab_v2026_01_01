@@ -63,19 +63,19 @@ export function ProfileCompletionBar({
             >
               <div>
                 <h4 className="text-xs font-bold text-foreground">
-                  ¿Quieres añadir tu {field.label}?
+                  Completa tu Perfil de Jugador
                 </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {field.explanation}
+                  Rellena tu pie dominante, peso, altura y fecha de nacimiento para tener tu ficha al 100%.
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <button
                   onClick={() => onCompleteField && onCompleteField(field.key)}
-                  className="py-2 px-3.5 bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm hover:bg-blue-500 transition-all"
+                  className="py-2.5 px-4 bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md hover:bg-blue-500 transition-all cursor-pointer"
                 >
-                  <span>Añadir ahora</span>
+                  <span>Completar Mi Perfil</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
 

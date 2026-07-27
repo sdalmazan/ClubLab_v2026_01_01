@@ -3066,12 +3066,12 @@ export function SessionForm({
 
       {/* ── PRINT & PREVIEW OVERLAY ── */}
       {isPrintPreview && (
-        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto text-white p-6 md:p-10 no-scrollbar">
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto text-white p-6 md:p-10 no-scrollbar print:static print:p-0 print:m-0 print:bg-white print:z-auto print:overflow-visible print:text-black">
           {/* Preview Navigation Header */}
-          <div className="max-w-5xl mx-auto flex items-center justify-between bg-slate-900 border border-white/10 rounded-2xl p-4 mb-8 no-print shadow-2xl flex-wrap gap-4">
+          <div className="max-w-5xl mx-auto flex items-center justify-between bg-slate-900 border border-white/10 rounded-2xl p-4 mb-8 shadow-2xl flex-wrap gap-4 print:hidden">
             <div>
               <h3 className="font-extrabold text-sm text-white">Vista Previa del Entrenamiento</h3>
-              <p className="text-[10px] text-slate-400">Visualiza en formato Tablet/A4 Apaisado o Móvil antes de exportar</p>
+              <p className="text-[10px] text-slate-400">Visualiza el informe en formato A4 Vertical o Móvil antes de exportar</p>
             </div>
             
             {/* View Mode Toggle */}
@@ -3084,8 +3084,8 @@ export function SessionForm({
                   previewMode === 'tablet' ? "bg-emerald-500 text-slate-950 shadow" : "text-slate-400 hover:text-white"
                 )}
               >
-                <Tablet className="h-4 w-4" />
-                <span>Tablet / A4 Apaisado</span>
+                <FileText className="h-4 w-4" />
+                <span>A4 Vertical (Informe)</span>
               </button>
               <button
                 type="button"
@@ -3121,7 +3121,7 @@ export function SessionForm({
 
           {/* ── TABLET / A4 PREVIEW CONTAINER ── */}
           {previewMode === 'tablet' && (
-            <div className="max-w-5xl mx-auto bg-white text-slate-900 rounded-3xl p-4 shadow-2xl border border-slate-100 font-sans overflow-hidden">
+            <div className="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl p-2 shadow-2xl border border-slate-100 font-sans overflow-hidden print:p-0 print:m-0 print:shadow-none print:border-none print:rounded-none">
               <SessionPrintReport
                 session={{
                   title: title || "Sesión de Entrenamiento",
