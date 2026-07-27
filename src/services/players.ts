@@ -76,10 +76,10 @@ export interface UpdatePlayerInput {
  * Get all players in the current organisation with their
  * active team membership, latest wellness and injury status.
  */
-export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean = false): Promise<PlayerWithMembership[]> {
+export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean = false, includeInvisible: boolean = false): Promise<PlayerWithMembership[]> {
   const supabase = await createClient();
 
-  const query = supabase
+  let query = supabase
     .from("players")
     .select(`
       *,
@@ -95,6 +95,10 @@ export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean =
     `)
     .order("last_name", { ascending: true });
 
+  if (!includeInvisible) {
+    query = query.or("is_invisible.eq.false,is_invisible.is.null");
+  }
+
   const { data, error } = await query;
 
   if (error) {
@@ -102,11 +106,13 @@ export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean =
     return [];
   }
 
-  const mappedPlayers = (data ?? []).map((p: any) => ({
-    ...p,
-    membership: Array.isArray(p.membership) ? p.membership[0] : p.membership,
-    active_injury: Array.isArray(p.active_injury) ? p.active_injury[0] : p.active_injury,
-  }));
+  const mappedPlayers = (data ?? [])
+    .filter((p: any) => includeInvisible || (p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com"))
+    .map((p: any) => ({
+      ...p,
+      membership: Array.isArray(p.membership) ? p.membership[0] : p.membership,
+      active_injury: Array.isArray(p.active_injury) ? p.active_injury[0] : p.active_injury,
+    }));
 
   // Fetch today's wellness and rpe entries to attach latest_wellness and latest_rpe
   const todayStr = new Date().toISOString().split("T")[0];

@@ -40,6 +40,10 @@ export default async function AdminPortalPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
+  const filteredPlayers = (rawPlayers ?? []).filter(
+    (p: any) => p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com"
+  );
+
   const { data: { users: authUsers } } = await supabaseAdmin.auth.admin.listUsers();
   const { data: roles } = await supabaseAdmin.from("user_organization_roles").select("*");
 
@@ -56,7 +60,7 @@ export default async function AdminPortalPage() {
     };
   });
 
-  const mappedPlayers = rawPlayers?.map((p: any) => {
+  const mappedPlayers = filteredPlayers?.map((p: any) => {
     const org = organizations?.find((o: any) => o.id === p.organization_id);
     return {
       ...p,

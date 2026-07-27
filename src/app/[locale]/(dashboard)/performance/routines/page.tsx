@@ -150,17 +150,20 @@ export default function RoutinesPerformancePage() {
             // Fetch real squad players from Supabase
             const { data: playersData } = await supabase
               .from("players")
-              .select("id, first_name, last_name, sporting_name, primary_position")
+              .select("id, first_name, last_name, sporting_name, primary_position, is_invisible")
               .eq("organization_id", roleData.organization_id)
+              .or("is_invisible.eq.false,is_invisible.is.null")
               .order("last_name", { ascending: true });
 
             if (playersData && playersData.length > 0) {
               setSquadPlayers(
-                playersData.map((p: any) => ({
-                  id: p.id,
-                  name: p.sporting_name || `${p.first_name} ${p.last_name}`.trim(),
-                  position: p.primary_position || "JUG",
-                }))
+                playersData
+                  .filter((p: any) => p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com")
+                  .map((p: any) => ({
+                    id: p.id,
+                    name: p.sporting_name || `${p.first_name} ${p.last_name}`.trim(),
+                    position: p.primary_position || "JUG",
+                  }))
               );
             }
           }

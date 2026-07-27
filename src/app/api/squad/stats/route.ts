@@ -23,22 +23,25 @@ export async function GET(request: Request) {
     const { data: players, error: playersErr } = await supabase
       .from("players")
       .select(`
-        id, first_name, last_name,
+        id, first_name, last_name, is_invisible,
         membership:player_team_memberships(team_id, status)
       `)
       .eq("player_team_memberships.team_id", teamId)
-      .in("player_team_memberships.status", ["active", "inactive"]);
+      .in("player_team_memberships.status", ["active", "inactive"])
+      .or("is_invisible.eq.false,is_invisible.is.null");
 
     if (playersErr) {
       return NextResponse.json({ error: playersErr.message }, { status: 500 });
     }
 
-    if (!players || players.length === 0) {
+    const visiblePlayers = (players || []).filter((p: any) => p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com");
+
+    if (visiblePlayers.length === 0) {
       return NextResponse.json([]);
     }
 
     // Map to list of full names
-    const playerNames = players.map(p => `${p.first_name} ${p.last_name}`);
+    const playerNames = visiblePlayers.map(p => `${p.first_name} ${p.last_name}`);
 
     // Query Statistics_DB for match influence details
     const { data: stats, error: statsErr } = await statsAdmin
