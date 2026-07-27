@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { TrainingPrintHeader } from "./TrainingPrintHeader";
 import { TrainingPrintSquad } from "./TrainingPrintSquad";
 import { TrainingPrintExerciseCard } from "./TrainingPrintExerciseCard";

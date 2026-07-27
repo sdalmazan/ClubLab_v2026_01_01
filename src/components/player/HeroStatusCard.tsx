@@ -1,5 +1,5 @@
-"use client";
-
+import React from "react";
+import { CheckCircle2, AlertTriangle, RefreshCw, Zap } from "lucide-react";
 import { ClubBranding } from "@/components/ui/ClubBranding";
 
 interface HeroStatusCardProps {
