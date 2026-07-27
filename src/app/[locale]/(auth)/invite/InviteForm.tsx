@@ -334,95 +334,93 @@ function InviteFormContent() {
           </div>
 
           {/* CHANNEL VERIFICATION SECTION */}
-          <div className="pt-2 animate-fade-in space-y-2.5">
+          <div className="pt-2 animate-fade-in space-y-3 w-full">
             {preferredChannel === "whatsapp" ? (
-              <div>
-                <label htmlFor="invite-phone" className="text-[11px] font-semibold text-slate-300 block mb-1">
+              <div className="space-y-2 w-full">
+                <label htmlFor="invite-phone" className="text-[11px] font-semibold text-slate-300 block">
                   Número de Teléfono (WhatsApp)
                 </label>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <input
-                    id="invite-phone"
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => {
-                      setPhoneNumber(e.target.value);
-                      setChannelVerified(false);
-                      setOtpSent(false);
-                      setOtpMessage(null);
-                    }}
-                    disabled={channelVerified}
-                    className="flex-1 min-w-0 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-60"
-                    placeholder="+34 685 284 495"
-                  />
-                  {!channelVerified ? (
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={sendingOtp}
-                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shrink-0 transition-all cursor-pointer shadow-md disabled:opacity-50 text-center"
-                    >
-                      {sendingOtp ? "Enviando..." : otpSent ? "Reenviar Código" : "Enviar OTP WhatsApp"}
-                    </button>
-                  ) : (
-                    <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 shrink-0">
-                      <Check className="w-3.5 h-3.5" /> WhatsApp Verificado
-                    </span>
-                  )}
-                </div>
+                
+                <input
+                  id="invite-phone"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    setChannelVerified(false);
+                    setOtpSent(false);
+                    setOtpMessage(null);
+                  }}
+                  disabled={channelVerified}
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-60"
+                  placeholder="+34 685 284 495"
+                />
+
+                {!channelVerified ? (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={sendingOtp}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md disabled:opacity-50 text-center block"
+                  >
+                    {sendingOtp ? "Enviando..." : otpSent ? "Reenviar Código OTP" : "Enviar Código OTP a WhatsApp"}
+                  </button>
+                ) : (
+                  <span className="w-full py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5">
+                    <Check className="w-4 h-4" /> WhatsApp Verificado
+                  </span>
+                )}
               </div>
             ) : (
-              <div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-slate-300 truncate">
-                    Verificación de Correo Electrónico ({email})
+              <div className="space-y-2 w-full">
+                <span className="text-[11px] font-semibold text-slate-300 block">
+                  Verificación de Correo Electrónico ({email})
+                </span>
+                {!channelVerified ? (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={sendingOtp}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer shadow-md disabled:opacity-50 text-center block"
+                  >
+                    {sendingOtp ? "Enviando..." : otpSent ? "Reenviar Código OTP" : "Enviar OTP a Email"}
+                  </button>
+                ) : (
+                  <span className="w-full py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5">
+                    <Check className="w-4 h-4" /> Email Verificado
                   </span>
-                  {!channelVerified ? (
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={sendingOtp}
-                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shrink-0 transition-all cursor-pointer shadow-md disabled:opacity-50 text-center"
-                    >
-                      {sendingOtp ? "Enviando..." : otpSent ? "Reenviar Código" : "Enviar OTP a Email"}
-                    </button>
-                  ) : (
-                    <span className="px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 shrink-0">
-                      <Check className="w-3.5 h-3.5" /> Email Verificado
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
             )}
 
             {/* OTP Status Info */}
             {otpMessage && (
-              <p className="text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 leading-snug">
+              <p className="text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 leading-relaxed text-center">
                 {otpMessage}
               </p>
             )}
 
             {/* OTP Code Input Box */}
             {otpSent && !channelVerified && (
-              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5 animate-fade-in">
-                <div className="flex items-center justify-between text-xs text-emerald-300 font-semibold">
-                  <span>🔑 Introduce el código de 6 dígitos recibido:</span>
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-fade-in w-full">
+                <div className="text-xs text-emerald-300 font-semibold text-center">
+                  🔑 Introduce el código de 6 dígitos recibido:
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="space-y-2 w-full">
                   <input
                     type="text"
                     maxLength={6}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
                     placeholder="Ingresa 6 dígitos"
-                    className="flex-1 min-w-0 rounded-xl bg-slate-900 border border-emerald-500/40 px-3 py-2 text-xs font-mono text-center font-bold text-white tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-xl bg-slate-900 border border-emerald-500/40 px-3 py-2.5 text-xs font-mono text-center font-bold text-white tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <button
                     type="button"
                     onClick={handleVerifyOtp}
                     disabled={verifyingOtp || otpCode.trim().length !== 6}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shrink-0 transition-all cursor-pointer shadow-lg disabled:opacity-50 text-center"
+                    className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all cursor-pointer shadow-lg disabled:opacity-50 text-center block"
                   >
                     {verifyingOtp ? "Validando..." : "Validar Código"}
                   </button>
@@ -431,7 +429,7 @@ function InviteFormContent() {
             )}
 
             {otpError && (
-              <p className="text-[11px] font-semibold text-red-400 bg-red-500/10 p-2.5 rounded-xl border border-red-500/20 leading-snug">
+              <p className="text-[11px] font-semibold text-red-400 bg-red-500/10 p-3 rounded-xl border border-red-500/20 leading-relaxed text-center">
                 {otpError}
               </p>
             )}
