@@ -302,98 +302,91 @@ export function PlayerSettingsModal({ isOpen, onClose }: PlayerSettingsModalProp
 
           {activeTab === "notifications" && (
             <div className="space-y-3">
-              {/* Email Alerts Toggle */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-accent/30 border border-border/40">
+              {/* Active Channel Display Banner */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-foreground">Alertas por Email</p>
-                  <p className="text-[11px] text-muted-foreground">Apertura y aviso de alertas de la app.</p>
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block">Canal Activo de Notificaciones del Club</span>
+                  <strong className="text-sm font-extrabold text-white flex items-center gap-1.5 mt-0.5">
+                    {whatsappAlerts ? "💬 WhatsApp — Canal Activo" : "📧 Correo Electrónico — Canal Activo"}
+                  </strong>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEmailAlerts(!emailAlerts)}
-                  className={`w-11 h-6 rounded-full p-1 transition-colors ${
-                    emailAlerts ? "bg-blue-600" : "bg-muted"
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                      emailAlerts ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
+                  ✓ Verificado
+                </span>
               </div>
 
-              {/* WhatsApp Alerts Toggle */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-accent/30 border border-border/40">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-bold text-foreground">Avisos por WhatsApp</p>
-                    {phoneVerified && (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                        Verificado
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">Notificaciones directas a tu teléfono.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!phoneVerified && !whatsappAlerts) {
-                      setShowOtpInput(true);
-                    } else {
-                      setWhatsappAlerts(!whatsappAlerts);
-                    }
-                  }}
-                  className={`w-11 h-6 rounded-full p-1 transition-colors ${
-                    whatsappAlerts ? "bg-emerald-600" : "bg-muted"
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                      whatsappAlerts ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Phone Verification Section */}
+              {/* Selector for Channel Change */}
               <div className="p-3.5 rounded-2xl bg-accent/20 border border-border/40 space-y-3">
-                <label className="text-xs font-bold text-foreground flex items-center justify-between">
-                  <span>Número de Teléfono (WhatsApp)</span>
-                  {phoneVerified ? (
-                    <span className="text-emerald-400 flex items-center gap-1 text-[11px]">
-                      <ShieldCheck className="w-3.5 h-3.5" /> Confirmado
-                    </span>
-                  ) : (
-                    <span className="text-amber-400 text-[11px]">Pendiente de confirmar</span>
-                  )}
+                <label className="text-xs font-bold text-foreground block">
+                  Cambiar Canal Operativo (Requiere Verificación OTP)
                 </label>
 
-                <div className="flex gap-2">
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+34 600 000 000"
-                    className="flex-1 p-2.5 rounded-xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-emerald-500"
-                  />
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={handleSendOtp}
-                    disabled={sendingOtp}
-                    className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md"
+                    onClick={() => {
+                      if (!whatsappAlerts) {
+                        setShowOtpInput(true);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-left text-xs font-bold flex flex-col justify-between transition-all ${
+                      whatsappAlerts
+                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
+                        : "border-border/50 bg-accent/30 text-muted-foreground hover:border-emerald-500/50"
+                    }`}
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{sendingOtp ? "Enviando..." : "Enviar Código"}</span>
+                    <span>💬 WhatsApp</span>
+                    <span className="text-[10px] font-normal text-muted-foreground mt-1">Convocatorias urgentes</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (whatsappAlerts) {
+                        setShowOtpInput(true);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-left text-xs font-bold flex flex-col justify-between transition-all ${
+                      !whatsappAlerts
+                        ? "border-blue-500 bg-blue-500/20 text-blue-300"
+                        : "border-border/50 bg-accent/30 text-muted-foreground hover:border-blue-500/50"
+                    }`}
+                  >
+                    <span>📧 Correo</span>
+                    <span className="text-[10px] font-normal text-muted-foreground mt-1">Bandeja tradicional</span>
                   </button>
                 </div>
 
-                {/* OTP Input Form */}
+                {/* Phone verification input */}
+                <div className="pt-2">
+                  <label className="text-[11px] font-semibold text-muted-foreground block mb-1">
+                    Teléfono para WhatsApp
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+34 685 228 4495"
+                      className="flex-1 p-2.5 rounded-xl bg-accent/30 border border-border/50 text-xs font-semibold text-foreground focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={sendingOtp}
+                      className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{sendingOtp ? "Enviando..." : "Enviar OTP"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* OTP Verification Form */}
                 {showOtpInput && (
-                  <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 animate-fade-in">
+                  <div className="mt-3 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5 animate-fade-in">
                     <p className="text-[11px] font-semibold text-emerald-300">
-                      Introduce el código de 6 dígitos enviado por WhatsApp:
+                      Introduce el código de 6 dígitos enviado para confirmar el cambio:
                     </p>
                     <div className="flex gap-2">
                       <input
@@ -408,10 +401,10 @@ export function PlayerSettingsModal({ isOpen, onClose }: PlayerSettingsModalProp
                         type="button"
                         onClick={handleVerifyOtp}
                         disabled={verifyingOtp || otpCode.length !== 6}
-                        className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-black font-bold text-xs rounded-lg flex items-center justify-center gap-1 transition-all"
+                        className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-black font-bold text-xs rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer"
                       >
                         <KeyRound className="w-3.5 h-3.5" />
-                        <span>{verifyingOtp ? "Verificando..." : "Confirmar Código"}</span>
+                        <span>{verifyingOtp ? "Verificando..." : "Validar y Cambiar Canal"}</span>
                       </button>
                     </div>
                   </div>
@@ -419,10 +412,10 @@ export function PlayerSettingsModal({ isOpen, onClose }: PlayerSettingsModalProp
 
                 {/* Status / Error messages */}
                 {otpStatus && (
-                  <p className="text-[11px] font-semibold text-emerald-400">{otpStatus}</p>
+                  <p className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">{otpStatus}</p>
                 )}
                 {otpError && (
-                  <p className="text-[11px] font-semibold text-red-400">{otpError}</p>
+                  <p className="text-[11px] font-semibold text-red-400 bg-red-500/10 p-2 rounded-lg border border-red-500/20">{otpError}</p>
                 )}
               </div>
             </div>
