@@ -423,5 +423,70 @@ export async function sendOtpEmail({
   }
 }
 
+/**
+ * Dispatch an admin notification email to diecilo7@gmail.com whenever a new user completes registration.
+ */
+export async function sendRegistrationNotificationAlert(params: {
+  newUserName: string;
+  newUserEmail: string;
+  newUserRole: string;
+  organizationName: string;
+}): Promise<boolean> {
+  const adminEmail = "diecilo7@gmail.com";
+  const nowStr = new Date().toLocaleString("es-ES", { timeZone: "Europe/Madrid" });
+
+  const roleLabels: Record<string, string> = {
+    head_coach: "Primer Entrenador",
+    assistant_coach: "Segundo Entrenador",
+    physical_coach: "Preparador Físico",
+    physio: "Fisioterapeuta",
+    club_admin: "Administrador del Club",
+    player: "Jugador",
+    super_admin: "Super Administrador",
+  };
+
+  const roleName = roleLabels[params.newUserRole] || params.newUserRole;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8">
+      <title>Nuevo Registro en ClubLab</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b132b; color: #f8fafc; padding: 24px;">
+      <div style="max-width: 540px; margin: 0 auto; background-color: #1c2541; border: 1px solid #3a506b; border-radius: 16px; padding: 28px;">
+        <h2 style="color: #6fffe9; font-size: 20px; margin-top: 0;">🎉 Nuevo Registro Completado en ClubLab</h2>
+        <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
+          Un nuevo usuario ha verificado su cuenta y completado el registro en <strong>${params.organizationName}</strong>:
+        </p>
+        <div style="background-color: #0b132b; border: 1px solid #3a506b; border-radius: 12px; padding: 18px; margin: 20px 0;">
+          <p style="margin: 6px 0; font-size: 14px; color: #ffffff;">👤 <strong>Nombre:</strong> ${params.newUserName}</p>
+          <p style="margin: 6px 0; font-size: 14px; color: #ffffff;">📧 <strong>Email:</strong> ${params.newUserEmail}</p>
+          <p style="margin: 6px 0; font-size: 14px; color: #6fffe9;">🛡️ <strong>Rol Asignado:</strong> ${roleName} (${params.newUserRole})</p>
+          <p style="margin: 6px 0; font-size: 12px; color: #94a3b8;">📅 <strong>Fecha/Hora:</strong> ${nowStr}</p>
+        </div>
+        <p style="font-size: 11px; color: #64748b; text-align: center;">Notificación de sistema de ClubLab</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: defaultFrom,
+      to: adminEmail,
+      subject: `🔔 [ClubLab Registro] ${params.newUserName} (${roleName}) completó su registro`,
+      text: `Nuevo Registro Completado:\nNombre: ${params.newUserName}\nEmail: ${params.newUserEmail}\nRol: ${roleName}\nClub: ${params.organizationName}\nFecha: ${nowStr}`,
+      html: htmlContent,
+    });
+    console.log(`[sendRegistrationNotificationAlert] Alert sent to ${adminEmail} for ${params.newUserEmail}`);
+    return true;
+  } catch (err: any) {
+    console.error("[sendRegistrationNotificationAlert] Error sending alert:", err.message);
+    return false;
+  }
+}
+
 
 

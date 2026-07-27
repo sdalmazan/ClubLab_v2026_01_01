@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       {
         user_id: authUserId,
         organization_id: organizationId,
-        role: "player",
+        role: role || "player",
       },
       { onConflict: "user_id,organization_id" }
     );
@@ -183,9 +183,22 @@ export async function POST(request: Request) {
         status: "accepted",
         accepted_at: new Date().toISOString(),
       })
-      .eq("id", invitation.id);
+      .eq("token", token);
 
-    // 8. Dispatch ONE Single Welcome Message via Active Channel
+    // 8. Dispatch Admin Registration Alert to diecilo7@gmail.com
+    try {
+      const { sendRegistrationNotificationAlert } = await import("@/lib/email/mailer");
+      await sendRegistrationNotificationAlert({
+        newUserName: fullName,
+        newUserEmail: targetEmail,
+        newUserRole: role || "player",
+        organizationName: orgName,
+      });
+    } catch (alertErr) {
+      console.warn("[Registration Alert Warning] Could not dispatch alert email:", alertErr);
+    }
+
+    // 9. Dispatch ONE Single Welcome Message via Active Channel
     if (targetPlayerId) {
       await dispatchClubNotification({
         playerId: targetPlayerId,
