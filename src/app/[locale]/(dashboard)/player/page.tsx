@@ -20,7 +20,7 @@ export default function PlayerTodayPage() {
     const base = getMockPlayerSummary();
     return {
       ...base,
-      status: "PENDING" as const,
+      status: "PENDING" as "GOOD" | "READY" | "RECOVER" | "ATTENTION" | "PENDING",
       statusMessage: "Completa tu primer check-in pre-entrenamiento para registrar tus métricas de salud y recuperación de hoy.",
       checkinPending: true,
     };
