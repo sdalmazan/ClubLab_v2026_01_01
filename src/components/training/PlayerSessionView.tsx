@@ -19,10 +19,12 @@ import {
   Monitor,
   Smartphone,
   Lock,
-  Edit3
+  Edit3,
+  Printer
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SessionPrintReport } from "./SessionPrintReport";
+import { prepareAndPrintDocument } from "@/lib/printUtils";
 
 interface PlayerSessionViewProps {
   session: any;
@@ -233,6 +235,17 @@ export function PlayerSessionView({
               <Edit3 className="h-4 w-4" />
               <span>Editar Sesión</span>
             </Link>
+          )}
+
+          {!isPlayer && (
+            <button
+              type="button"
+              onClick={() => prepareAndPrintDocument(session, orgSettings?.club_name || "SD Almazán")}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">Imprimir / PDF</span>
+            </button>
           )}
 
           {/* Smart Device Layout Switcher Toggle */}

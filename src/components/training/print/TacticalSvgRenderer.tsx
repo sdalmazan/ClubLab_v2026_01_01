@@ -45,12 +45,12 @@ export function TacticalSvgRenderer({
   const viewBox = `0 0 ${width} ${height}`;
 
   return (
-    <div className={`w-full flex items-center justify-center bg-white border border-slate-300 rounded-lg p-1 overflow-hidden shadow-none ${className}`}>
+    <div className={`w-full h-full flex items-center justify-center bg-white border border-slate-300 rounded-lg p-1 overflow-hidden shadow-none ${className}`}>
       <svg
         viewBox={viewBox}
         width="100%"
         height="100%"
-        className="w-full h-auto max-h-44 object-contain bg-white font-sans"
+        className="w-full h-full object-contain bg-white font-sans"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>

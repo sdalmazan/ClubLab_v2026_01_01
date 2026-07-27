@@ -81,7 +81,7 @@ export function TrainingSessionPrintDocument({
       <TrainingPrintSquad session={session} activeSquadPlayers={activeSquadPlayers} />
 
       {/* Exercises Section by Block */}
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {blocks.map((block) => {
           const blockExercises = exercises.filter((ex, exIdx) => {
             const bt = String(ex.block_type || ex.group_setup?.block_type || "").toLowerCase();
@@ -94,18 +94,28 @@ export function TrainingSessionPrintDocument({
 
           if (blockExercises.length === 0) return null;
 
+          // Check if explicit block description exists in session data
+          const blockDesc = session.block_descriptions?.[block.key] || "";
+
           return (
             <div key={block.key} className="space-y-1.5 print-break-avoid">
               {/* Block Title Header Bar */}
-              <div className="bg-slate-900 text-white px-2 py-1 rounded text-[8.5pt] font-black uppercase tracking-wider flex justify-between items-center">
+              <div className="bg-slate-900 text-white px-2 py-0.5 rounded text-[8pt] font-black uppercase tracking-wider flex justify-between items-center">
                 <span>{block.title}</span>
-                <span className="text-[7.5pt] text-slate-300 font-bold">
+                <span className="text-[7pt] text-slate-300 font-bold">
                   {blockExercises.length} {blockExercises.length === 1 ? "TAREA" : "TAREAS"}
                 </span>
               </div>
 
-              {/* Exercises Container: 2 columns if compact session, or 1 column if complex */}
-              <div className={cn(isCompactSession && blockExercises.length >= 2 ? "grid grid-cols-2 gap-2" : "space-y-2")}>
+              {/* Optional Block Description from real data */}
+              {blockDesc && (
+                <p className="text-[7.5pt] font-medium text-slate-700 italic px-1">
+                  {blockDesc}
+                </p>
+              )}
+
+              {/* Exercises Container: 2 columns if compact session (and no whiteboard), or 1 column flex layout */}
+              <div className={cn(isCompactSession && blockExercises.length >= 2 && !blockExercises.some(e => Boolean(e.whiteboard_data)) ? "grid grid-cols-2 gap-2" : "space-y-2")}>
                 {blockExercises.map((ex, exIdx) => {
                   const globalIdx = exercises.indexOf(ex);
                   return (
@@ -121,12 +131,6 @@ export function TrainingSessionPrintDocument({
             </div>
           );
         })}
-      </div>
-
-      {/* Minimalist Document Footer */}
-      <div className="mt-4 border-t border-slate-300 pt-1 flex justify-between items-center text-[7pt] text-slate-600 uppercase tracking-widest font-bold">
-        <span>ClubLab Official Staff Report</span>
-        <span>SD Almazán • Informe de Entrenamiento</span>
       </div>
     </div>
   );

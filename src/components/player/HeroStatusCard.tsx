@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, AlertTriangle, RefreshCw, Zap } from "lucide-react";
+import { CheckCircle, AlertTriangle, RefreshCw, Zap } from "lucide-react";
 import { ClubBranding } from "@/components/ui/ClubBranding";
 
 interface HeroStatusCardProps {
@@ -21,7 +21,7 @@ export function HeroStatusCard({
     GOOD: {
       label: "ÓPTIMO",
       badgeBg: "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400",
-      icon: CheckCircle2,
+      icon: CheckCircle,
       glowColor: "from-blue-600/20 via-transparent to-transparent",
     },
     READY: {

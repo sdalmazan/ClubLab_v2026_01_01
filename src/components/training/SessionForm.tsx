@@ -3111,7 +3111,10 @@ export function SessionForm({
               </button>
               <button
                 type="button"
-                onClick={() => prepareAndPrintDocument()}
+                onClick={() => prepareAndPrintDocument(
+                  { title: title || "Sesión de Entrenamiento", date, start_time: startTime },
+                  organizationSettings?.club_name || "SD Almazán"
+                )}
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg cursor-pointer flex items-center gap-1"
               >
                 <Printer className="h-4.5 w-4.5" />

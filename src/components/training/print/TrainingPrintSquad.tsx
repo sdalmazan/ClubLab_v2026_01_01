@@ -47,12 +47,14 @@ export function TrainingPrintSquad({
     });
   }, [activeSquadPlayers, attendanceList]);
 
+  if (squadList.length === 0) return null;
+
   const presentPlayers = squadList.filter((p) => p.status === "present");
   const presentGKCount = presentPlayers.filter((p) => p.isGK).length;
   const presentFieldCount = presentPlayers.length - presentGKCount;
 
-  // Grid distribution for attendance (5 rows max, cols scale)
-  const ROWS_COUNT = 5;
+  // Grid distribution for attendance matrix
+  const ROWS_COUNT = 4;
   const colsCount = Math.max(1, Math.ceil(squadList.length / ROWS_COUNT));
   const gridRows = Array.from({ length: ROWS_COUNT }, (_, rowIndex) => {
     return Array.from({ length: colsCount }, (_, colIndex) => {
@@ -62,94 +64,65 @@ export function TrainingPrintSquad({
   });
 
   return (
-    <div className="w-full border-2 border-slate-900 mb-3 text-slate-900 font-sans rounded-lg overflow-hidden bg-white text-[8pt] print-break-avoid">
-      <div className="flex">
-        {/* Left Squad Counts Box */}
-        <div className="w-24 border-r-2 border-slate-900 flex flex-col justify-between text-center shrink-0 bg-slate-50">
-          <div className="bg-slate-200 border-b border-slate-900 text-slate-900 text-[7pt] font-black py-0.5 uppercase tracking-wider">
-            PLANTILLA
-          </div>
-          <div className="py-0.5 border-b border-slate-300">
-            <span className="block text-[6.5pt] font-bold text-slate-600 uppercase leading-none">Jug. Dispo.</span>
-            <span className="text-[10pt] font-black text-slate-900">{presentFieldCount}</span>
-          </div>
-          <div className="py-0.5 border-b border-slate-300">
-            <span className="block text-[6.5pt] font-bold text-slate-600 uppercase leading-none">Port. Dispo.</span>
-            <span className="text-[10pt] font-black text-slate-900">{presentGKCount}</span>
-          </div>
-          <div className="py-0.5 bg-slate-200">
-            <span className="block text-[6.5pt] font-bold text-slate-900 uppercase leading-none">Total Dispo.</span>
-            <span className="text-[11pt] font-black text-slate-900">{presentPlayers.length}</span>
-          </div>
+    <div className="w-full border-b border-slate-400 pb-2 mb-3 text-slate-900 font-sans text-[8pt] print-break-avoid bg-white">
+      {/* Title & Squad Counts Bar */}
+      <div className="flex justify-between items-center mb-1 pb-0.5 border-b border-slate-300">
+        <span className="font-black text-slate-900 uppercase tracking-wider text-[8pt]">
+          CONVOCATORIA DE PLANTILLA
+        </span>
+        <div className="font-bold text-slate-700 text-[7.5pt] uppercase tracking-wide space-x-2">
+          <span>JUG: <strong>{presentFieldCount}</strong></span>
+          <span>·</span>
+          <span>PORT: <strong>{presentGKCount}</strong></span>
+          <span>·</span>
+          <span>TOTAL DISPO: <strong>{presentPlayers.length} / {squadList.length}</strong></span>
         </div>
+      </div>
 
-        {/* Right Convocatoria Matrix */}
-        <div className="flex-1 overflow-hidden bg-white">
-          {/* Universal Symbol Legend Bar */}
-          <div className="bg-slate-100 text-slate-900 px-2 py-0.5 flex items-center justify-around text-[7.5pt] font-extrabold uppercase tracking-wider border-b border-slate-900">
-            <span className="flex items-center gap-1">
-              <span className="border border-slate-900 bg-white text-slate-900 px-1 rounded text-[7pt] font-black">✓</span> ENTRENA
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="border border-slate-900 bg-slate-200 text-slate-900 px-1 rounded text-[7pt] font-black">⚕</span> LESIÓN
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="border border-slate-900 bg-white text-slate-900 px-1 rounded text-[7pt] font-black">×</span> AUSENTE
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="border border-slate-900 bg-slate-100 text-slate-900 px-1 rounded text-[7pt] font-black">—</span> REAP/ENF
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="border border-slate-900 bg-white text-slate-900 px-1 rounded text-[7pt] font-black">○</span> PARCIAL
-            </span>
+      {/* Symbol Legend Bar */}
+      <div className="flex items-center justify-start gap-3 text-[7pt] font-bold uppercase tracking-wider text-slate-700 mb-1">
+        <span><strong className="text-slate-900 font-black">✓</strong> Convocado</span>
+        <span><strong className="text-slate-900 font-black">⚕</strong> Lesión</span>
+        <span><strong className="text-slate-900 font-black">×</strong> Ausente</span>
+        <span><strong className="text-slate-900 font-black">—</strong> Readaptación</span>
+        <span><strong className="text-slate-900 font-black">○</strong> Parcial</span>
+      </div>
+
+      {/* Squad Matrix */}
+      <div className="space-y-0.5">
+        {gridRows.map((row, rIdx) => (
+          <div key={rIdx} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${colsCount}, minmax(75px, 1fr))` }}>
+            {row.map((p, cIdx) => {
+              if (!p) return <div key={cIdx} className="h-3.5" />;
+
+              let symbol = "✓";
+              let badgeStyle = "font-black text-slate-900";
+
+              if (p.status === "injured") {
+                symbol = "⚕";
+              } else if (p.status === "absent") {
+                symbol = "×";
+              } else if (p.status === "readaptation") {
+                symbol = "—";
+              } else if (p.status === "partial") {
+                symbol = "○";
+              }
+
+              return (
+                <div
+                  key={p.id || cIdx}
+                  className="flex justify-between items-center px-1 border border-slate-300 rounded text-[7.5pt] h-3.5 bg-slate-50/50"
+                  title={p.notes ? `${p.displayName}: ${p.notes}` : p.displayName}
+                >
+                  <span className="truncate text-slate-900 font-medium">{p.displayName}</span>
+                  <span className={cn("text-[7pt] ml-1 shrink-0", badgeStyle)}>
+                    {symbol}
+                  </span>
+                </div>
+              );
+            })}
           </div>
-
-          {/* 5-Row Squad Matrix */}
-          <div className="p-1 space-y-0.5 bg-white">
-            {gridRows.map((row, rIdx) => (
-              <div key={rIdx} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${colsCount}, minmax(80px, 1fr))` }}>
-                {row.map((p, cIdx) => {
-                  if (!p) return <div key={cIdx} className="h-4" />;
-
-                  let symbol = "✓";
-                  let badgeClass = "bg-white text-slate-900 border border-slate-800 font-black";
-                  let borderClass = "border-slate-300 bg-white text-slate-900 font-bold";
-
-                  if (p.status === "injured") {
-                    symbol = "⚕";
-                    badgeClass = "bg-slate-200 text-slate-900 border border-slate-900 font-black";
-                    borderClass = "border-slate-400 bg-slate-100 text-slate-900 font-bold";
-                  } else if (p.status === "absent") {
-                    symbol = "×";
-                    badgeClass = "bg-white text-slate-900 border border-slate-800 font-black";
-                    borderClass = "border-slate-300 bg-white text-slate-900 font-semibold";
-                  } else if (p.status === "readaptation") {
-                    symbol = "—";
-                    badgeClass = "bg-slate-100 text-slate-900 border border-slate-800 font-black";
-                    borderClass = "border-slate-300 bg-slate-50 text-slate-900 font-semibold";
-                  } else if (p.status === "partial") {
-                    symbol = "○";
-                    badgeClass = "bg-white text-slate-900 border border-slate-800 font-black";
-                    borderClass = "border-slate-300 bg-white text-slate-900 font-bold";
-                  }
-
-                  return (
-                    <div
-                      key={p.id || cIdx}
-                      className={cn("flex justify-between items-center px-1 py-0.2 rounded border text-[8pt] h-4", borderClass)}
-                      title={p.notes ? `${p.displayName}: ${p.notes}` : p.displayName}
-                    >
-                      <span className="truncate">{p.displayName}</span>
-                      <span className={cn("text-[7pt] font-extrabold rounded px-0.5 ml-0.5 shrink-0", badgeClass)}>
-                        {symbol}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

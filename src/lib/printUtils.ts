@@ -1,10 +1,49 @@
 /**
- * ClubLab v2026.01.02 — Print Utility Helpers
- * Ensures fonts, images, and SVG elements are fully loaded and rendered before triggering window.print()
+ * ClubLab v2026.01.02 — Print & Export PDF Utility Helpers
+ * Formats PDF filenames and prepares async DOM elements before printing
  */
 
-export async function prepareAndPrintDocument(rootId: string = "clublab-print-root"): Promise<void> {
+/**
+ * Generates dynamic PDF filename: [NOMBRE SESIÓN] — [NOMBRE CLUB] — [FECHA].pdf
+ */
+export function getTrainingSessionPdfFilename(session: any, clubName?: string): string {
+  const rawTitle = session?.title || "Sesión de Entrenamiento";
+  const rawClub = clubName || session?.organizationSettings?.club_name || "SD Almazán";
+  
+  let dateStr = "";
+  if (session?.date) {
+    const d = new Date(session.date);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    dateStr = `${day}-${month}-${year}`;
+  } else {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    dateStr = `${day}-${month}-${year}`;
+  }
+
+  // Sanitise file name characters
+  const cleanTitle = rawTitle.replace(/[\\/:*?"<>|]/g, "").trim();
+  const cleanClub = rawClub.replace(/[\\/:*?"<>|]/g, "").trim();
+
+  return `${cleanTitle} — ${cleanClub} — ${dateStr}`;
+}
+
+export async function prepareAndPrintDocument(
+  session?: any,
+  clubName?: string,
+  rootId: string = "clublab-print-root"
+): Promise<void> {
   if (typeof window === "undefined") return;
+
+  // Set document title temporarily so Chrome's Save as PDF uses the exact session filename
+  const originalTitle = document.title;
+  if (session) {
+    document.title = getTrainingSessionPdfFilename(session, clubName);
+  }
 
   // 1. Wait for document fonts to be ready
   if (document.fonts && document.fonts.ready) {
@@ -32,9 +71,14 @@ export async function prepareAndPrintDocument(rootId: string = "clublab-print-ro
     );
   }
 
-  // 4. Double requestAnimationFrame tick to allow SVG layout calculations to flush in DOM
+  // 4. Double requestAnimationFrame tick to flush SVG calculations
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
   // 5. Trigger native browser print dialog
   window.print();
+
+  // 6. Restore original document title after a short delay
+  setTimeout(() => {
+    document.title = originalTitle;
+  }, 1000);
 }
