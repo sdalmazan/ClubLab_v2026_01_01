@@ -795,7 +795,6 @@ export function PlayerSessionView({
           )}
         </div>
       </div>
-    </div>
 
       {/* ── PRINT-ONLY ECO-INK A4 SHEET REPORT ── */}
       <div className="hidden print:block font-sans bg-white text-slate-900 min-h-screen">
