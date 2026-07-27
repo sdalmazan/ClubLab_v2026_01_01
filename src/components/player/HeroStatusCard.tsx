@@ -1,15 +1,22 @@
 "use client";
 
-import React from "react";
-import { CheckCircle2, AlertTriangle, RefreshCw, Zap } from "lucide-react";
+import { ClubBranding } from "@/components/ui/ClubBranding";
 
 interface HeroStatusCardProps {
   playerName: string;
   status: "GOOD" | "READY" | "RECOVER" | "ATTENTION" | "PENDING";
   message: string;
+  clubLogoUrl?: string | null;
+  clubName?: string | null;
 }
 
-export function HeroStatusCard({ playerName, status, message }: HeroStatusCardProps) {
+export function HeroStatusCard({
+  playerName,
+  status,
+  message,
+  clubLogoUrl,
+  clubName,
+}: HeroStatusCardProps) {
   const statusConfig = {
     GOOD: {
       label: "ÓPTIMO",
@@ -53,15 +60,18 @@ export function HeroStatusCard({ playerName, status, message }: HeroStatusCardPr
 
       <div className="relative z-10 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wider font-semibold text-blue-500">
-              Tu Estado de Hoy
-            </p>
-            <h1 className="text-2xl font-black tracking-tight text-foreground mt-0.5">
-              Hola, {playerName}
-            </h1>
+          <div className="flex items-center gap-3">
+            <ClubBranding logoUrl={clubLogoUrl} clubName={clubName} size="md" />
+            <div>
+              <p className="text-[10px] uppercase tracking-wider font-extrabold text-blue-500">
+                Tu Estado de Hoy
+              </p>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground mt-0.5">
+                Hola, {playerName}
+              </h1>
+            </div>
           </div>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${config.badgeBg} font-extrabold text-xs tracking-wide shadow-sm`}>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${config.badgeBg} font-extrabold text-xs tracking-wide shadow-sm shrink-0`}>
             <Icon className="w-4 h-4 animate-pulse" />
             <span>{config.label}</span>
           </div>

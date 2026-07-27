@@ -288,7 +288,10 @@ export function PlayerProfileEditModal({
           </div>
 
           {/* Sticky Footer Button */}
-          <div className="p-4 border-t border-border/50 bg-card shrink-0 shadow-lg">
+          <div
+            className="p-4 border-t border-border/50 bg-card shrink-0 shadow-lg"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
             <button
               type="submit"
               disabled={saving}

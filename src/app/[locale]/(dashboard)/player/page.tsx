@@ -13,6 +13,7 @@ import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { RecommendationCard } from "@/components/player/RecommendationCard";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
+import { evalPlayerTemporalState } from "@/services/playerTemporalStateService";
 import Link from "next/link";
 import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock, ChevronRight, X } from "lucide-react";
 
@@ -45,15 +46,14 @@ export default function PlayerTodayPage() {
   // Today's real session state & routine assignment
   const [todaySession, setTodaySession] = useState<any | null>(null);
   const [realRoutine, setRealRoutine] = useState<any | null>(null);
+  const [clubInfo, setClubInfo] = useState<{ name: string; logoUrl: string | null } | null>(null);
+  const [hasCompletedCheckout, setHasCompletedCheckout] = useState(false);
 
   // Physio Slot Modal state
   const [physioModalOpen, setPhysioModalOpen] = useState(false);
-  const [physioSlotSelected, setPhysioSlotSelected] = useState("Viernes 16:30h - 17:00h");
+  const [physioSlots, setPhysioSlots] = useState<any[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [physioBookedSuccess, setPhysioBookedSuccess] = useState(false);
-
-  // Time-based check-out logic (if hour >= 14, check-in window is closed, show check-out)
-  const currentHour = new Date().getHours();
-  const isPostSessionTime = currentHour >= 14 || currentHour < 6;
 
   useEffect(() => {
     // Load authenticated user name & check role from client Supabase session
@@ -70,14 +70,31 @@ export default function PlayerTodayPage() {
         if (data) setTodaySession(data);
       });
 
+    // Fetch dynamic organization branding
     supabase.auth.getUser().then(async ({ data: { user } }: any) => {
       if (user) {
-        // Fetch organization role
         const { data: orgRole } = await supabase
           .from("user_organization_roles")
-          .select("role")
+          .select(`
+            role,
+            organization_id,
+            organizations (
+              name,
+              logo_url,
+              settings
+            )
+          `)
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
+
+        if (orgRole?.organizations) {
+          const org = orgRole.organizations as any;
+          const logo = org.logo_url || org.settings?.club_logo_url || null;
+          setClubInfo({
+            name: org.name || "Club",
+            logoUrl: logo,
+          });
+        }
 
         const userRole = orgRole?.role || "player";
         const isCoachRole = [
@@ -142,6 +159,21 @@ export default function PlayerTodayPage() {
       })
       .catch((err) => console.error("Error checking wellness status:", err));
 
+    // Fetch physio slots
+    fetch("/api/physio/slots")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.slots && Array.isArray(data.slots)) {
+          setPhysioSlots(data.slots);
+          const booked = data.slots.find((s: any) => s.isBookedByMe);
+          if (booked) {
+            setPhysioBookedSuccess(true);
+            setSelectedSlotId(booked.id);
+          }
+        }
+      })
+      .catch((err) => console.error("Error loading physio slots:", err));
+
     // Check if player has already completed or acknowledged injury history
     const isDone = localStorage.getItem("cl_player_injury_history_done");
     const dismissedThisSession = sessionStorage.getItem("cl_player_injury_reminder_dismissed");
@@ -199,6 +231,16 @@ export default function PlayerTodayPage() {
     }));
   };
 
+  // Centralized evaluation of temporal state machine
+  const temporalEval = evalPlayerTemporalState({
+    session: todaySession,
+    playerDaily: {
+      hasCheckinToday: hasCompletedCheckin,
+      hasCheckoutToday: hasCompletedCheckout,
+    },
+    nowTime: new Date(),
+  });
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-24 px-4 py-6 max-w-lg mx-auto space-y-5">
       {/* Hero Status Card */}
@@ -206,6 +248,8 @@ export default function PlayerTodayPage() {
         playerName={summary.player.first_name || "Jugador"}
         status={summary.status}
         message={summary.statusMessage}
+        clubLogoUrl={clubInfo?.logoUrl}
+        clubName={clubInfo?.name}
       />
 
       {/* Quick Button: Add Injury / Medical Antecedent */}
@@ -303,10 +347,10 @@ export default function PlayerTodayPage() {
               Consulta de Fisioterapia
             </span>
             <h4 className="text-xs font-bold text-foreground">
-              Citas abiertas para este Viernes
+              Citas abiertas de fisioterapia
             </h4>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              {physioBookedSuccess ? "¡Reserva solicitada para el viernes!" : "Solicita o confirma tu cita con el fisio."}
+              {physioBookedSuccess ? "¡Reserva solicitada con éxito!" : "Solicita o confirma tu cita con el fisio."}
             </p>
           </div>
         </div>
@@ -319,42 +363,33 @@ export default function PlayerTodayPage() {
         </button>
       </div>
 
-      {/* "What Should I Do Now?" Dynamic Priority Card — Prioritize Check-out in the evening/night */}
-      {isPostSessionTime ? (
+      {/* "What Should I Do Now?" Dynamic Priority Card driven by evalPlayerTemporalState */}
+      {temporalEval.actionType === "checkout" ? (
         <WhatShouldIDoNowCard
-          title="Completa tu Check-out RPE Post-Sesión"
-          subtitle="Evalúa la percepción del esfuerzo del entrenamiento realizado."
+          title={temporalEval.nextActionTitle}
+          subtitle={temporalEval.nextActionSubtitle}
           estimatedSeconds={20}
           actionText="Completar Check-out RPE"
           onAction={() => setCheckoutOpen(true)}
           type="checkout"
         />
-      ) : summary.checkinPending ? (
+      ) : temporalEval.actionType === "checkin" ? (
         <WhatShouldIDoNowCard
-          title="Completa tu Check-in Pre-Entrenamiento"
-          subtitle="Registra cómo te sientes hoy antes del entrenamiento de la plantilla."
+          title={temporalEval.nextActionTitle}
+          subtitle={temporalEval.nextActionSubtitle}
           estimatedSeconds={25}
           actionText="Completar Check-in"
           onAction={() => setCheckinOpen(true)}
           type="checkin"
         />
-      ) : summary.checkoutPending ? (
-        <WhatShouldIDoNowCard
-          title="Completa tu Check-out RPE Post-Sesión"
-          subtitle="Evalúa la percepción del esfuerzo del entrenamiento reciéntemente finalizado."
-          estimatedSeconds={20}
-          actionText="Completar Check-out"
-          onAction={() => setCheckoutOpen(true)}
-          type="checkout"
-        />
       ) : (
         <WhatShouldIDoNowCard
-          title="Prevención Recomendada para Hoy"
-          subtitle="El staff recomienda realizar 8 minutos de prevención de isquiotibiales."
-          estimatedSeconds={8 * 60}
-          actionText="Ver Rutina Recomendada"
-          onAction={() => {}}
-          type="recommendation"
+          title={temporalEval.nextActionTitle}
+          subtitle={temporalEval.nextActionSubtitle}
+          estimatedSeconds={15}
+          actionText="Ver Ficha de Salud"
+          onAction={() => setCheckinOpen(true)}
+          type="checkin"
         />
       )}
 
@@ -506,7 +541,7 @@ export default function PlayerTodayPage() {
                 <span className="p-2 rounded-xl bg-indigo-600 text-white font-bold text-xs">🩺</span>
                 <div>
                   <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider block">Cita Fisioterapia</span>
-                  <h3 className="text-sm font-bold text-foreground">Selecciona Horario (Este Viernes)</h3>
+                  <h3 className="text-sm font-bold text-foreground">Turnos de Fisioterapia</h3>
                 </div>
               </div>
               <button onClick={() => setPhysioModalOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
@@ -515,34 +550,64 @@ export default function PlayerTodayPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground block">Franja horaria disponible:</label>
-              <div className="grid grid-cols-2 gap-2">
-                {["Viernes 16:00h - 16:30h", "Viernes 16:30h - 17:00h", "Viernes 17:00h - 17:30h", "Viernes 17:30h - 18:00h"].map((slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setPhysioSlotSelected(slot)}
-                    className={`p-3 rounded-xl text-xs font-bold transition-all border ${
-                      physioSlotSelected === slot
-                        ? "bg-indigo-600 text-white border-indigo-500 shadow-md"
-                        : "bg-accent/40 text-foreground border-border/50 hover:bg-accent"
-                    }`}
-                  >
-                    {slot.replace("Viernes ", "")}
-                  </button>
-                ))}
-              </div>
+              <label className="text-xs font-semibold text-muted-foreground block">Turnos disponibles para hoy / viernes:</label>
+              {physioSlots.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-accent/40 text-center text-xs text-muted-foreground border border-border/40">
+                  No hay turnos creados o disponibles en este momento.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {physioSlots.map((slot) => (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      disabled={slot.isFull && !slot.isBookedByMe}
+                      onClick={() => setSelectedSlotId(slot.id)}
+                      className={`p-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-between ${
+                        selectedSlotId === slot.id
+                          ? "bg-indigo-600 text-white border-indigo-500 shadow-md"
+                          : slot.isBookedByMe
+                          ? "bg-emerald-600/20 text-emerald-400 border-emerald-500/40"
+                          : slot.isFull
+                          ? "bg-accent/20 text-muted-foreground border-border/20 opacity-50 cursor-not-allowed"
+                          : "bg-accent/40 text-foreground border-border/50 hover:bg-accent"
+                      }`}
+                    >
+                      <span>{slot.startTime}h - {slot.endTime}h ({slot.physioName})</span>
+                      <span className="text-[10px] uppercase tracking-wide">
+                        {slot.isBookedByMe ? "Reservado por ti" : slot.isFull ? "Completo" : `Plazas: ${slot.availablePlaces}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={() => {
-                setPhysioBookedSuccess(true);
-                setPhysioModalOpen(false);
-              }}
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer"
-            >
-              Confirmar Reserva ({physioSlotSelected.replace("Viernes ", "")})
-            </button>
+            {selectedSlotId && (
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/physio/slots", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ slotId: selectedSlotId }),
+                    });
+                    const data = await res.json();
+                    if (data?.error) {
+                      alert(data.error);
+                    } else {
+                      setPhysioBookedSuccess(true);
+                      setPhysioModalOpen(false);
+                    }
+                  } catch (err: any) {
+                    alert(err.message || "Error al realizar la reserva");
+                  }
+                }}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer"
+              >
+                Confirmar Reserva Atómica en Supabase
+              </button>
+            )}
           </div>
         </div>
       )}

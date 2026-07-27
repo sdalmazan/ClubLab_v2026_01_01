@@ -299,3 +299,48 @@ html, body {
 .premium-scrollbar::-webkit-scrollbar-thumb:hover {
   background: oklch(50% 0.03 265 / 0.7);
 }
+
+/* ============================================================
+   A4 Print Engine Rules (Eco-Ink & A4 Portrait Isolation)
+   ============================================================ */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 8mm 10mm 8mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 9.5pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all web UI elements by default */
+  .no-print, header, nav, aside, footer, button, [role="navigation"], .backdrop-blur-md {
+    display: none !important;
+  }
+
+  .print-break-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  #clublab-print-document {
+    display: block !important;
+    width: 194mm !important;
+    max-width: 194mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
