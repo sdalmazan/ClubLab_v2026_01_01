@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
 import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { PlayerProfileEditModal } from "@/components/player/PlayerProfileEditModal";
+import { PlayerSettingsModal } from "@/components/player/PlayerSettingsModal";
 import { User, ShieldCheck, Dumbbell, Activity, HeartPulse, ChevronRight, Lock, Settings, Edit3 } from "lucide-react";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 
