@@ -13,7 +13,8 @@ import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { RecommendationCard } from "@/components/player/RecommendationCard";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
-import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock } from "lucide-react";
+import Link from "next/link";
+import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock, ChevronRight, X } from "lucide-react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
