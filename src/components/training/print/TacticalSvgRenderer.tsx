@@ -58,10 +58,10 @@ export function TacticalSvgRenderer({
   const zone = value.zone || "full_field";
   const viewBox = `0 0 ${width} ${height}`;
 
-  // Field colours
-  const bgColor    = printMode ? "#ffffff" : DEFAULTS.field;
-  const lineColor  = printMode ? "#94a3b8" : DEFAULTS.lines;
-  const lineWidth  = printMode ? 1.5 : 2;
+  // Field colours (Pure White background, solid black high-contrast lines)
+  const bgColor   = "#ffffff";
+  const lineColor = "#000000";
+  const lineWidth = 2;
 
   // ── helper: resolve a marker colour with fallback ───────────────────────────
   function markerFill(marker: MarkerElement): string {

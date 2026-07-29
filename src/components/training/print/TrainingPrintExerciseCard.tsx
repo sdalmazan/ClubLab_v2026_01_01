@@ -23,8 +23,6 @@ function stripMarkdown(text: string): string {
     .replace(/^[-*_]{3,}\s*$/gm, "")
     // Normalise bullet points (keep the text, clean the marker)
     .replace(/^\s*[-*+]\s+/gm, "• ")
-    // Remove emoji icon references like 🏃‍♂️ only if followed by heading-like text
-    // (we keep most emoji as they are intentional)
     // Collapse multiple blank lines into one
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -70,29 +68,32 @@ export function TrainingPrintExerciseCard({
     return Array.isArray(playerIds) && playerIds.length > 0;
   });
 
-  const rules = stripMarkdown(gs.rules || ex.rules || "");
-  const notesRaw = gs.objective_notes || ex.objective_notes || ex.notes || "";
+  const rules = stripMarkdown(gs.rules || ex.rules || ex.consignas || "");
+  const notesRaw = gs.objective_notes || ex.objective_notes || ex.notes || ex.objective || ex.details || "";
   const notes = stripMarkdown(notesRaw);
   const organization = stripMarkdown(gs.organization || ex.organization || "");
-  // Short description from exercise library entry (e.g. "Posesión con superioridad…")
-  const exerciseDescription = ex.exercise?.description
-    ? stripMarkdown(ex.exercise.description)
-    : "";
+
+  // Library/exercise description fallback
+  const exerciseDescription = stripMarkdown(
+    ex.exercise?.description || ex.description || ex.exercise_description || ""
+  );
+  const showDesc = exerciseDescription && exerciseDescription !== notes;
+
   const hasWhiteboard = Boolean(ex.whiteboard_data);
 
   return (
-    <div className="bg-white print-break-avoid text-[8pt] leading-tight w-full border-b border-slate-200 pb-2 mb-1 last:border-b-0 last:pb-0 last:mb-0">
-      {/* ── CARD TOP HEADER BAR ── */}
-      <div className="flex justify-between items-center pb-1 mb-1 border-b border-slate-900 gap-2">
+    <div className="bg-white print-break-avoid text-[8pt] leading-tight w-full border-b border-slate-300 pb-2 mb-1.5 last:border-b-0 last:pb-0 last:mb-0">
+      {/* ── CARD TOP HEADER BAR (Ink-saving outline badge) ── */}
+      <div className="flex justify-between items-center pb-1 mb-1 border-b border-slate-800 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="inline-flex h-4 w-5 rounded-sm bg-slate-900 text-white font-black text-[7.5pt] items-center justify-center shrink-0">
+          <span className="inline-flex h-4 w-5 rounded-sm border border-slate-900 bg-white text-slate-900 font-black text-[7.5pt] items-center justify-center shrink-0">
             {String(index + 1).padStart(2, "0")}
           </span>
           <div className="min-w-0 flex items-center gap-2">
             <h4 className="font-black text-slate-900 text-[9.5pt] leading-none truncate uppercase tracking-wide">
               {ex.title || ex.exercise?.title || `Ejercicio ${index + 1}`}
             </h4>
-            <span className="inline-block rounded px-1 py-0.2 text-[6.5pt] font-bold border uppercase tracking-wider bg-slate-100 text-slate-800 border-slate-300 shrink-0">
+            <span className="inline-block rounded px-1 py-0.2 text-[6.5pt] font-bold border uppercase tracking-wider bg-slate-50 text-slate-800 border-slate-300 shrink-0">
               {ex.category || ex.exercise?.category || "General"}
             </span>
           </div>
@@ -100,7 +101,7 @@ export function TrainingPrintExerciseCard({
 
         <div className="text-right text-[8.5pt] font-bold text-slate-900 shrink-0 flex items-center gap-2">
           {nSeries > 1 && (
-            <span className="text-[7.5pt] text-slate-600 font-semibold border-r border-slate-300 pr-2">
+            <span className="text-[7.5pt] text-slate-700 font-semibold border-r border-slate-300 pr-2">
               {nSeries}x{sDuration}m · Rec {sRecovery}m
             </span>
           )}
@@ -113,14 +114,14 @@ export function TrainingPrintExerciseCard({
         {/* Left Column: Text Information (Objetivo, Reglas, Organización, Equipos) */}
         <div className={cn(hasWhiteboard ? "col-span-7 space-y-1.5 flex flex-col justify-between" : "col-span-12 space-y-1.5")}>
           <div className="space-y-1.5">
-            {/* DESCRIPCIÓN DEL EJERCICIO (biblioteca) */}
-            {exerciseDescription && (
-              <p className="text-slate-600 italic text-[7.5pt] leading-snug border-b border-slate-200 pb-1">
+            {/* DESCRIPCIÓN DEL EJERCICIO */}
+            {showDesc && (
+              <p className="text-slate-700 italic text-[7.5pt] leading-snug border-b border-slate-200 pb-1">
                 {exerciseDescription}
               </p>
             )}
 
-            {/* OBJETIVO */}
+            {/* OBJETIVO / NOTAS */}
             {notes && (
               <div>
                 <span className="block font-black text-slate-900 uppercase tracking-wider text-[7.5pt]">
@@ -179,7 +180,7 @@ export function TrainingPrintExerciseCard({
           )}
         </div>
 
-        {/* Right Column: Tactical SVG Diagram – no extra border wrapper */}
+        {/* Right Column: Tactical SVG Diagram */}
         {hasWhiteboard && (
           <div className="col-span-5 flex items-stretch h-full min-h-[140px]">
             <TacticalSvgRenderer

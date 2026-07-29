@@ -81,7 +81,7 @@ export function TrainingSessionPrintDocument({
       <TrainingPrintSquad session={session} activeSquadPlayers={activeSquadPlayers} />
 
       {/* Exercises Section by Block */}
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {blocks.map((block) => {
           const blockExercises = exercises.filter((ex, exIdx) => {
             const bt = String(ex.block_type || ex.group_setup?.block_type || "").toLowerCase();
@@ -99,23 +99,23 @@ export function TrainingSessionPrintDocument({
 
           return (
             <div key={block.key} className="space-y-1.5 print-break-avoid">
-              {/* Block Title Header Bar */}
-              <div className="bg-slate-900 text-white px-2 py-0.5 rounded text-[8pt] font-black uppercase tracking-wider flex justify-between items-center">
+              {/* Block Title Header Bar — Ink-Saving Line Border */}
+              <div className="border-b-2 border-slate-900 pb-0.5 mt-1 mb-1 flex justify-between items-center text-slate-900 font-black text-[8.5pt] uppercase tracking-wider">
                 <span>{block.title}</span>
-                <span className="text-[7pt] text-slate-300 font-bold">
+                <span className="text-[7.5pt] text-slate-700 font-bold">
                   {blockExercises.length} {blockExercises.length === 1 ? "TAREA" : "TAREAS"}
                 </span>
               </div>
 
               {/* Optional Block Description from real data */}
               {blockDesc && (
-                <p className="text-[7.5pt] font-medium text-slate-700 italic px-1">
+                <p className="text-[7.5pt] font-medium text-slate-700 italic px-1 mb-1">
                   {blockDesc}
                 </p>
               )}
 
               {/* Exercises Container: 2 columns if compact session (and no whiteboard), or 1 column flex layout */}
-              <div className={cn(isCompactSession && blockExercises.length >= 2 && !blockExercises.some(e => Boolean(e.whiteboard_data)) ? "grid grid-cols-2 gap-2" : "space-y-2")}>
+              <div className={cn(isCompactSession && blockExercises.length >= 2 && !blockExercises.some(e => Boolean(e.whiteboard_data)) ? "grid grid-cols-2 gap-2" : "space-y-2.5")}>
                 {blockExercises.map((ex, exIdx) => {
                   const globalIdx = exercises.indexOf(ex);
                   return (

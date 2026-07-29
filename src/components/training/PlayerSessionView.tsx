@@ -719,11 +719,10 @@ export function PlayerSessionView({
                     {blockExercises.map((ex: any, idx: number) => {
                       const gs = ex.group_setup || {};
                       const rawGroups = gs.groups || [];
-                      const rules = stripMarkdown(gs.rules || "");
-                      const notes = stripMarkdown(gs.objective_notes || "");
-                      const exerciseDescription = ex.exercise?.description
-                        ? stripMarkdown(ex.exercise.description)
-                        : "";
+                      const rules = stripMarkdown(gs.rules || ex.rules || "");
+                      const notes = stripMarkdown(gs.objective_notes || ex.objective_notes || ex.notes || "");
+                      const rawDesc = ex.exercise?.description || ex.description || ex.exercise_description || "";
+                      const exerciseDescription = stripMarkdown(rawDesc);
 
                       // Filter only groups with at least 1 assigned player
                       const assignedGroups = rawGroups.filter((g: any) => {
