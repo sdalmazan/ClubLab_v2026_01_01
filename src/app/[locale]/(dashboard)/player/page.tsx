@@ -16,7 +16,7 @@ import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
 import { ConfirmAttendanceWeightModal } from "@/components/player/ConfirmAttendanceWeightModal";
 import { evalPlayerTemporalState } from "@/services/playerTemporalStateService";
 import Link from "next/link";
-import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock, ChevronRight, X, CheckCircle2 } from "lucide-react";
+import { Moon, HeartPulse, Zap, AlertCircle, PlusCircle, Calendar, MapPin, Clock, ChevronRight, X, CheckCircle2, Activity, Check } from "lucide-react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -62,6 +62,7 @@ export default function PlayerTodayPage() {
   const [preferredDay, setPreferredDay] = useState("Viernes");
   const [preferredShift, setPreferredShift] = useState("Mañana");
   const [physioReason, setPhysioReason] = useState("");
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>(["08:45", "09:00"]);
   const [submittingAvail, setSubmittingAvail] = useState(false);
 
   useEffect(() => {
@@ -439,14 +440,33 @@ export default function PlayerTodayPage() {
           title={temporalEval.nextActionTitle}
           subtitle={temporalEval.nextActionSubtitle}
           estimatedSeconds={15}
-          actionText="Ver Ficha de Salud"
-          onAction={() => setCheckinOpen(true)}
+          actionText="Ver Carga Acumulada y Mi Estado"
+          onAction={() => router.push("/player/status")}
           type="checkin"
         />
       )}
 
       {/* Synthetic Resumen Metrics */}
-      {!hasCompletedCheckin ? (
+      {temporalEval.state === "NO_SESSION" || todaySession?.session_type === "rest" || todaySession?.is_rest_day ? (
+        <div className="rounded-3xl border border-blue-500/30 bg-card p-6 text-center space-y-3 shadow-md">
+          <div className="mx-auto size-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
+            <Activity className="size-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-foreground">Jornada de Descanso</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Hoy no hay entrenamientos ni check-in requeridos. Revisa tu carga acumulada y la tendencia de descanso en tu panel de salud.
+            </p>
+          </div>
+          <Link
+            href="/player/status"
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5"
+          >
+            <Activity className="size-4" />
+            <span>Ver Carga Acumulada y Tendencias</span>
+          </Link>
+        </div>
+      ) : !hasCompletedCheckin ? (
         <div className="rounded-3xl border border-dashed border-border bg-card/60 p-6 text-center space-y-3 shadow-md">
           <div className="mx-auto size-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
             <HeartPulse className="size-6" />
@@ -667,39 +687,45 @@ export default function PlayerTodayPage() {
             ) : (
               <div className="space-y-4">
                 <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-foreground space-y-1">
-                  <span className="font-bold text-indigo-400 block uppercase text-[10px]">Indica tu disponibilidad</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-400 uppercase text-[10px]">Indica tu Disponibilidad (Franjas de 15 min)</span>
+                    <span className="text-[10px] font-mono text-muted-foreground">08:30h a {todaySession?.start_time?.slice(0, 5) || "10:00"}h</span>
+                  </div>
                   <p className="text-muted-foreground text-[11px]">
-                    No hay turnos prefijados. Envía tu disponibilidad y motivo de consulta para que el fisioterapeuta organice la cita.
+                    Selecciona todas las franjas horarias en las que puedes asistir antes del entrenamiento. El fisio recibirá tu disponibilidad y calculará la propuesta definitiva.
                   </p>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Día Preferido</label>
-                      <select
-                        value={preferredDay}
-                        onChange={(e) => setPreferredDay(e.target.value)}
-                        className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs font-semibold text-foreground focus:outline-none"
-                      >
-                        <option value="Viernes">Viernes</option>
-                        <option value="Sábado">Sábado</option>
-                        <option value="Domingo">Domingo</option>
-                        <option value="Lunes">Próximo Lunes</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Franja Horaria</label>
-                      <select
-                        value={preferredShift}
-                        onChange={(e) => setPreferredShift(e.target.value)}
-                        className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs font-semibold text-foreground focus:outline-none"
-                      >
-                        <option value="Mañana">Mañana (Antes de entreno)</option>
-                        <option value="Tarde">Tarde (Post-entreno)</option>
-                        <option value="Cualquiera">Indiferente</option>
-                      </select>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1.5">
+                      Franjas Disponibles (Multiselección):
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["08:30", "08:45", "09:00", "09:15", "09:30", "09:45"].map((timeSlot) => {
+                        const isSelected = selectedTimeSlots.includes(timeSlot);
+                        return (
+                          <button
+                            key={timeSlot}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTimeSlots(selectedTimeSlots.filter((t) => t !== timeSlot));
+                              } else {
+                                setSelectedTimeSlots([...selectedTimeSlots, timeSlot]);
+                              }
+                            }}
+                            className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1 ${
+                              isSelected
+                                ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-[1.02]"
+                                : "bg-card border-border/50 text-foreground hover:bg-accent"
+                            }`}
+                          >
+                            <span>{timeSlot}h</span>
+                            {isSelected && <Check className="w-3 h-3 shrink-0" />}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -715,7 +741,7 @@ export default function PlayerTodayPage() {
                   </div>
 
                   <button
-                    disabled={submittingAvail}
+                    disabled={submittingAvail || selectedTimeSlots.length === 0}
                     onClick={async () => {
                       setSubmittingAvail(true);
                       try {
@@ -727,13 +753,14 @@ export default function PlayerTodayPage() {
                             preferredDay,
                             preferredShift,
                             reason: physioReason,
+                            selectedTimeSlots,
                           }),
                         });
                         const data = await res.json();
                         if (data?.success) {
                           setPhysioBookedSuccess(true);
                           setPhysioModalOpen(false);
-                          alert(data.message || "Disponibilidad enviada correctamente.");
+                          alert(data.message || `Disponibilidad enviada (${selectedTimeSlots.length} franjas seleccionadas).`);
                         } else {
                           alert(data?.error || "Error al enviar disponibilidad");
                         }
@@ -743,9 +770,11 @@ export default function PlayerTodayPage() {
                         setSubmittingAvail(false);
                       }
                     }}
-                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer"
+                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {submittingAvail ? "Enviando..." : "Enviar Disponibilidad al Fisioterapeuta"}
+                    {submittingAvail
+                      ? "Enviando..."
+                      : `Enviar Disponibilidad (${selectedTimeSlots.length} franjas elegidas)`}
                   </button>
                 </div>
               </div>

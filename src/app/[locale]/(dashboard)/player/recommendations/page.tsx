@@ -9,50 +9,8 @@ import { ShieldCheck, Filter } from "lucide-react";
 export default function PlayerRecommendationsPage() {
   const [filter, setFilter] = useState<string>("all");
 
-  const recommendations: PlayerRecommendation[] = [
-    {
-      id: "rec-1",
-      organization_id: "org-1",
-      player_id: "p-1",
-      category: "prevencion",
-      title: "Prevención Específica de Isquiotibiales",
-      description: "Rutina excéntrica suave de 8 minutos para reforzar isquios tras la carga acumulada del partido.",
-      reason_context: "Tu carga acumulada en los últimos 3 días ha sido superior a la media habitual (+8%).",
-      exercise_routine_id: null,
-      estimated_minutes: 8,
-      is_completed: false,
-      created_by: "staff-1",
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: "rec-2",
-      organization_id: "org-1",
-      player_id: "p-1",
-      category: "activacion",
-      title: "Rutina de Activación Glútea Pre-Sesión",
-      description: "Ejercicios de banda elástica y movilidad de cadera antes de saltar al terreno de juego.",
-      reason_context: "Recomendación preventiva estándar del preparador físico.",
-      exercise_routine_id: null,
-      estimated_minutes: 5,
-      is_completed: false,
-      created_by: "staff-1",
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: "rec-3",
-      organization_id: "org-1",
-      player_id: "p-1",
-      category: "recuperacion",
-      title: "Protocolo de Movilidad y Contraste Térmico",
-      description: "Movilidad articular en foam roller y contraste de agua fría/caliente.",
-      reason_context: "Tu nivel de fatiga muscular reportado tras la sesión fue de 4/5.",
-      exercise_routine_id: null,
-      estimated_minutes: 12,
-      is_completed: true,
-      created_by: "staff-1",
-      created_at: new Date().toISOString(),
-    },
-  ];
+  // Loaded assigned recommendations (empty by default unless assigned by staff)
+  const [recommendations, setRecommendations] = useState<PlayerRecommendation[]>([]);
 
   const filteredRecs = recommendations.filter((r) => {
     if (filter === "all") return true;

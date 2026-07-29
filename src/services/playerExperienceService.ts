@@ -93,54 +93,66 @@ export interface ConfidentialInjuryInput {
   notes?: string;
 }
 
+export function calculatePlayerProfileCompletion(player: any, hasInjuryHistoryDone: boolean = false): {
+  percentage: number;
+  missingFields: Array<{ key: string; label: string; explanation: string }>;
+} {
+  const fieldsToCheck = [
+    { key: "first_name", label: "Nombre", explanation: "Tu nombre oficial en la plantilla.", value: player?.first_name },
+    { key: "last_name", label: "Apellidos", explanation: "Tus apellidos para la ficha del club.", value: player?.last_name },
+    { key: "sporting_name", label: "Nombre deportivo", explanation: "Nombre en convocatorias y análisis.", value: player?.sporting_name },
+    { key: "date_of_birth", label: "Fecha de nacimiento", explanation: "Necesaria para estadísticas por categoría y edad.", value: player?.date_of_birth },
+    { key: "nationality", label: "Nacionalidad", explanation: "Información para tramitación de fichas.", value: player?.nationality },
+    { key: "dominant_foot", label: "Pie dominante", explanation: "Permite al cuerpo técnico personalizar tus ejercicios tácticos.", value: player?.dominant_foot },
+    { key: "height_cm", label: "Altura (cm)", explanation: "Utilizada en análisis biométricos y balón parado.", value: player?.height_cm },
+    { key: "weight_kg", label: "Peso (kg)", explanation: "Necesario para el seguimiento de composición corporal.", value: player?.weight_kg },
+    { key: "jersey_number", label: "Dorsal", explanation: "Tu número de camiseta oficial.", value: player?.jersey_number },
+    { key: "injury_history", label: "Historial de lesiones", explanation: "Nos ayuda a enviarte rutinas preventivas a medida.", value: hasInjuryHistoryDone },
+  ];
+
+  let completedCount = 0;
+  const missingFields: Array<{ key: string; label: string; explanation: string }> = [];
+
+  for (const item of fieldsToCheck) {
+    if (item.value !== null && item.value !== undefined && item.value !== "" && item.value !== false) {
+      completedCount++;
+    } else {
+      missingFields.push({ key: item.key, label: item.label, explanation: item.explanation });
+    }
+  }
+
+  const percentage = Math.round((completedCount / fieldsToCheck.length) * 100);
+  return { percentage, missingFields };
+}
+
 export function getMockPlayerSummary(): PlayerDailySummary {
+  const mockPlayer = {
+    id: "demo-player-1",
+    first_name: "Jugador",
+    last_name: "Almazán",
+    sporting_name: "Jugador",
+    height_cm: 182,
+    weight_kg: 76,
+    dominant_foot: "right" as const,
+    physical_status: "green" as const,
+    availability_status: "available" as const,
+    avatar_url: null,
+    date_of_birth: "2000-05-14",
+  };
+
+  const { percentage, missingFields } = calculatePlayerProfileCompletion(mockPlayer, false);
+
   return {
-    player: {
-      id: "demo-player-1",
-      first_name: "Jugador",
-      last_name: "Almazán",
-      sporting_name: "Jugador",
-      height_cm: 182,
-      weight_kg: 76,
-      dominant_foot: "right",
-      physical_status: "green",
-      availability_status: "available",
-      avatar_url: null,
-      date_of_birth: "2000-05-14",
-    },
+    player: mockPlayer,
     status: "READY",
     statusMessage: "Tu recuperación está en tu rango habitual.",
-    checkinPending: true,
-    checkinWindowOpen: true,
+    checkinPending: false,
+    checkinWindowOpen: false,
     checkoutPending: false,
-    checkoutWindowOpen: true,
-    activeRecommendation: {
-      id: "rec-1",
-      organization_id: "org-1",
-      player_id: "demo-player-1",
-      category: "prevencion",
-      title: "Prevención de Isquiotibiales",
-      description: "Rutina suave de 8 minutos para reforzar el tono de isquios tras el entrenamiento de ayer.",
-      reason_context: "Tu carga acumulada en los últimos 3 días ha aumentado un +8%.",
-      exercise_routine_id: null,
-      estimated_minutes: 8,
-      is_completed: false,
-      created_by: "staff-1",
-      created_at: new Date().toISOString(),
-    },
-    completionPercentage: 75,
-    missingFields: [
-      {
-        key: "dominant_foot",
-        label: "Pie dominante",
-        explanation: "Permite al cuerpo técnico personalizar tus ejercicios tácticos.",
-      },
-      {
-        key: "previous_injuries",
-        label: "Historial de lesiones previas",
-        explanation: "Nos ayuda a enviarte rutinas preventivas a medida.",
-      },
-    ],
+    checkoutWindowOpen: false,
+    activeRecommendation: null,
+    completionPercentage: percentage,
+    missingFields,
     metricsSummary: {
       sleepQuality: 4,
       fatigue: 2,

@@ -435,7 +435,30 @@ export function PhysioWorkspace({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (timeSlots.length === 0) return;
+                    let assignedIndex = 0;
+                    setAppointments(prev =>
+                      prev.map((app) => {
+                        if (app.status === "treated") return app;
+                        const proposedTime = timeSlots[assignedIndex % timeSlots.length] || "08:30";
+                        assignedIndex++;
+                        return {
+                          ...app,
+                          scheduled_time: app.scheduled_time || proposedTime,
+                          status: app.status === "pending" ? "scheduled" : app.status,
+                        };
+                      })
+                    );
+                  }}
+                  className={buttonVariants({ variant: "secondary", size: "xs" })}
+                >
+                  <Sparkles className="size-3.5 mr-1 text-amber-400" />
+                  Calcular Propuesta de Horas
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsBookingModalOpen(true)}
@@ -450,7 +473,7 @@ export function PhysioWorkspace({
               <Clock className="size-8 text-slate-400 mx-auto" />
               <div>
                 <p className="text-xs font-semibold">No hay consulta de fisioterapia abierta hoy.</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Abre consulta a una hora específica para que los futbolistas se apunten.</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Abre consulta fijando la hora de inicio para que los futbolistas elijan sus franjas de 15 min.</p>
               </div>
               <button
                 type="button"
@@ -468,7 +491,7 @@ export function PhysioWorkspace({
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
                 Solicitudes y Citas de Fisioterapia ({appointments.length})
               </h3>
-              <span className="text-[11px] text-slate-400">Pulsar "Tratado" para dictamen de aptitud</span>
+              <span className="text-[11px] text-slate-400">El programa propone las horas y el fisio confirma la asignación final</span>
             </div>
 
             {appointments.length === 0 ? (
