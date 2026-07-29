@@ -3477,6 +3477,13 @@ export function SessionForm({
                   </span>
                 )}
               </div>
+
+              {/* Library exercise description - always visible */}
+              {ex.exercise?.description && (
+                <p className="text-[9px] text-slate-400 italic mt-0.5 leading-snug line-clamp-2">
+                  {ex.exercise.description.replace(/^#{1,6}\s+/gm, "").replace(/\*{1,2}([^*\n]+)\*{1,2}/g, "$1").replace(/_{1,2}([^_\n]+)_{1,2}/g, "$1").replace(/^[-*_]{3,}\s*$/gm, "").trim()}
+                </p>
+              )}
               
               {!isExpanded && (
                 <div className="flex items-center gap-3 mt-1 text-[9px] text-slate-500 font-semibold flex-wrap">

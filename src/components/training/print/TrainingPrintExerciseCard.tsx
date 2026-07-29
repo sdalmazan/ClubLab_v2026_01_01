@@ -81,11 +81,11 @@ export function TrainingPrintExerciseCard({
   const hasWhiteboard = Boolean(ex.whiteboard_data);
 
   return (
-    <div className="border border-slate-400 rounded-lg p-2 bg-white shadow-none print-break-avoid flex flex-col justify-between space-y-1.5 text-[8pt] leading-tight w-full">
+    <div className="bg-white print-break-avoid text-[8pt] leading-tight w-full border-b border-slate-200 pb-2 mb-1 last:border-b-0 last:pb-0 last:mb-0">
       {/* ── CARD TOP HEADER BAR ── */}
-      <div className="flex justify-between items-center border-b border-slate-300 pb-1 gap-2">
+      <div className="flex justify-between items-center pb-1 mb-1 border-b border-slate-900 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="h-4.5 w-4.5 rounded bg-slate-900 text-white font-black text-[8pt] flex items-center justify-center shrink-0">
+          <span className="inline-flex h-4 w-5 rounded-sm bg-slate-900 text-white font-black text-[7.5pt] items-center justify-center shrink-0">
             {String(index + 1).padStart(2, "0")}
           </span>
           <div className="min-w-0 flex items-center gap-2">
@@ -179,14 +179,14 @@ export function TrainingPrintExerciseCard({
           )}
         </div>
 
-        {/* Right Column: Tactical SVG Diagram (Fills 40-45% width) */}
+        {/* Right Column: Tactical SVG Diagram – no extra border wrapper */}
         {hasWhiteboard && (
-          <div className="col-span-5 flex items-center justify-center h-full min-h-[140px]">
+          <div className="col-span-5 flex items-stretch h-full min-h-[140px]">
             <TacticalSvgRenderer
               value={ex.whiteboard_data}
               width={400}
               height={300}
-              className="w-full h-full"
+              className="w-full h-full rounded overflow-hidden border border-slate-200"
             />
           </div>
         )}
