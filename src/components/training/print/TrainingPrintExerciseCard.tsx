@@ -4,6 +4,32 @@ import React from "react";
 import { TacticalSvgRenderer } from "./TacticalSvgRenderer";
 import { cn } from "@/lib/utils";
 
+/**
+ * Strip basic markdown syntax from text to produce clean plain text
+ * suitable for printing. Handles: headings, bold, italic, bullets,
+ * horizontal rules, and extra blank lines.
+ */
+function stripMarkdown(text: string): string {
+  if (!text) return "";
+  return text
+    // Remove ATX headings (#, ##, ###, ...)
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove bold/italic: **text**, __text__, *text*, _text_
+    .replace(/\*{1,2}([^*\n]+)\*{1,2}/g, "$1")
+    .replace(/_{1,2}([^_\n]+)_{1,2}/g, "$1")
+    // Remove inline code
+    .replace(/`([^`]+)`/g, "$1")
+    // Remove horizontal rules (--- or ***)
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    // Normalise bullet points (keep the text, clean the marker)
+    .replace(/^\s*[-*+]\s+/gm, "• ")
+    // Remove emoji icon references like 🏃‍♂️ only if followed by heading-like text
+    // (we keep most emoji as they are intentional)
+    // Collapse multiple blank lines into one
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 interface TrainingPrintExerciseCardProps {
   exercise: any;
   index: number;
@@ -44,9 +70,14 @@ export function TrainingPrintExerciseCard({
     return Array.isArray(playerIds) && playerIds.length > 0;
   });
 
-  const rules = gs.rules || ex.rules || "";
-  const notes = gs.objective_notes || ex.objective_notes || ex.notes || ex.exercise?.description || "";
-  const organization = gs.organization || ex.organization || "";
+  const rules = stripMarkdown(gs.rules || ex.rules || "");
+  const notesRaw = gs.objective_notes || ex.objective_notes || ex.notes || "";
+  const notes = stripMarkdown(notesRaw);
+  const organization = stripMarkdown(gs.organization || ex.organization || "");
+  // Short description from exercise library entry (e.g. "Posesión con superioridad…")
+  const exerciseDescription = ex.exercise?.description
+    ? stripMarkdown(ex.exercise.description)
+    : "";
   const hasWhiteboard = Boolean(ex.whiteboard_data);
 
   return (
@@ -82,6 +113,13 @@ export function TrainingPrintExerciseCard({
         {/* Left Column: Text Information (Objetivo, Reglas, Organización, Equipos) */}
         <div className={cn(hasWhiteboard ? "col-span-7 space-y-1.5 flex flex-col justify-between" : "col-span-12 space-y-1.5")}>
           <div className="space-y-1.5">
+            {/* DESCRIPCIÓN DEL EJERCICIO (biblioteca) */}
+            {exerciseDescription && (
+              <p className="text-slate-600 italic text-[7.5pt] leading-snug border-b border-slate-200 pb-1">
+                {exerciseDescription}
+              </p>
+            )}
+
             {/* OBJETIVO */}
             {notes && (
               <div>

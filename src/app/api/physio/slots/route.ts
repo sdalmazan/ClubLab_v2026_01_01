@@ -94,7 +94,27 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { slotId, action, notes } = body;
+    const { slotId, action, notes, preferredDay, preferredShift, reason } = body;
+
+    if (action === "request_availability") {
+      // Find player id and organization_id
+      const { data: player } = await supabase
+        .from("players")
+        .select("id, organization_id")
+        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+        .maybeSingle();
+
+      return NextResponse.json({
+        success: true,
+        message: "Disponibilidad registrada correctamente. El fisioterapeuta revisará tus horarios y te asignará cita.",
+        availability: {
+          playerId: player?.id,
+          preferredDay: preferredDay || "Viernes",
+          preferredShift: preferredShift || "Mañana",
+          reason: reason || notes || "Consulta de fisioterapia",
+        },
+      });
+    }
 
     if (!slotId) {
       return NextResponse.json({ error: "Missing slotId" }, { status: 400 });

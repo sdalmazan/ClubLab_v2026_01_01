@@ -26,6 +26,23 @@ import { cn } from "@/lib/utils";
 import { SessionPrintReport } from "./SessionPrintReport";
 import { prepareAndPrintDocument } from "@/lib/printUtils";
 
+/**
+ * Strip basic markdown syntax to produce clean readable plain text.
+ * Used to avoid showing raw asterisks, hashes, etc. in exercise notes.
+ */
+function stripMarkdown(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*{1,2}([^*\n]+)\*{1,2}/g, "$1")
+    .replace(/_{1,2}([^_\n]+)_{1,2}/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 interface PlayerSessionViewProps {
   session: any;
   isPreview?: boolean;
@@ -702,8 +719,11 @@ export function PlayerSessionView({
                     {blockExercises.map((ex: any, idx: number) => {
                       const gs = ex.group_setup || {};
                       const rawGroups = gs.groups || [];
-                      const rules = gs.rules || "";
-                      const notes = gs.objective_notes || "";
+                      const rules = stripMarkdown(gs.rules || "");
+                      const notes = stripMarkdown(gs.objective_notes || "");
+                      const exerciseDescription = ex.exercise?.description
+                        ? stripMarkdown(ex.exercise.description)
+                        : "";
 
                       // Filter only groups with at least 1 assigned player
                       const assignedGroups = rawGroups.filter((g: any) => {
@@ -729,6 +749,9 @@ export function PlayerSessionView({
                                   <span className="inline-block rounded px-1.5 py-0.5 text-[8px] font-bold border mt-1 uppercase tracking-wider bg-slate-800 text-slate-300 border-slate-700">
                                     {ex.category || "General"}
                                   </span>
+                                  {exerciseDescription && (
+                                    <p className="text-slate-400 text-[9px] italic mt-1 leading-snug break-words">{exerciseDescription}</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="text-right text-[11px] font-bold text-slate-300 shrink-0 ml-1">

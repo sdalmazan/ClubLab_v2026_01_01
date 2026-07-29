@@ -101,9 +101,21 @@ export default function PlayerRecommendationsPage() {
 
       {/* Recommendations Feed */}
       <div className="space-y-4">
-        {filteredRecs.map((rec) => (
-          <RecommendationCard key={rec.id} recommendation={rec} />
-        ))}
+        {filteredRecs.length === 0 ? (
+          <div className="p-8 rounded-3xl border border-dashed border-border bg-card/50 text-center space-y-2">
+            <div className="size-10 rounded-2xl bg-accent/50 flex items-center justify-center mx-auto text-muted-foreground">
+              <ShieldCheck className="size-5" />
+            </div>
+            <h3 className="text-xs font-bold text-foreground">No hay rutinas asignadas</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              El cuerpo técnico no te ha asignado rutinas ni recomendaciones individuales para esta categoría.
+            </p>
+          </div>
+        ) : (
+          filteredRecs.map((rec) => (
+            <RecommendationCard key={rec.id} recommendation={rec} />
+          ))
+        )}
       </div>
 
       {/* Mobile Navigation */}

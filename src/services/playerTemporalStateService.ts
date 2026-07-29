@@ -101,11 +101,11 @@ export function evalPlayerTemporalState(options: EvalStateOptions): {
     };
   }
 
-  if (session.status === "cancelled") {
+  if (session.status === "cancelled" || (session as any).session_type === "rest" || (session as any).is_rest_day) {
     return {
-      state: "SESSION_CANCELLED",
-      nextActionTitle: "Sesión Cancelada por el Cuerpo Técnico",
-      nextActionSubtitle: "No se requiere check-in ni check-out para el entrenamiento de hoy.",
+      state: "NO_SESSION",
+      nextActionTitle: "Jornada de Descanso",
+      nextActionSubtitle: "Hoy la plantilla tiene día de descanso. No requiere registros de carga ni check-in.",
       actionType: "none",
     };
   }

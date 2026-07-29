@@ -28,9 +28,9 @@ export default function PlayerTodayPage() {
     const base = getMockPlayerSummary();
     return {
       ...base,
-      status: "PENDING" as "GOOD" | "READY" | "RECOVER" | "ATTENTION" | "PENDING",
-      statusMessage: "Completa tu primer check-in pre-entrenamiento para registrar tus métricas de salud y recuperación de hoy.",
-      checkinPending: true,
+      status: "READY" as "GOOD" | "READY" | "RECOVER" | "ATTENTION" | "PENDING",
+      statusMessage: "Estado del jugador actualizado. Revisa el estado de la sesión o tus pautas de entrenamiento.",
+      checkinPending: false,
     };
   });
   const [checkinOpen, setCheckinOpen] = useState(false);
@@ -54,11 +54,15 @@ export default function PlayerTodayPage() {
   const [confirmAttendanceOpen, setConfirmAttendanceOpen] = useState(false);
   const [attendanceWeight, setAttendanceWeight] = useState<number | null>(null);
 
-  // Physio Slot Modal state
+  // Physio Slot & Availability Modal state
   const [physioModalOpen, setPhysioModalOpen] = useState(false);
   const [physioSlots, setPhysioSlots] = useState<any[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [physioBookedSuccess, setPhysioBookedSuccess] = useState(false);
+  const [preferredDay, setPreferredDay] = useState("Viernes");
+  const [preferredShift, setPreferredShift] = useState("Mañana");
+  const [physioReason, setPhysioReason] = useState("");
+  const [submittingAvail, setSubmittingAvail] = useState(false);
 
   useEffect(() => {
     // Load authenticated user name & check role from client Supabase session
@@ -284,59 +288,88 @@ export default function PlayerTodayPage() {
         </button>
       </div>
 
-      {/* Today's Training Session Card (Loaded Automatically 2h before or active) */}
-      <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card p-5 shadow-lg space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs">
-              HOY
-            </span>
-            <div>
-              <span className="text-[10px] font-extrabold text-emerald-500 uppercase tracking-wider block">
-                Sesión de Entrenamiento
+      {/* Today's Training Session or Rest Day Card */}
+      {todaySession?.session_type === "rest" || todaySession?.is_rest_day || temporalEval.state === "NO_SESSION" ? (
+        <div className="rounded-3xl border border-blue-500/30 bg-gradient-to-br from-blue-500/10 via-card to-card p-5 shadow-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-blue-600 text-white font-extrabold text-xs">
+                HOY
               </span>
-              <h3 className="text-sm font-bold text-foreground">
-                {todaySession?.title || "Entrenamiento de Plantilla — Senior A"}
-              </h3>
+              <div>
+                <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-wider block">
+                  Jornada de Descanso
+                </span>
+                <h3 className="text-sm font-bold text-foreground">
+                  Sin sesión programada
+                </h3>
+              </div>
             </div>
+            <span className="text-xs font-semibold text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+              Descanso
+            </span>
           </div>
-          <span className="text-xs font-mono font-extrabold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-            {todaySession?.start_time ? todaySession.start_time.slice(0, 5) : "10:00"} hs
-          </span>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground bg-accent/40 p-3 rounded-2xl border border-border/40">
-          <span className="flex items-center gap-1 font-semibold text-foreground">
-            <Clock className="w-3.5 h-3.5 text-emerald-500" />
-            {todaySession?.duration_min || 90} min
-          </span>
-          <span className="flex items-center gap-1 font-semibold text-foreground">
-            <MapPin className="w-3.5 h-3.5 text-emerald-500" />
-            Campo La Arboleda
-          </span>
-          <span className="flex items-center gap-1 font-semibold text-emerald-400">
-            {todaySession?.microcycle_day || "MD-2"} • Carga {todaySession?.planned_load || "Media-Alta"}
-          </span>
-        </div>
-
-        {todaySession?.notes && (
-          <p className="text-xs text-muted-foreground italic px-1">
-            "{todaySession.notes}"
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Hoy la plantilla no tiene entrenamiento. Jornada orientada a la recuperación, descanso e hidratación.
           </p>
-        )}
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card p-5 shadow-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs">
+                HOY
+              </span>
+              <div>
+                <span className="text-[10px] font-extrabold text-emerald-500 uppercase tracking-wider block">
+                  Sesión de Entrenamiento
+                </span>
+                <h3 className="text-sm font-bold text-foreground">
+                  {todaySession?.title || "Entrenamiento de Plantilla"}
+                </h3>
+              </div>
+            </div>
+            <span className="text-xs font-mono font-extrabold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+              {todaySession?.start_time ? todaySession.start_time.slice(0, 5) : "10:00"} hs
+            </span>
+          </div>
 
-        {/* Link to view full training session report */}
-        <Link
-          href={todaySession?.id ? `/training/${todaySession.id}` : "/training"}
-          className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer mt-1"
-        >
-          <span>Ver Informe Completo y Ejercicios</span>
-          <ChevronRight className="w-4 h-4" />
-        </Link>
-      </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground bg-accent/40 p-3 rounded-2xl border border-border/40">
+            <span className="flex items-center gap-1 font-semibold text-foreground">
+              <Clock className="w-3.5 h-3.5 text-emerald-500" />
+              {todaySession?.duration_min || 90} min
+            </span>
+            <span className="flex items-center gap-1 font-semibold text-foreground">
+              <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+              Campo Instalaciones
+            </span>
+            {todaySession?.microcycle_day && (
+              <span className="flex items-center gap-1 font-semibold text-emerald-400">
+                {todaySession.microcycle_day} {todaySession?.planned_load ? `• Carga ${todaySession.planned_load}` : ""}
+              </span>
+            )}
+          </div>
 
-      {/* Routine Assignment Status Banner — ONLY show if a REAL routine is assigned */}
-      {realRoutine && (
+          {todaySession?.notes && (
+            <p className="text-xs text-muted-foreground italic px-1">
+              "{todaySession.notes}"
+            </p>
+          )}
+
+          {/* Link to view full training session report */}
+          <Link
+            href={todaySession?.id ? `/training/${todaySession.id}` : "/training"}
+            className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer mt-1"
+          >
+            <span>Ver Informe Completo y Ejercicios</span>
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
+
+      {/* Routine Assignment Status Banner */}
+      {realRoutine ? (
         <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Zap className="w-4 h-4 text-blue-400 shrink-0" />
@@ -347,6 +380,11 @@ export default function PlayerTodayPage() {
           <span className="text-[10px] font-extrabold uppercase bg-blue-600 text-white px-2 py-0.5 rounded-lg shrink-0">
             Asignada
           </span>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border/40 bg-accent/20 p-3 flex items-center gap-2.5 text-xs text-muted-foreground">
+          <Zap className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span>No hay rutinas asignadas actualmente.</span>
         </div>
       )}
 
@@ -555,7 +593,7 @@ export default function PlayerTodayPage() {
         sessionId={todaySession?.id || null}
       />
 
-      {/* Physio Slot Booking Modal */}
+      {/* Physio Slot & Availability Booking Modal */}
       {physioModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-card w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-border shadow-2xl overflow-hidden p-5 space-y-4 mb-16 sm:mb-0 animate-in slide-in-from-bottom duration-200">
@@ -564,7 +602,7 @@ export default function PlayerTodayPage() {
                 <span className="p-2 rounded-xl bg-indigo-600 text-white font-bold text-xs">🩺</span>
                 <div>
                   <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider block">Cita Fisioterapia</span>
-                  <h3 className="text-sm font-bold text-foreground">Turnos de Fisioterapia</h3>
+                  <h3 className="text-sm font-bold text-foreground">Consulta de Fisioterapia</h3>
                 </div>
               </div>
               <button onClick={() => setPhysioModalOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
@@ -572,13 +610,9 @@ export default function PlayerTodayPage() {
               </button>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground block">Turnos disponibles para hoy / viernes:</label>
-              {physioSlots.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-accent/40 text-center text-xs text-muted-foreground border border-border/40">
-                  No hay turnos creados o disponibles en este momento.
-                </div>
-              ) : (
+            {physioSlots.length > 0 ? (
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-muted-foreground block">Turnos disponibles para la sesión:</label>
                 <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                   {physioSlots.map((slot) => (
                     <button
@@ -603,33 +637,118 @@ export default function PlayerTodayPage() {
                     </button>
                   ))}
                 </div>
-              )}
-            </div>
 
-            {selectedSlotId && (
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/physio/slots", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ slotId: selectedSlotId }),
-                    });
-                    const data = await res.json();
-                    if (data?.error) {
-                      alert(data.error);
-                    } else {
-                      setPhysioBookedSuccess(true);
-                      setPhysioModalOpen(false);
-                    }
-                  } catch (err: any) {
-                    alert(err.message || "Error al realizar la reserva");
-                  }
-                }}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer"
-              >
-                Confirmar Reserva Atómica en Supabase
-              </button>
+                {selectedSlotId && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/physio/slots", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ slotId: selectedSlotId }),
+                        });
+                        const data = await res.json();
+                        if (data?.error) {
+                          alert(data.error);
+                        } else {
+                          setPhysioBookedSuccess(true);
+                          setPhysioModalOpen(false);
+                        }
+                      } catch (err: any) {
+                        alert(err.message || "Error al realizar la reserva");
+                      }
+                    }}
+                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer mt-2"
+                  >
+                    Confirmar Reserva con el Fisioterapeuta
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-foreground space-y-1">
+                  <span className="font-bold text-indigo-400 block uppercase text-[10px]">Indica tu disponibilidad</span>
+                  <p className="text-muted-foreground text-[11px]">
+                    No hay turnos prefijados. Envía tu disponibilidad y motivo de consulta para que el fisioterapeuta organice la cita.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Día Preferido</label>
+                      <select
+                        value={preferredDay}
+                        onChange={(e) => setPreferredDay(e.target.value)}
+                        className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs font-semibold text-foreground focus:outline-none"
+                      >
+                        <option value="Viernes">Viernes</option>
+                        <option value="Sábado">Sábado</option>
+                        <option value="Domingo">Domingo</option>
+                        <option value="Lunes">Próximo Lunes</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Franja Horaria</label>
+                      <select
+                        value={preferredShift}
+                        onChange={(e) => setPreferredShift(e.target.value)}
+                        className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs font-semibold text-foreground focus:outline-none"
+                      >
+                        <option value="Mañana">Mañana (Antes de entreno)</option>
+                        <option value="Tarde">Tarde (Post-entreno)</option>
+                        <option value="Cualquiera">Indiferente</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Motivo o Zona de Molestia</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Sobrecarga en gemelo o revisión preventiva"
+                      value={physioReason}
+                      onChange={(e) => setPhysioReason(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs text-foreground focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <button
+                    disabled={submittingAvail}
+                    onClick={async () => {
+                      setSubmittingAvail(true);
+                      try {
+                        const res = await fetch("/api/physio/slots", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            action: "request_availability",
+                            preferredDay,
+                            preferredShift,
+                            reason: physioReason,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (data?.success) {
+                          setPhysioBookedSuccess(true);
+                          setPhysioModalOpen(false);
+                          alert(data.message || "Disponibilidad enviada correctamente.");
+                        } else {
+                          alert(data?.error || "Error al enviar disponibilidad");
+                        }
+                      } catch (err: any) {
+                        alert("Error de conexión");
+                      } finally {
+                        setSubmittingAvail(false);
+                      }
+                    }}
+                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer"
+                  >
+                    {submittingAvail ? "Enviando..." : "Enviar Disponibilidad al Fisioterapeuta"}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

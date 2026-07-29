@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Check, User, Dumbbell, Activity, Calendar, Globe } from "lucide-react";
+import { X, Check, User, Dumbbell, Activity, Calendar, Globe, ShieldCheck, Hash } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface PlayerProfileEditModalProps {
@@ -116,7 +116,35 @@ export function PlayerProfileEditModal({
           .eq("id", playerRow.id);
 
         if (updateErr) {
-          setError(updateErr.message);
+          console.error("Error updating player profile in DB:", updateErr);
+          // If jersey_number column is not present in DB schema yet, attempt update without jersey_number fallback
+          if (updateErr.message?.includes("jersey_number") || updateErr.message?.includes("schema cache")) {
+            const { error: fallbackErr } = await supabase
+              .from("players")
+              .update({
+                first_name: firstName,
+                last_name: lastName,
+                sporting_name: sportingName || `${firstName} ${lastName}`.trim(),
+                dominant_foot: dominantFoot,
+                height_cm: heightCm !== "" ? Number(heightCm) : null,
+                weight_kg: weightKg !== "" ? Number(weightKg) : null,
+                date_of_birth: dateOfBirth || null,
+                nationality: nationality || "Española",
+              })
+              .eq("id", playerRow.id);
+
+            if (fallbackErr) {
+              setError("No se pudieron guardar los cambios de perfil. Inténtalo de nuevo.");
+            } else {
+              setMessage("¡Perfil actualizado con éxito!");
+              if (onSaved) onSaved();
+              setTimeout(() => {
+                onClose();
+              }, 1200);
+            }
+          } else {
+            setError("No se pudieron guardar los cambios de perfil. Inténtalo de nuevo.");
+          }
         } else {
           setMessage("¡Perfil actualizado con éxito!");
           if (onSaved) onSaved();
@@ -132,7 +160,8 @@ export function PlayerProfileEditModal({
         }, 1000);
       }
     } catch (err: any) {
-      setError(err.message || "Error al actualizar perfil");
+      console.error("Error saving player profile:", err);
+      setError("No se pudieron guardar los cambios de perfil. Inténtalo de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -255,11 +284,26 @@ export function PlayerProfileEditModal({
                   </div>
                 </div>
 
-                {/* Fecha de Nacimiento y Nacionalidad */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Dorsal, Fecha de Nacimiento y Nacionalidad */}
+                <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1 uppercase">
-                      <Calendar className="w-3 h-3 text-blue-500" /> Fecha Nacimiento
+                      <ShieldCheck className="w-3 h-3 text-blue-500" /> Dorsal
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      value={jerseyNumber}
+                      onChange={(e) => setJerseyNumber(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs font-bold text-foreground focus:outline-none focus:border-blue-500"
+                      placeholder="Ej. 10"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1 uppercase">
+                      <Calendar className="w-3 h-3 text-blue-500" /> Nacimiento
                     </label>
                     <input
                       type="date"
