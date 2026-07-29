@@ -177,7 +177,8 @@ export function TaskWhiteboard({
   >("pencil");
   const [activeColor, setActiveColor] = useState("#ffffff");
   const [showColorPalette, setShowColorPalette] = useState(false);
-  const [playerNumber, setPlayerNumber] = useState("");
+  const [playerNumberMode, setPlayerNumberMode] = useState<"none" | "auto">("auto");
+  const [playerNumber, setPlayerNumber] = useState("1");
   const [textInput, setTextInput] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [textCoords, setTextCoords] = useState<{ x: number; y: number } | null>(
@@ -391,6 +392,17 @@ export function TaskWhiteboard({
         )
       );
     }
+  };
+
+  const changeSelectedMarkerNumber = (numStr: string) => {
+    if (!selectedId || selectedType !== "marker") return;
+    setHistory((prev) => [...prev, { strokes, markers, texts }]);
+    setRedoStack([]);
+    setMarkers((prev) =>
+      prev.map((m) =>
+        m.id === selectedId ? { ...m, number: numStr.trim() ? numStr.trim() : undefined } : m
+      )
+    );
   };
 
   const changeSelectedElementColor = (color: string) => {
@@ -1005,18 +1017,19 @@ export function TaskWhiteboard({
       activeTool === "goal_7" ||
       activeTool === "mini_goal"
     ) {
+      const isNumbered = playerNumberMode === "auto" && Boolean(playerNumber);
       const newMarker: MarkerElement = {
         id: `marker-${Date.now()}`,
         x,
         y,
         type: activeTool,
-        number: (activeTool === "player" || activeTool === "rival") && playerNumber ? playerNumber : undefined,
+        number: (activeTool === "player" || activeTool === "rival") && isNumbered ? playerNumber : undefined,
         color: activeTool === "player" ? activeColor : undefined,
       };
       pushState(strokes, [...markers, newMarker], texts);
 
-      // increment player number for convenience
-      if ((activeTool === "player" || activeTool === "rival") && playerNumber) {
+      // increment player number for convenience (order of entry / postas)
+      if ((activeTool === "player" || activeTool === "rival") && isNumbered) {
         const nextNum = parseInt(playerNumber);
         if (!isNaN(nextNum)) {
           setPlayerNumber((nextNum + 1).toString());
@@ -1707,17 +1720,81 @@ export function TaskWhiteboard({
               })()}
             </div>
 
-            {/* If player/rival tool is selected, show number selector */}
+            {/* If player/rival tool is selected, show number mode selector */}
             {(activeTool === "player" || activeTool === "rival") && (
-              <div className="flex md:flex-col items-center gap-1.5 bg-white/5 p-1.5 rounded-xl">
-                <span className="text-[8px] font-bold text-slate-450 uppercase">Nº</span>
-                <input
-                  type="text"
-                  maxLength={2}
-                  value={playerNumber}
-                  onChange={(e) => setPlayerNumber(e.target.value)}
-                  className="w-8 text-center rounded bg-slate-800 border border-white/10 text-xs font-bold py-0.5 text-white"
-                />
+              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-white/10 p-1.5 rounded-xl shadow-lg">
+                <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setPlayerNumberMode("none")}
+                    className={cn(
+                      "px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1",
+                      playerNumberMode === "none"
+                        ? "bg-slate-700 text-white shadow"
+                        : "text-slate-400 hover:text-white"
+                    )}
+                    title="Colocar jugadores sin número"
+                  >
+                    <span>Sin Nº</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlayerNumberMode("auto");
+                      if (!playerNumber || playerNumber === "") setPlayerNumber("1");
+                    }}
+                    className={cn(
+                      "px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1",
+                      playerNumberMode === "auto"
+                        ? "bg-emerald-600 text-white shadow"
+                        : "text-slate-400 hover:text-white"
+                    )}
+                    title="Colocar jugadores numerados correlativos por orden de entrada (1, 2, 3...)"
+                  >
+                    <span>🔢 Orden / Postas</span>
+                  </button>
+                </div>
+
+                {playerNumberMode === "auto" && (
+                  <div className="flex items-center gap-1 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded-lg text-emerald-300">
+                    <span className="text-[9px] font-extrabold uppercase tracking-wide">Sig:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = parseInt(playerNumber || "1");
+                        if (!isNaN(current) && current > 1) setPlayerNumber((current - 1).toString());
+                      }}
+                      className="h-4 w-4 rounded bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 font-extrabold text-xs flex items-center justify-center cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="text"
+                      maxLength={3}
+                      value={playerNumber}
+                      onChange={(e) => setPlayerNumber(e.target.value)}
+                      className="w-6 text-center bg-slate-900 border border-emerald-500/40 rounded text-xs font-black text-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = parseInt(playerNumber || "1");
+                        if (!isNaN(current)) setPlayerNumber((current + 1).toString());
+                      }}
+                      className="h-4 w-4 rounded bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 font-extrabold text-xs flex items-center justify-center cursor-pointer"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlayerNumber("1")}
+                      className="text-[9px] font-bold text-emerald-400 hover:text-emerald-200 underline ml-1 cursor-pointer"
+                      title="Reiniciar contador a 1"
+                    >
+                      🔄 1
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1867,6 +1944,27 @@ export function TaskWhiteboard({
                 Rotar 45º
               </button>
             )}
+
+            {/* Change player/rival number directly */}
+            {selectedType === "marker" && (() => {
+              const selMarker = markers.find((m) => m.id === selectedId);
+              if (selMarker && (selMarker.type === "player" || selMarker.type === "rival")) {
+                return (
+                  <div className="flex items-center gap-1.5 bg-slate-950/60 border border-white/10 px-2 py-1 rounded-lg">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">Nº / Posta:</span>
+                    <input
+                      type="text"
+                      maxLength={3}
+                      value={selMarker.number ?? ""}
+                      onChange={(e) => changeSelectedMarkerNumber(e.target.value)}
+                      placeholder="Sin Nº"
+                      className="w-10 text-center bg-slate-800 border border-white/15 rounded px-1 py-0.5 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Color modifier */}
             <div className="flex items-center gap-1 bg-slate-950/45 p-1 rounded-lg border border-white/5">
