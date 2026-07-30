@@ -100,64 +100,32 @@ export function PlayerProfileEditModal({
         .maybeSingle();
 
       if (playerRow) {
-        const { error: updateErr } = await supabase
-          .from("players")
-          .update({
-            first_name: firstName,
-            last_name: lastName,
-            sporting_name: sportingName || `${firstName} ${lastName}`.trim(),
-            dominant_foot: dominantFoot,
-            height_cm: heightCm !== "" ? Number(heightCm) : null,
-            weight_kg: weightKg !== "" ? Number(weightKg) : null,
-            date_of_birth: dateOfBirth || null,
+        const res = await fetch(`/api/players/${playerRow.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firstName,
+            lastName,
+            sportingName: sportingName || `${firstName} ${lastName}`.trim(),
+            dominantFoot,
+            heightCm: heightCm !== "" ? Number(heightCm) : null,
+            weightKg: weightKg !== "" ? Number(weightKg) : null,
+            dob: dateOfBirth || null,
             nationality: nationality || "Española",
-            jersey_number: jerseyNumber !== "" ? Number(jerseyNumber) : null,
-          })
-          .eq("id", playerRow.id);
+            jerseyNumber: jerseyNumber !== "" ? Number(jerseyNumber) : null,
+          }),
+        });
 
-        if (updateErr) {
-          console.error("Error updating player profile in DB:", updateErr);
-          // If jersey_number column is not present in DB schema yet, attempt update without jersey_number fallback
-          if (updateErr.message?.includes("jersey_number") || updateErr.message?.includes("schema cache")) {
-            const { error: fallbackErr } = await supabase
-              .from("players")
-              .update({
-                first_name: firstName,
-                last_name: lastName,
-                sporting_name: sportingName || `${firstName} ${lastName}`.trim(),
-                dominant_foot: dominantFoot,
-                height_cm: heightCm !== "" ? Number(heightCm) : null,
-                weight_kg: weightKg !== "" ? Number(weightKg) : null,
-                date_of_birth: dateOfBirth || null,
-                nationality: nationality || "Española",
-              })
-              .eq("id", playerRow.id);
-
-            if (fallbackErr) {
-              setError("No se pudieron guardar los cambios de perfil. Inténtalo de nuevo.");
-            } else {
-              setMessage("¡Perfil actualizado con éxito!");
-              if (onSaved) onSaved();
-              setTimeout(() => {
-                onClose();
-              }, 1200);
-            }
-          } else {
-            setError("No se pudieron guardar los cambios de perfil. Inténtalo de nuevo.");
-          }
-        } else {
-          setMessage("¡Perfil actualizado con éxito!");
-          if (onSaved) onSaved();
-          setTimeout(() => {
-            onClose();
-          }, 1200);
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Error al actualizar perfil");
         }
-      } else {
-        setMessage("Perfil guardado localmente.");
+
+        setMessage("¡Perfil actualizado con éxito!");
         if (onSaved) onSaved();
         setTimeout(() => {
           onClose();
-        }, 1000);
+        }, 1200);
       }
     } catch (err: any) {
       console.error("Error saving player profile:", err);

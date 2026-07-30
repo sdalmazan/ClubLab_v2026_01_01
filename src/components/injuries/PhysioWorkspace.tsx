@@ -158,40 +158,15 @@ export function PhysioWorkspace({
       })
       .catch(() => {});
 
-    // 2. Fetch Active Injuries from Supabase PostgreSQL DB
-    const fetchDbInjuries = async () => {
-      try {
-        const supabase = createClient();
-        const { data: dbInjuries } = await supabase
-          .from("injuries")
-          .select("*, players(first_name, last_name, sporting_name)")
-          .eq("status", "active");
-
-        if (dbInjuries && Array.isArray(dbInjuries) && dbInjuries.length > 0) {
-          const mapped: ActiveInjuryRecord[] = dbInjuries.map((i: any) => {
-            const p = i.players;
-            const pName = p ? (p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim()) : "Jugador";
-            return {
-              id: i.id,
-              player_id: i.player_id,
-              player_name: pName,
-              body_part: i.body_part || i.injury_type || "Lesión sin especificar",
-              severity: i.severity || "medium",
-              status: "active",
-              recovery_phase: (i.recovery_phase || 1) as InjuryPhase,
-              expected_return_date: i.expected_return_date || i.return_date || undefined,
-              description: i.notes || i.description || "",
-              reports: [],
-              updated_at: i.updated_at || new Date().toISOString(),
-            };
-          });
-          setInjuries(mapped);
+    // 2. Fetch Active Injuries from /api/injuries API
+    fetch("/api/injuries")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.injuries && Array.isArray(data.injuries)) {
+          setInjuries(data.injuries);
         }
-      } catch (err) {
-        console.error("Error fetching injuries from DB:", err);
-      }
-    };
-    fetchDbInjuries();
+      })
+      .catch((err) => console.error("Error fetching injuries:", err));
   }, []);
 
   // Open new consultation
@@ -304,21 +279,21 @@ export function PhysioWorkspace({
     setInjuries((prev) => [newInjRecord, ...prev]);
 
     try {
-      const supabase = createClient();
-      await supabase.from("injuries").insert({
-        player_id: newInjuryPlayerId,
-        organization_id: selectedP?.organization_id || undefined,
-        team_id: selectedP?.team_id || undefined,
-        injury_type: newInjuryBodyPart.trim(),
-        body_part: newInjuryBodyPart.trim(),
-        severity: newInjurySeverity,
-        status: "active",
-        recovery_phase: newInjuryPhase,
-        expected_return_date: newInjuryReturnDate || null,
-        notes: newInjuryDescription.trim() || null,
+      await fetch("/api/injuries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerId: newInjuryPlayerId,
+          playerName: pName,
+          bodyPart: newInjuryBodyPart.trim(),
+          severity: newInjurySeverity,
+          recoveryPhase: newInjuryPhase,
+          expectedReturnDate: newInjuryReturnDate || null,
+          notes: newInjuryDescription.trim() || null,
+        }),
       });
     } catch (err) {
-      console.error("Error inserting injury into DB:", err);
+      console.error("Error creating injury via API:", err);
     } finally {
       setIsSubmittingInjury(false);
       setIsNewInjuryModalOpen(false);
@@ -432,19 +407,33 @@ export function PhysioWorkspace({
   };
 
   // Advance / Change Phase in RTP Board
-  const handleChangeInjuryPhase = (injuryId: string, newPhase: InjuryPhase) => {
-    setInjuries(prev =>
-      prev.map(inj => {
+  const handleChangeInjuryPhase = async (injuryId: string, newPhase: InjuryPhase) => {
+    setInjuries((prev) =>
+      prev.map((inj) => {
         if (inj.id === injuryId) {
           return {
             ...inj,
             recovery_phase: newPhase,
-            status: newPhase >= 2 ? "readaptation" : "active"
+            status: newPhase >= 2 ? "readaptation" : "active",
           };
         }
         return inj;
       })
     );
+
+    try {
+      await fetch("/api/injuries", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          injuryId,
+          recoveryPhase: newPhase,
+          status: newPhase >= 2 ? "readaptation" : "active",
+        }),
+      });
+    } catch (err) {
+      console.error("Error updating injury phase via API:", err);
+    }
   };
 
   // File selection for medical report
