@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { dispatchClubNotification } from "@/lib/notifications/router";
+import { sendEmailAlert } from "@/lib/email/mailer";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -224,12 +226,15 @@ export async function POST(request: Request) {
     if (action === "update_appointment" && appointmentId) {
       const idx = appList.findIndex((a: any) => a.id === appointmentId);
       if (idx >= 0) {
+        const prevApp = appList[idx];
+        const hasNewTime = scheduled_time && scheduled_time !== prevApp.scheduled_time;
+
         appList[idx] = {
-          ...appList[idx],
-          scheduled_time: scheduled_time !== undefined ? scheduled_time : appList[idx].scheduled_time,
-          status: status !== undefined ? status : appList[idx].status,
-          fitness_result: fitness_result !== undefined ? fitness_result : appList[idx].fitness_result,
-          notes: notes !== undefined ? notes : appList[idx].notes,
+          ...prevApp,
+          scheduled_time: scheduled_time !== undefined ? scheduled_time : prevApp.scheduled_time,
+          status: status !== undefined ? status : prevApp.status,
+          fitness_result: fitness_result !== undefined ? fitness_result : prevApp.fitness_result,
+          notes: notes !== undefined ? notes : prevApp.notes,
           updated_at: new Date().toISOString(),
         };
 
@@ -242,6 +247,49 @@ export async function POST(request: Request) {
           .from("organizations")
           .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
           .eq("id", orgId);
+
+        // Notify player when time is assigned or changed
+        if (hasNewTime || (scheduled_time && status === "scheduled")) {
+          const targetPlayerId = appList[idx].player_id;
+          const targetPlayerName = appList[idx].player_name || "Jugador";
+          const appDate = appList[idx].date || new Date().toISOString().split("T")[0];
+          const assignedTime = appList[idx].scheduled_time;
+
+          // 1. App/WhatsApp notification
+          try {
+            await dispatchClubNotification({
+              playerId: targetPlayerId,
+              title: "📅 Hora de Cita con Fisioterapeuta Asignada",
+              body: `Hola ${targetPlayerName}, el fisioterapeuta ha asignado/confirmado tu hora de cita para la consulta del ${appDate} a las ${assignedTime}h.`,
+              actionUrl: "/player",
+              actionText: "Ver Cita en App",
+            });
+          } catch (e) {
+            console.error("Error dispatching app notification:", e);
+          }
+
+          // 2. Direct Email notification as explicitly requested
+          try {
+            const { data: pRow } = await supabase
+              .from("players")
+              .select("email, first_name, last_name")
+              .eq("id", targetPlayerId)
+              .maybeSingle();
+
+            if (pRow?.email) {
+              await sendEmailAlert({
+                to: pRow.email,
+                recipientName: targetPlayerName || `${pRow.first_name || ""} ${pRow.last_name || ""}`.trim(),
+                title: "📅 Confirmación de Cita de Fisioterapia",
+                body: `El fisioterapeuta del club ha asignado la hora definitiva para tu cita de fisioterapia:\n\n• Fecha: ${appDate}\n• Hora asignada: ${assignedTime}h\n• Estado: Cita Confirmada\n\nPor favor, preséntate a la hora indicadada en el área médica/fisioterapia del club.`,
+                actionUrl: "/player",
+                actionText: "Ver Cita en ClubLab",
+              });
+            }
+          } catch (e) {
+            console.error("Error sending physio email alert:", e);
+          }
+        }
 
         return NextResponse.json({ success: true, appointment: appList[idx] });
       }
@@ -275,6 +323,35 @@ export async function POST(request: Request) {
         .from("organizations")
         .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
         .eq("id", orgId);
+
+      if (scheduled_time && playerId) {
+        try {
+          await dispatchClubNotification({
+            playerId,
+            title: "📅 Nueva Cita de Fisioterapia Programada",
+            body: `Hola ${playerName}, se ha programado tu cita de fisioterapia para el ${targetDate} a las ${scheduled_time}h.`,
+            actionUrl: "/player",
+            actionText: "Ver Cita",
+          });
+
+          const { data: pRow } = await supabase
+            .from("players")
+            .select("email")
+            .eq("id", playerId)
+            .maybeSingle();
+
+          if (pRow?.email) {
+            await sendEmailAlert({
+              to: pRow.email,
+              recipientName: playerName,
+              title: "📅 Nueva Cita de Fisioterapia",
+              body: `El fisioterapeuta del club ha programado tu cita:\n\n• Fecha: ${targetDate}\n• Hora: ${scheduled_time}h`,
+              actionUrl: "/player",
+              actionText: "Ver Cita en ClubLab",
+            });
+          }
+        } catch (e) {}
+      }
 
       return NextResponse.json({ success: true, appointment: newApp });
     }
