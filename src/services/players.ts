@@ -76,7 +76,12 @@ export interface UpdatePlayerInput {
  * Get all players in the current organisation with their
  * active team membership, latest wellness and injury status.
  */
-export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean = false, includeInvisible: boolean = false): Promise<PlayerWithMembership[]> {
+export async function getSquadPlayers(
+  teamId?: string,
+  strictTeamOnly: boolean = false,
+  includeInvisible: boolean = false,
+  includeInactive: boolean = false
+): Promise<PlayerWithMembership[]> {
   const supabase = await createClient();
 
   let query = supabase
@@ -119,7 +124,16 @@ export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean =
   }
 
   const mappedPlayers = (data ?? [])
-    .filter((p: any) => includeInvisible || (p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com"))
+    .filter((p: any) => {
+      if (!includeInvisible && (p.adjective === "invisible" || p.is_invisible === true || p.email === "diego.ciria.lopez@gmail.com")) {
+        return false;
+      }
+      const mem = Array.isArray(p.membership) ? p.membership[0] : p.membership;
+      if (!includeInactive && mem && mem.status === "inactive") {
+        return false;
+      }
+      return true;
+    })
     .map((p: any) => {
       const dbInj = Array.isArray(p.active_injury) ? p.active_injury[0] : p.active_injury;
       const settingInj = settingsInjuries.find((i: any) => i.player_id === p.id && i.status !== "healed");
