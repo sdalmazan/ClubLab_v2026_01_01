@@ -30,44 +30,10 @@ export async function GET(request: Request) {
     const orgId = player?.organization_id || orgRole?.organization_id;
 
     if (!orgId) {
-      return NextResponse.json({ slots: [] });
+      return NextResponse.json({ slots: [], appointments: [] });
     }
 
-    // 1. Try reading from physio_slots table if it exists
-    const { data: slots, error: slotsErr } = await supabase
-      .from("physio_slots")
-      .select(`
-        *,
-        physio_bookings(id, player_id, status, notes)
-      `)
-      .eq("organization_id", orgId)
-      .eq("is_cancelled", false)
-      .order("date", { ascending: true })
-      .order("start_time", { ascending: true });
-
-    if (!slotsErr && slots && slots.length > 0) {
-      const formatted = slots.map((slot: any) => {
-        const activeBookings = (slot.physio_bookings || []).filter((b: any) => b.status === "confirmed");
-        const myBooking = activeBookings.find((b: any) => b.player_id === player?.id);
-        return {
-          id: slot.id,
-          date: slot.date,
-          startTime: slot.start_time?.slice(0, 5) || slot.start_time,
-          endTime: slot.end_time?.slice(0, 5) || slot.end_time,
-          physioName: slot.physio_name || "Fisioterapeuta del Club",
-          maxCapacity: slot.max_capacity,
-          currentBookingsCount: activeBookings.length,
-          availablePlaces: Math.max(0, slot.max_capacity - activeBookings.length),
-          isFull: activeBookings.length >= slot.max_capacity,
-          isBookedByMe: !!myBooking,
-          myBookingNotes: myBooking?.notes || null,
-          slotMin: slot.slot_min || 10,
-        };
-      });
-      return NextResponse.json({ slots: formatted });
-    }
-
-    // 2. Persistent Fallback: Read from organizations.settings in PostgreSQL DB
+    // Read organization settings for consultations & appointments
     const { data: org } = await supabase
       .from("organizations")
       .select("settings")
@@ -75,12 +41,9 @@ export async function GET(request: Request) {
       .single();
 
     const settings = org?.settings || {};
-    let consList: any[] = [];
-
-    if (Array.isArray(settings.physio_consultations)) {
-      consList = settings.physio_consultations;
-    } else if (settings.active_physio_consultation) {
-      consList = [settings.active_physio_consultation];
+    let consList: any[] = Array.isArray(settings.physio_consultations) ? settings.physio_consultations : [];
+    if (settings.active_physio_consultation && !consList.some((c: any) => c.date === settings.active_physio_consultation.date)) {
+      consList.push(settings.active_physio_consultation);
     }
 
     // Filter active open consultations
@@ -89,11 +52,9 @@ export async function GET(request: Request) {
     if (dateParam) {
       activeOpenCons = activeOpenCons.filter((c: any) => c.date === dateParam);
     } else {
-      // Return consultations for today or upcoming future dates (date >= todayStr)
       activeOpenCons = activeOpenCons.filter((c: any) => !c.date || c.date >= todayStr);
     }
 
-    // Sort by date ASC
     activeOpenCons.sort((a: any, b: any) => (a.date || "").localeCompare(b.date || ""));
 
     const formattedSlots = activeOpenCons.map((activeCons: any) => {
@@ -116,9 +77,16 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ slots: formattedSlots });
+    // Retrieve saved appointments
+    let appList: any[] = Array.isArray(settings.physio_appointments) ? settings.physio_appointments : [];
+
+    if (dateParam) {
+      appList = appList.filter((a: any) => a.date === dateParam);
+    }
+
+    return NextResponse.json({ slots: formattedSlots, appointments: appList });
   } catch (err: any) {
-    return NextResponse.json({ slots: [] });
+    return NextResponse.json({ slots: [], appointments: [] });
   }
 }
 
@@ -132,12 +100,38 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { slotId, action, notes, preferredDay, preferredShift, reason, date, startTime, slotMin } = body;
+    const { 
+      slotId, 
+      action, 
+      notes, 
+      preferredDay, 
+      preferredShift, 
+      reason, 
+      date, 
+      startTime, 
+      slotMin, 
+      selectedTimeSlots,
+      appointmentId,
+      scheduled_time,
+      status,
+      fitness_result,
+      playerId,
+      playerName,
+      jerseyNumber
+    } = body;
 
     // Resolve player & org
-    const { data: player } = await supabase
+    const { data: playerRow } = await supabase
       .from("players")
-      .select("id, organization_id, team_id")
+      .select(`
+        id,
+        first_name,
+        last_name,
+        sporting_name,
+        organization_id,
+        team_id,
+        player_team_memberships(jersey_number)
+      `)
       .or(`user_id.eq.${user.id},email.eq.${user.email}`)
       .maybeSingle();
 
@@ -147,12 +141,23 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    const orgId = player?.organization_id || orgRole?.organization_id;
+    const orgId = playerRow?.organization_id || orgRole?.organization_id;
 
     if (!orgId) {
       return NextResponse.json({ error: "No organization found" }, { status: 400 });
     }
 
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("settings")
+      .eq("id", orgId)
+      .single();
+
+    const existingSettings = org?.settings || {};
+    let appList: any[] = Array.isArray(existingSettings.physio_appointments) ? [...existingSettings.physio_appointments] : [];
+    let consList: any[] = Array.isArray(existingSettings.physio_consultations) ? [...existingSettings.physio_consultations] : [];
+
+    // ── 1. OPEN CONSULTATION ──
     if (action === "open_consultation") {
       const consDate = date || new Date().toISOString().split("T")[0];
       const newSlot = {
@@ -172,34 +177,6 @@ export async function POST(request: Request) {
         bookings: [],
       };
 
-      // 1. Try DB table insert if table exists
-      try {
-        await supabase.from("physio_slots").insert({
-          organization_id: orgId,
-          team_id: player?.team_id || orgRole?.team_id || null,
-          physio_name: "Fisioterapeuta del Club",
-          date: consDate,
-          start_time: `${startTime || "18:00"}:00`,
-          end_time: "20:00:00",
-          max_capacity: 10,
-          slot_min: slotMin || 10,
-        });
-      } catch (e) {}
-
-      // 2. Always persist into PostgreSQL organizations.settings JSONB column (100% durable on Vercel)
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("settings")
-        .eq("id", orgId)
-        .single();
-
-      const existingSettings = org?.settings || {};
-      let consList: any[] = Array.isArray(existingSettings.physio_consultations) ? [...existingSettings.physio_consultations] : [];
-      if (existingSettings.active_physio_consultation && !consList.some((c: any) => c.date === existingSettings.active_physio_consultation.date)) {
-        consList.push(existingSettings.active_physio_consultation);
-      }
-
-      // Upsert by date
       const idx = consList.findIndex((c: any) => c.date === consDate);
       if (idx >= 0) {
         consList[idx] = { ...consList[idx], ...newSlot, bookings: consList[idx].bookings || [] };
@@ -221,17 +198,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, slot: newSlot });
     }
 
+    // ── 2. DELETE CONSULTATION ──
     if (action === "delete_consultation") {
       const targetDate = date || new Date().toISOString().split("T")[0];
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("settings")
-        .eq("id", orgId)
-        .single();
-
-      const existingSettings = org?.settings || {};
-      let consList: any[] = Array.isArray(existingSettings.physio_consultations) ? [...existingSettings.physio_consultations] : [];
-
       consList = consList.filter((c: any) => c.date !== targetDate);
 
       const activeCons = existingSettings.active_physio_consultation;
@@ -248,85 +217,122 @@ export async function POST(request: Request) {
         .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
         .eq("id", orgId);
 
-      try {
-        await supabase
-          .from("physio_slots")
-          .update({ is_cancelled: true })
-          .eq("organization_id", orgId)
-          .eq("date", targetDate);
-      } catch (e) {}
-
       return NextResponse.json({ success: true, message: "Consulta eliminada" });
     }
 
-    if (action === "request_availability") {
-      return NextResponse.json({
-        success: true,
-        message: "Disponibilidad registrada correctamente.",
-      });
-    }
-
-    // Booking a slot
-    if (slotId) {
-      // 1. Try DB RPC function
-      const { data: rpcRes, error: rpcErr } = await supabase.rpc("book_physio_slot", {
-        p_slot_id: slotId,
-        p_notes: notes || null,
-      });
-
-      if (!rpcErr && rpcRes && rpcRes.success !== false) {
-        return NextResponse.json(rpcRes);
-      }
-
-      // 2. Persistent Fallback in organizations.settings JSONB
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("settings")
-        .eq("id", orgId)
-        .single();
-
-      const existingSettings = org?.settings || {};
-      let consList: any[] = Array.isArray(existingSettings.physio_consultations) ? [...existingSettings.physio_consultations] : [];
-      let activeCons = existingSettings.active_physio_consultation;
-
-      const targetSlot = consList.find((c: any) => c.id === slotId || `slot-${c.date}` === slotId) || activeCons;
-
-      if (targetSlot) {
-        const bookings = targetSlot.bookings || [];
-        const existingIdx = bookings.findIndex((b: any) => b.playerId === player?.id);
-        const newBooking = {
-          id: `book-${Date.now()}`,
-          playerId: player?.id,
-          notes: notes || null,
-          status: "confirmed",
-          createdAt: new Date().toISOString(),
+    // ── 3. UPDATE APPOINTMENT (BY PHYSIO) ──
+    if (action === "update_appointment" && appointmentId) {
+      const idx = appList.findIndex((a: any) => a.id === appointmentId);
+      if (idx >= 0) {
+        appList[idx] = {
+          ...appList[idx],
+          scheduled_time: scheduled_time !== undefined ? scheduled_time : appList[idx].scheduled_time,
+          status: status !== undefined ? status : appList[idx].status,
+          fitness_result: fitness_result !== undefined ? fitness_result : appList[idx].fitness_result,
+          notes: notes !== undefined ? notes : appList[idx].notes,
+          updated_at: new Date().toISOString(),
         };
-
-        if (existingIdx >= 0) {
-          bookings[existingIdx] = newBooking;
-        } else {
-          bookings.push(newBooking);
-        }
-
-        targetSlot.bookings = bookings;
-
-        // Update list
-        const idx = consList.findIndex((c: any) => c.date === targetSlot.date);
-        if (idx >= 0) consList[idx] = targetSlot;
 
         const updatedSettings = {
           ...existingSettings,
-          active_physio_consultation: targetSlot,
-          physio_consultations: consList,
+          physio_appointments: appList,
         };
 
         await supabase
           .from("organizations")
           .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
           .eq("id", orgId);
+
+        return NextResponse.json({ success: true, appointment: appList[idx] });
+      }
+    }
+
+    // ── 4. ADD APPOINTMENT (MANUALLY BY PHYSIO OR PLAYER) ──
+    if (action === "add_appointment") {
+      const targetDate = date || preferredDay || new Date().toISOString().split("T")[0];
+      const newApp = {
+        id: `app-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        consultation_id: `cons-${targetDate}`,
+        player_id: playerId || `p-${Date.now()}`,
+        player_name: playerName || "Jugador",
+        jersey_number: jerseyNumber != null ? Number(jerseyNumber) : null,
+        reason: reason || notes || "Consulta de Fisioterapia",
+        status: scheduled_time ? "scheduled" : "pending",
+        scheduled_time: scheduled_time || undefined,
+        notes: notes || null,
+        date: targetDate,
+        created_at: new Date().toISOString(),
+      };
+
+      appList.push(newApp);
+
+      const updatedSettings = {
+        ...existingSettings,
+        physio_appointments: appList,
+      };
+
+      await supabase
+        .from("organizations")
+        .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
+        .eq("id", orgId);
+
+      return NextResponse.json({ success: true, appointment: newApp });
+    }
+
+    // ── 5. PLAYER REQUEST AVAILABILITY / BOOK SLOT ──
+    if (action === "request_availability" || slotId) {
+      const targetDate = date || preferredDay || new Date().toISOString().split("T")[0];
+      const timeSlotList: string[] = Array.isArray(selectedTimeSlots) ? selectedTimeSlots : [];
+      const appReason = reason || notes || (timeSlotList.length ? `Franjas elegidas: ${timeSlotList.join(", ")}` : "Consulta de Fisioterapia");
+      const schedTime = timeSlotList.length === 1 ? timeSlotList[0] : (startTime || undefined);
+
+      const resolvedId = playerRow?.id || playerId || `p-${Date.now()}`;
+      const resolvedName = playerRow
+        ? (playerRow.sporting_name || `${playerRow.first_name || ""} ${playerRow.last_name || ""}`.trim())
+        : (playerName || "Jugador");
+      const resolvedJersey = playerRow?.player_team_memberships?.[0]?.jersey_number ?? (jerseyNumber != null ? Number(jerseyNumber) : null);
+
+      const newApp = {
+        id: `app-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        consultation_id: slotId || `cons-${targetDate}`,
+        player_id: resolvedId,
+        player_name: resolvedName,
+        jersey_number: resolvedJersey,
+        reason: appReason,
+        selected_time_slots: timeSlotList,
+        status: schedTime ? "scheduled" : "pending",
+        scheduled_time: schedTime,
+        notes: notes || (timeSlotList.length ? `Franjas elegidas: ${timeSlotList.join(", ")}` : undefined),
+        date: targetDate,
+        created_at: new Date().toISOString(),
+      };
+
+      // Upsert by player_id + date
+      const existingIdx = appList.findIndex((a: any) => a.player_id === resolvedId && a.date === targetDate);
+      if (existingIdx >= 0) {
+        appList[existingIdx] = {
+          ...appList[existingIdx],
+          ...newApp,
+        };
+      } else {
+        appList.push(newApp);
       }
 
-      return NextResponse.json({ success: true });
+      const updatedSettings = {
+        ...existingSettings,
+        physio_appointments: appList,
+      };
+
+      await supabase
+        .from("organizations")
+        .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
+        .eq("id", orgId);
+
+      return NextResponse.json({
+        success: true,
+        message: "Solicitud registrada con éxito. El fisioterapeuta revisará tus horarios.",
+        appointment: newApp,
+      });
     }
 
     return NextResponse.json({ success: true });

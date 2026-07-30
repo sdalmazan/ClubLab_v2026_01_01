@@ -155,6 +155,10 @@ export function PhysioWorkspace({
         } else {
           setConsultation(null);
         }
+
+        if (data?.appointments && Array.isArray(data.appointments)) {
+          setAppointments(data.appointments);
+        }
       })
       .catch(() => {});
 
@@ -315,12 +319,15 @@ export function PhysioWorkspace({
       membership: { jersey_number: 7 }
     };
 
+    const pName = playerObj.sporting_name || `${playerObj.first_name || ""} ${playerObj.last_name || ""}`.trim();
+    const pJersey = playerObj.membership?.jersey_number || null;
+
     const newApp: PhysioAppointment = {
       id: `app-${Date.now()}`,
       consultation_id: consultation?.id || "cons-1",
       player_id: bookingPlayerId,
-      player_name: `${playerObj.first_name} ${playerObj.last_name}`,
-      jersey_number: playerObj.membership?.jersey_number,
+      player_name: pName,
+      jersey_number: pJersey,
       reason: bookingReason,
       status: "pending",
       created_at: new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
@@ -330,6 +337,21 @@ export function PhysioWorkspace({
     setIsBookingModalOpen(false);
     setBookingReason("");
     setBookingPlayerId("");
+
+    try {
+      fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add_appointment",
+          playerId: bookingPlayerId,
+          playerName: pName,
+          jerseyNumber: pJersey,
+          reason: bookingReason,
+          date: consultation?.date || new Date().toISOString().split("T")[0],
+        }),
+      });
+    } catch (e) {}
   };
 
   // Time slot assignment
@@ -337,6 +359,19 @@ export function PhysioWorkspace({
     setAppointments(prev =>
       prev.map(app => (app.id === appId ? { ...app, scheduled_time: time, status: "scheduled" } : app))
     );
+
+    try {
+      fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_appointment",
+          appointmentId: appId,
+          scheduled_time: time,
+          status: "scheduled",
+        }),
+      });
+    } catch (e) {}
   };
 
   // Open "Tratado" Modal
@@ -371,6 +406,20 @@ export function PhysioWorkspace({
           : app
       )
     );
+
+    try {
+      fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_appointment",
+          appointmentId: treatingAppointment.id,
+          status: "treated",
+          fitness_result: fitnessOutcome,
+          notes: treatmentNotes,
+        }),
+      });
+    } catch (e) {}
 
     if (fitnessOutcome === "apto") {
       setInjuries(prev => prev.filter(i => i.player_id !== treatingAppointment.player_id));
