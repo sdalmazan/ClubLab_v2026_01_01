@@ -23,8 +23,11 @@ import {
   User,
   HelpCircle,
   FilePlus,
-  Upload
+  Upload,
+  Pencil,
+  Trash2
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonVariants } from "@/components/ui/button";
@@ -84,6 +87,22 @@ export function PhysioWorkspace({
     return 10;
   });
 
+  // Edit Consultation state
+  const [isEditingConsultation, setIsEditingConsultation] = useState(false);
+  const [editConsDate, setEditConsDate] = useState("");
+  const [editConsStartTime, setEditConsStartTime] = useState("");
+  const [editConsSlotMin, setEditConsSlotMin] = useState(10);
+
+  // Direct Injury Creation Modal state
+  const [isNewInjuryModalOpen, setIsNewInjuryModalOpen] = useState(false);
+  const [newInjuryPlayerId, setNewInjuryPlayerId] = useState("");
+  const [newInjuryBodyPart, setNewInjuryBodyPart] = useState("");
+  const [newInjurySeverity, setNewInjurySeverity] = useState<"light" | "medium" | "severe">("medium");
+  const [newInjuryPhase, setNewInjuryPhase] = useState<InjuryPhase>(1);
+  const [newInjuryReturnDate, setNewInjuryReturnDate] = useState("");
+  const [newInjuryDescription, setNewInjuryDescription] = useState("");
+  const [isSubmittingInjury, setIsSubmittingInjury] = useState(false);
+
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingPlayerId, setBookingPlayerId] = useState("");
   const [bookingReason, setBookingReason] = useState("");
@@ -109,6 +128,7 @@ export function PhysioWorkspace({
   const [targetStaffRole, setTargetStaffRole] = useState<"fitness_coach" | "head_coach">("fitness_coach");
 
   useEffect(() => {
+    // 1. Fetch Physio Slot
     fetch("/api/physio/slots")
       .then((res) => res.json())
       .then((data) => {
@@ -121,9 +141,46 @@ export function PhysioWorkspace({
             slot_duration_min: first.slotMin || 10,
             is_open: true,
           });
+        } else {
+          setConsultation(null);
         }
       })
       .catch(() => {});
+
+    // 2. Fetch Active Injuries from Supabase PostgreSQL DB
+    const fetchDbInjuries = async () => {
+      try {
+        const supabase = createClient();
+        const { data: dbInjuries } = await supabase
+          .from("injuries")
+          .select("*, players(first_name, last_name, sporting_name)")
+          .eq("status", "active");
+
+        if (dbInjuries && Array.isArray(dbInjuries) && dbInjuries.length > 0) {
+          const mapped: ActiveInjuryRecord[] = dbInjuries.map((i: any) => {
+            const p = i.players;
+            const pName = p ? (p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim()) : "Jugador";
+            return {
+              id: i.id,
+              player_id: i.player_id,
+              player_name: pName,
+              body_part: i.body_part || i.injury_type || "Lesión sin especificar",
+              severity: i.severity || "medium",
+              status: "active",
+              recovery_phase: (i.recovery_phase || 1) as InjuryPhase,
+              expected_return_date: i.expected_return_date || i.return_date || undefined,
+              description: i.notes || i.description || "",
+              reports: [],
+              updated_at: i.updated_at || new Date().toISOString(),
+            };
+          });
+          setInjuries(mapped);
+        }
+      } catch (err) {
+        console.error("Error fetching injuries from DB:", err);
+      }
+    };
+    fetchDbInjuries();
   }, []);
 
   // Open new consultation
@@ -152,6 +209,112 @@ export function PhysioWorkspace({
       });
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Open Edit Consultation Modal
+  const handleOpenEditConsultation = () => {
+    if (!consultation) return;
+    setEditConsDate(consultation.date || new Date().toISOString().split("T")[0]);
+    setEditConsStartTime(consultation.start_time || "18:00");
+    setEditConsSlotMin(consultation.slot_duration_min || 10);
+    setIsEditingConsultation(true);
+  };
+
+  // Save Edit Consultation
+  const handleSaveEditConsultation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedCons = {
+      id: consultation?.id || `cons-${Date.now()}`,
+      date: editConsDate,
+      start_time: editConsStartTime,
+      slot_duration_min: editConsSlotMin,
+      is_open: true,
+    };
+    setConsultation(updatedCons);
+    setIsEditingConsultation(false);
+
+    try {
+      await fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "open_consultation",
+          date: editConsDate,
+          startTime: editConsStartTime,
+          slotMin: editConsSlotMin,
+        }),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Cancel & Delete Open Consultation
+  const handleDeleteConsultation = async () => {
+    if (!confirm("¿Estás seguro de cancelar y eliminar la consulta de fisioterapia abierta?")) return;
+    setConsultation(null);
+    setAppointments([]);
+
+    try {
+      await fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_consultation" }),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Direct Addition of Active Injury (Without requiring a prior consultation)
+  const handleCreateDirectInjury = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newInjuryPlayerId || !newInjuryBodyPart.trim()) return;
+
+    setIsSubmittingInjury(true);
+    const selectedP = squadPlayers.find((p) => p.id === newInjuryPlayerId);
+    const pName = selectedP ? (selectedP.sporting_name || `${selectedP.first_name || ""} ${selectedP.last_name || ""}`.trim()) : "Jugador";
+
+    const newInjRecord: ActiveInjuryRecord = {
+      id: `inj-${Date.now()}`,
+      player_id: newInjuryPlayerId,
+      player_name: pName,
+      body_part: newInjuryBodyPart.trim(),
+      severity: newInjurySeverity,
+      status: "active",
+      recovery_phase: newInjuryPhase,
+      expected_return_date: newInjuryReturnDate || undefined,
+      description: newInjuryDescription.trim(),
+      reports: [],
+      updated_at: new Date().toISOString(),
+    };
+
+    setInjuries((prev) => [newInjRecord, ...prev]);
+
+    try {
+      const supabase = createClient();
+      await supabase.from("injuries").insert({
+        player_id: newInjuryPlayerId,
+        organization_id: selectedP?.organization_id || undefined,
+        team_id: selectedP?.team_id || undefined,
+        injury_type: newInjuryBodyPart.trim(),
+        body_part: newInjuryBodyPart.trim(),
+        severity: newInjurySeverity,
+        status: "active",
+        recovery_phase: newInjuryPhase,
+        expected_return_date: newInjuryReturnDate || null,
+        notes: newInjuryDescription.trim() || null,
+      });
+    } catch (err) {
+      console.error("Error inserting injury into DB:", err);
+    } finally {
+      setIsSubmittingInjury(false);
+      setIsNewInjuryModalOpen(false);
+      setNewInjuryPlayerId("");
+      setNewInjuryBodyPart("");
+      setNewInjuryReturnDate("");
+      setNewInjuryDescription("");
     }
   };
 
@@ -353,6 +516,14 @@ export function PhysioWorkspace({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            onClick={() => setIsNewInjuryModalOpen(true)}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <HeartPulse className="size-4 mr-1.5 text-rose-400" />
+            + Registrar Lesión Activa
+          </button>
+          <button
+            type="button"
             onClick={() => setIsOpeningConsultation(true)}
             className={buttonVariants({ size: "sm" })}
           >
@@ -498,6 +669,22 @@ export function PhysioWorkspace({
                 >
                   <Sparkles className="size-3.5 mr-1 text-amber-400" />
                   Calcular Propuesta de Horas
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenEditConsultation}
+                  className={buttonVariants({ variant: "outline", size: "xs" })}
+                  title="Modificar fecha, hora de inicio o duración de franja"
+                >
+                  <Pencil className="size-3.5 mr-1 text-emerald-400" /> Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConsultation}
+                  className={buttonVariants({ variant: "destructive", size: "xs" })}
+                  title="Cancelar y eliminar esta consulta abierta"
+                >
+                  <Trash2 className="size-3.5 mr-1" /> Cancelar Consulta
                 </button>
                 <button
                   type="button"
@@ -1225,6 +1412,176 @@ export function PhysioWorkspace({
                 </button>
                 <button type="submit" className={buttonVariants({ size: "sm" })}>
                   <Send className="size-3.5 mr-1" /> Enviar Sugerencia
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: EDITAR CONSULTA ABIERTA (FISIO) ── */}
+      {isEditingConsultation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-white/20 rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl text-white">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Pencil className="size-4 text-emerald-400" />
+                Editar Consulta de Fisioterapia Abierta
+              </h3>
+              <button type="button" onClick={() => setIsEditingConsultation(false)} className="text-slate-400 hover:text-white">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditConsultation} className="space-y-4 text-xs">
+              <div>
+                <label className="font-semibold text-white block mb-1">Fecha de la consulta:</label>
+                <input
+                  type="date"
+                  value={editConsDate}
+                  onChange={(e) => setEditConsDate(e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-white block mb-1">Hora de inicio:</label>
+                <input
+                  type="time"
+                  value={editConsStartTime}
+                  onChange={(e) => setEditConsStartTime(e.target.value)}
+                  className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-white block mb-1">Duración por franja (minutos):</label>
+                <select
+                  value={editConsSlotMin}
+                  onChange={(e) => setEditConsSlotMin(Number(e.target.value))}
+                  className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value={10}>10 minutos (Estándar recomendado)</option>
+                  <option value={5}>5 minutos</option>
+                  <option value={15}>15 minutos</option>
+                  <option value={20}>20 minutos</option>
+                  <option value={30}>30 minutos</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                <button type="button" onClick={() => setIsEditingConsultation(false)} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  Cancelar
+                </button>
+                <button type="submit" className={buttonVariants({ size: "sm" })}>
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: REGISTRAR NUEVA LESIÓN ACTIVA DIRECTA ── */}
+      {isNewInjuryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-white/20 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-white">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <HeartPulse className="size-4 text-destructive" />
+                Registrar Nueva Lesión Activa en Plantilla
+              </h3>
+              <button type="button" onClick={() => setIsNewInjuryModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDirectInjury} className="space-y-4 text-xs">
+              <div>
+                <label className="font-semibold text-white block mb-1">Futbolista Afectado *</label>
+                <select
+                  required
+                  value={newInjuryPlayerId}
+                  onChange={(e) => setNewInjuryPlayerId(e.target.value)}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                >
+                  <option value="">Seleccionar jugador de la plantilla...</option>
+                  {squadPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim()} #{p.membership?.jersey_number || ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-white block mb-1">Diagnóstico / Zona del Cuerpo Afectada *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Sobrecarga en isquiotibiales, Esguince tobillo derecho..."
+                  value={newInjuryBodyPart}
+                  onChange={(e) => setNewInjuryBodyPart(e.target.value)}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-white block mb-1">Gravedad de la Lesión</label>
+                  <select
+                    value={newInjurySeverity}
+                    onChange={(e) => setNewInjurySeverity(e.target.value as any)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    <option value="light">Leve (Molestia / &lt; 1 semana)</option>
+                    <option value="medium">Media (Baja parcial / 1-3 semanas)</option>
+                    <option value="severe">Grave (Baja prolongada / &gt; 3 semanas)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-white block mb-1">Fase Inicial RTP</label>
+                  <select
+                    value={newInjuryPhase}
+                    onChange={(e) => setNewInjuryPhase(Number(e.target.value) as InjuryPhase)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    <option value={1}>Fase 1: Fisioterapia / Reposo</option>
+                    <option value={2}>Fase 2: Readaptación Campo (Césped)</option>
+                    <option value={3}>Fase 3: Integración Parcial (Sin contacto)</option>
+                    <option value={4}>Fase 4: Alta Competitiva</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-white block mb-1">Fecha Prevista de Alta / Retorno</label>
+                <input
+                  type="date"
+                  value={newInjuryReturnDate}
+                  onChange={(e) => setNewInjuryReturnDate(e.target.value)}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-white block mb-1">Notas u Observaciones Médicas Iniciales</label>
+                <textarea
+                  rows={3}
+                  placeholder="Detalles sobre el mecanismo de la lesión, indicación de reposo, pruebas a realizar..."
+                  value={newInjuryDescription}
+                  onChange={(e) => setNewInjuryDescription(e.target.value)}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 p-2.5 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                <button type="button" onClick={() => setIsNewInjuryModalOpen(false)} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={isSubmittingInjury} className={buttonVariants({ size: "sm" })}>
+                  {isSubmittingInjury ? "Guardando..." : "Registrar Lesión en Enfermería"}
                 </button>
               </div>
             </form>

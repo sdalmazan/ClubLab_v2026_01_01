@@ -194,6 +194,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, slot: newSlot });
     }
 
+    if (action === "delete_consultation") {
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("settings")
+        .eq("id", orgId)
+        .single();
+
+      const updatedSettings = {
+        ...(org?.settings || {}),
+        active_physio_consultation: null,
+      };
+
+      await supabase
+        .from("organizations")
+        .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
+        .eq("id", orgId);
+
+      try {
+        await supabase
+          .from("physio_slots")
+          .update({ is_cancelled: true })
+          .eq("organization_id", orgId);
+      } catch (e) {}
+
+      return NextResponse.json({ success: true, message: "Consulta eliminada" });
+    }
+
     if (action === "request_availability") {
       return NextResponse.json({
         success: true,
