@@ -147,9 +147,11 @@ export async function recalculateAndSaveSessionMetrics(teamId: string, supabase:
 
   const { data: list, error } = await supabase
     .from("training_sessions")
-    .select("id, date, team_id, session_type, title, organization_id, status, microcycle_day")
+    .select("id, date, start_time, created_at, team_id, session_type, title, organization_id, status, microcycle_day")
     .eq("team_id", teamId)
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .order("start_time", { ascending: true })
+    .order("created_at", { ascending: true });
 
   if (error || !list || list.length === 0) return;
 

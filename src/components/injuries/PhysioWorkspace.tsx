@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { 
   HeartPulse, 
@@ -102,17 +102,51 @@ export function PhysioWorkspace({
   const [suggestionText, setSuggestionText] = useState("");
   const [targetStaffRole, setTargetStaffRole] = useState<"fitness_coach" | "head_coach">("fitness_coach");
 
+  useEffect(() => {
+    fetch("/api/physio/slots")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.slots && Array.isArray(data.slots) && data.slots.length > 0) {
+          const first = data.slots[0];
+          setConsultation({
+            id: first.id,
+            date: first.date,
+            start_time: first.startTime,
+            slot_duration_min: 15,
+            is_open: true,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Open new consultation
-  const handleOpenConsultation = (e: React.FormEvent) => {
+  const handleOpenConsultation = async (e: React.FormEvent) => {
     e.preventDefault();
-    setConsultation({
+    const newCons = {
       id: `cons-${Date.now()}`,
       date: newConsDate,
       start_time: newConsStartTime,
       slot_duration_min: newConsSlotMin,
       is_open: true,
-    });
+    };
+    setConsultation(newCons);
     setIsOpeningConsultation(false);
+
+    try {
+      await fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "open_consultation",
+          date: newConsDate,
+          startTime: newConsStartTime,
+          slotMin: newConsSlotMin,
+        }),
+      });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Physio manually adds player to appointment list

@@ -160,6 +160,19 @@ export function SessionForm({
     if (dbVal === "MD+2") return "Día 7";
     return "";
   };
+  const mapUiToDbMicrocycle = (uiVal: string | null): string | null => {
+    if (!uiVal) return null;
+    if (uiVal === "Día 1") return "MD-4";
+    if (uiVal === "Día 2") return "MD-3";
+    if (uiVal === "Día 3") return "MD-2";
+    if (uiVal === "Día 4") return "MD-1";
+    if (uiVal === "Día 5") return "MD";
+    if (uiVal === "Día 6") return "MD+1";
+    if (uiVal === "Día 7") return "MD+2";
+    const validTags = ['MD-4', 'MD-3', 'MD-2', 'MD-1', 'MD', 'MD+1', 'MD+2'];
+    if (validTags.includes(uiVal)) return uiVal;
+    return null;
+  };
   const [microcycleDay, setMicrocycleDay] = useState<string>(() => mapDbToUiMicrocycle(initialData?.microcycle_day ?? "MD-1"));
   const [expandedZones, setExpandedZones] = useState<Record<number, boolean>>({});
   const [expandedMaterials, setExpandedMaterials] = useState<Record<number, boolean>>({});
@@ -201,10 +214,13 @@ export function SessionForm({
   }, []);
 
   // Blocks show/hide states
-  const [showBlock0, setShowBlock0] = useState(false);
+  const [showBlock0, setShowBlock0] = useState(() => {
+    return initialData?.exercises?.some((ex: any) => ex.group_setup?.block_type === "block0") ?? false;
+  });
   const [showWarmupBlock, setShowWarmupBlock] = useState(true);
   const [showCooldownBlock, setShowCooldownBlock] = useState(true);
   const [activeBlockType, setActiveBlockType] = useState<'block0' | 'warmup' | 'main' | 'cooldown'>('main');
+
 
   // Year filter for session navigator & preview modal state
   const [navYear, setNavYear] = useState<string>("all");
@@ -725,6 +741,12 @@ export function SessionForm({
     }
     return [];
   });
+
+  useEffect(() => {
+    if (exercises.some(ex => ex.block_type === 'block0')) {
+      setShowBlock0(true);
+    }
+  }, [exercises]);
 
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [libraryTab, setLibraryTab] = useState<string>("all");
@@ -1329,7 +1351,7 @@ export function SessionForm({
       start_time: startTime + ":00",
       duration_min: Number(durationMin),
       session_type: sessionType,
-      microcycle_day: microcycleDay || null,
+      microcycle_day: mapUiToDbMicrocycle(microcycleDay),
       planned_load: plannedLoad || null,
       planned_intensity: plannedIntensity.trim() || null,
       mesocycle: mesocycle.trim() || null,

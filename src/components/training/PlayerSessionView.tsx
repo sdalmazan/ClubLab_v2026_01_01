@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SessionPrintReport } from "./SessionPrintReport";
 import { prepareAndPrintDocument } from "@/lib/printUtils";
+import { TacticalSvgRenderer } from "./print/TacticalSvgRenderer";
 
 /**
  * Strip basic markdown syntax to produce clean readable plain text.
@@ -762,13 +763,9 @@ export function PlayerSessionView({
                             </div>
 
                             {/* Whiteboard / Pitch Zone */}
-                            {ex.whiteboard_data?.imageDataUrl ? (
-                              <div className="border border-slate-800 rounded-lg bg-slate-950 w-full overflow-hidden flex items-center justify-center p-1.5">
-                                <img
-                                  src={ex.whiteboard_data.imageDataUrl}
-                                  alt={`Pizarra táctica ${ex.title}`}
-                                  className="w-full h-auto max-h-48 object-contain rounded"
-                                />
+                            {ex.whiteboard_data ? (
+                              <div className="border border-slate-800 rounded-lg bg-white w-full overflow-hidden flex items-center justify-center p-1.5 h-48">
+                                <TacticalSvgRenderer value={ex.whiteboard_data} className="w-full h-full" />
                               </div>
                             ) : ex.pitch_zones && ex.pitch_zones.length > 0 && (
                               <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 text-center w-full">

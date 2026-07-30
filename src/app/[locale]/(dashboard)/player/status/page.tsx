@@ -15,18 +15,23 @@ export default function PlayerStatusPage() {
 
   // Check if GPS data exists in database (default false if no GPS device integrated)
   const [hasGpsData, setHasGpsData] = useState<boolean>(false);
+  const [activeSlot, setActiveSlot] = useState<any | null>(null);
 
-  const [injuries, setInjuries] = useState([
-    {
-      id: "inj-1",
-      injuryType: "Sobrecarga Isquiotibial Izquierda",
-      bodyPart: "Isquiotibiales",
-      occurredDate: "2026-06-10",
-      isConfidential: true,
-      notes: "En tratamiento con fisioterapia del club",
-      status: "Resuelta",
-    },
-  ]);
+  const [injuries, setInjuries] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    // Fetch live physio slots for today
+    fetch("/api/physio/slots")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.slots && Array.isArray(data.slots) && data.slots.length > 0) {
+          setActiveSlot(data.slots[0]);
+        } else {
+          setActiveSlot(null);
+        }
+      })
+      .catch(() => setActiveSlot(null));
+  }, []);
 
   const handleAddInjury = (newInjury: ConfidentialInjuryInput) => {
     setInjuries((prev) => [
@@ -61,28 +66,30 @@ export default function PlayerStatusPage() {
         </div>
       </div>
 
-      {/* ── CONSULTA FISIO ABIERTA BANNER ── */}
-      <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 shadow-lg space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-emerald-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-black uppercase tracking-wider">Consulta de Fisio Abierta Hoy</span>
+      {/* ── CONSULTA FISIO ABIERTA BANNER (Dinamico) ── */}
+      {activeSlot && (
+        <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 shadow-lg space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-black uppercase tracking-wider">Consulta de Fisio Abierta Hoy</span>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+              {activeSlot.startTime} hs
+            </span>
           </div>
-          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-            16:00 hs
-          </span>
+          <p className="text-xs text-foreground leading-relaxed">
+            El fisioterapeuta ha abierto consulta para hoy ({activeSlot.startTime}h). Apúntate indicando tu molestia para asignarte hora.
+          </p>
+          <Link
+            href="/injuries"
+            className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs transition-all shadow-md active:scale-95"
+          >
+            <HeartPulse className="w-4 h-4" />
+            <span>Apuntarme a la Consulta de Fisio</span>
+          </Link>
         </div>
-        <p className="text-xs text-foreground leading-relaxed">
-          El fisioterapeuta ha abierto consulta para hoy. Apúntate indicando tu molestia para asignarte hora.
-        </p>
-        <Link
-          href="/injuries"
-          className="inline-flex items-center justify-center gap-1.5 w-full py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs transition-all shadow-md active:scale-95"
-        >
-          <HeartPulse className="w-4 h-4" />
-          <span>Apuntarme a la Consulta de Fisio</span>
-        </Link>
-      </div>
+      )}
 
       {/* ── REGISTRO DE PESO MATUTINO & CONFIRMACIÓN DE ASISTENCIA ── */}
       <div className="p-4 rounded-3xl bg-slate-900 border border-white/10 shadow-lg space-y-3">

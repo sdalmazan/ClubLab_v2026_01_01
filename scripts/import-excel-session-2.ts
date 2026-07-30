@@ -13,30 +13,42 @@ const ALMAZAN_ORG_ID = "2ef4ac4a-833a-4acf-8738-ac89d52d1a9d";
 
 const PLAYER_MAP: Record<string, string> = {
   "JAVI M. (P)": "28eb840b-ed1a-4b16-83d2-ced3556586a1",
+  "JAVI": "28eb840b-ed1a-4b16-83d2-ced3556586a1",
   "D. MADRUGA": "b5d1b25e-2cd9-4e95-a7da-73280ab3d1a4",
+  "MADRUGA": "b5d1b25e-2cd9-4e95-a7da-73280ab3d1a4",
   "DANI MNEZ.": "02294606-9960-4ab4-bb34-bdd9e20cfa88",
   "SANTA": "38807a85-9df2-43b7-89b3-ad4e6f999cb3",
   "HECTOR P. CT": "8fc2743e-0853-4530-b53e-85f09903592d",
+  "HECTOR": "8fc2743e-0853-4530-b53e-85f09903592d",
   "ALONSO": "ae16f374-7043-45b3-b247-8a76e82d0a53",
   "TONI VAREA (P)": "2fac4a7c-4464-4c57-9775-869f28cc7b71",
+  "TONI": "2fac4a7c-4464-4c57-9775-869f28cc7b71",
   "VICTOR M.": "d923d50a-75a2-4526-8177-774d5bbf3378",
+  "VICTOR": "d923d50a-75a2-4526-8177-774d5bbf3378",
   "HAME": "b02c8e5a-8f41-4ca7-9b73-b1d90e463d74",
   "VILLANUEVA": "9c2f97de-a166-4a3b-94da-b767e118780b",
+  "VILLA": "9c2f97de-a166-4a3b-94da-b767e118780b",
   "SOHAYB DC": "086c6d8d-3106-47de-85f8-ead60bf6f0ea",
+  "SOHA": "086c6d8d-3106-47de-85f8-ead60bf6f0ea",
   "RAYNER": "4edb66b2-bf0d-4cf0-b713-c36e2ea0cc9f",
   "LOSILLA": "1a33487d-3365-4d64-9b54-eecd54b664db",
   "YAGO": "045af1e0-16e9-4a46-b831-c799c8d45b72",
   "HUGUI": "3f354157-53c2-4637-ab36-0e0b0ff1012e",
   "HUGO MARTI": "d2f53d6d-1ff5-4702-be71-df7ec25299fb",
+  "MARTI": "d2f53d6d-1ff5-4702-be71-df7ec25299fb",
   "SAMUEL GLEZ": "b2dc7132-ab75-47df-8feb-7dc4a4378e41",
+  "SAMU": "b2dc7132-ab75-47df-8feb-7dc4a4378e41",
   "EBRI": "0e14afe7-290e-49ee-a55d-1abc41636370",
   "MARCOS GIL": "8bf6194e-6fc4-4ff6-9a1e-96be433c06cd",
+  "GIL": "8bf6194e-6fc4-4ff6-9a1e-96be433c06cd",
   "MIÑAÑA": "102ef082-6239-4cc7-a910-8d289ca2a946",
   "MIÑANA": "102ef082-6239-4cc7-a910-8d289ca2a946",
   "CHECA": "c4c7449e-01bb-4da3-8365-ad4f0a330e8f",
   "ALVARO NEVES": "7445c108-1f9f-4086-b6b2-37e3dd2a12dd",
+  "NEVES": "7445c108-1f9f-4086-b6b2-37e3dd2a12dd",
   "ALBITRE": "9ce7c32f-fd34-4fea-9e2d-478ab734049e",
   "CARLOS ELVIRA": "dbbc4a10-76e7-4725-9818-ef5785608a60",
+  "ELVIRA": "dbbc4a10-76e7-4725-9818-ef5785608a60"
 };
 
 function statusToSupabase(status: string): "present" | "injured" | "absent" | "other" {
@@ -50,9 +62,13 @@ function statusToSupabase(status: string): "present" | "injured" | "absent" | "o
   }
 }
 
+function resolvePlayerIds(names: string[]): string[] {
+  return names.map(n => PLAYER_MAP[n]).filter(Boolean);
+}
+
 // ─── Generación de Pizarras Tácticas Vectoriales ──────────────────────────
 function generateWhiteboardData(taskTitle: string): { zone: string; space_dimensions: string; whiteboard_data: any } {
-  if (taskTitle.toLowerCase().includes("previo") || taskTitle.toLowerCase().includes("core")) {
+  if (taskTitle.toLowerCase().includes("protocolo") || taskTitle.toLowerCase().includes("core")) {
     return {
       zone: "custom_area",
       space_dimensions: "Gimnasio / Zona Previa",
@@ -294,7 +310,7 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
 
 async function main() {
   console.log("═════════════════════════════════════════════════════════════");
-  console.log("  PROCESADOR ESTRUCTURAL DE TODOS LOS BLOQUES (0, 1, 2, 3)");
+  console.log("  PROCESADOR ESTRUCTURAL DEFINITIVO DE LA SESIÓN 2");
   console.log("═════════════════════════════════════════════════════════════\n");
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -312,9 +328,9 @@ async function main() {
   const sessionId = "853d22a8-1362-436c-b3e0-1f94627e8b6b";
   const sessionDate = "2026-07-28";
 
-  // 2. Estructuración Completa de Todos los Bloques de la Sesión:
+  // 2. Definición Exacta de Tareas y Grupos de Jugadores Mapeados
   const allTasksConfig = [
-    // ──────── BLOQUE 0: PREVIO ENTRENO ────────
+    // ──────── BLOQUE 0: PREVIO ENTRENO (Protocolo) ────────
     {
       title: "Protocolo de Tren Superior y Core",
       block_type: "block0",
@@ -323,8 +339,8 @@ async function main() {
       series_duration_min: 15,
       series_recovery_min: 0,
       total_min: 15,
-      rules: "Protocolo previo a entreno en gimnasio (19:15 - 19:30). Enfoque en core y prevención.",
-      equipos: null
+      rules: "Protocolo de tren superior y core previo a entreno en gimnasio (19:15 - 19:30).",
+      groups: []
     },
     // ──────── BLOQUE 1: CALENTAMIENTO ────────
     {
@@ -336,7 +352,7 @@ async function main() {
       series_recovery_min: 0,
       total_min: 10,
       rules: "Activación General: Carrera continua progresiva por el Parque de la Arboleda.",
-      equipos: null
+      groups: []
     },
     {
       title: "Movilidad articular",
@@ -347,11 +363,11 @@ async function main() {
       series_recovery_min: 0,
       total_min: 5,
       rules: "Activación Específica: Ejercicios dinámicos de movilidad articular y flexibilidad activa.",
-      equipos: null
+      groups: []
     },
-    // ──────── BLOQUE 2: PARTE PRINCIPAL ────────
+    // ──────── BLOQUE 2: PARTE PRINCIPAL (TAREAS PRINCIPALES) ────────
     {
-      title: cleanTaskTitle(sessionData.tasks[0].title || "POSESIÓN 4vs4+3"),
+      title: cleanTaskTitle(sessionData.tasks[0].title || "POSESIONES 4vs4+3"),
       block_type: "main",
       category: "posesion",
       num_series: Number(sessionData.tasks[0].num_series || 2),
@@ -359,7 +375,16 @@ async function main() {
       series_recovery_min: Number(sessionData.tasks[0].tiempo_pausa || 3),
       total_min: Number(sessionData.tasks[0].tiempo_total || 18),
       rules: sessionData.tasks[0].description || "TOQUE LIBRE (INTENTAR JUGAR EN 3)",
-      equipos: sessionData.tasks[0].equipos
+      groups: [
+        {
+          name: "Posesión 1 (20x20m)",
+          players: resolvePlayerIds(["LOSILLA", "HUGUI", "VILLA", "RAYNER", "EBRI", "ALBITRE", "SOHA", "GIL", "TONI", "CHECA", "NEVES"])
+        },
+        {
+          name: "Posesión 2 (20x20m)",
+          players: resolvePlayerIds(["VICTOR", "HAME", "YAGO", "ELVIRA", "MIÑAÑA", "MARTI", "SAMU", "JAVI", "HECTOR", "SANTA"])
+        }
+      ]
     },
     {
       title: cleanTaskTitle(sessionData.tasks[1].title || "POSESIÓN TRICOLOR 7vs7+7"),
@@ -369,8 +394,25 @@ async function main() {
       series_duration_min: Number(sessionData.tasks[1].tiempo_serie || 6),
       series_recovery_min: Number(sessionData.tasks[1].tiempo_pausa || 3),
       total_min: Number(sessionData.tasks[1].tiempo_total || 27),
-      rules: sessionData.tasks[1].description || "3 TOQUES MAXIMO MENOS CUANDO VENGO DE RECUPERAR QUE TENGO TOQUE LIBRE PARA ASEGURAR",
-      equipos: sessionData.tasks[1].equipos
+      rules: sessionData.tasks[1].description || "3 TOQUES MÁXIMO MENOS CUANDO VENGO DE RECUPERAR QUE TENGO TOQUE LIBRE PARA ASEGURAR",
+      groups: [
+        {
+          name: "Equipo 1",
+          players: resolvePlayerIds(["LOSILLA", "GIL", "HUGUI", "SOHA", "ALBITRE", "RAYNER", "ELVIRA"])
+        },
+        {
+          name: "Equipo 2",
+          players: resolvePlayerIds(["EBRI", "YAGO", "HECTOR", "MARTI", "MIÑAÑA", "NEVES"])
+        },
+        {
+          name: "Equipo 3",
+          players: resolvePlayerIds(["CHECA", "VICTOR", "VILLA", "HAME", "SAMU", "SANTA"])
+        },
+        {
+          name: "Comodines / Porteros",
+          players: resolvePlayerIds(["TONI", "JAVI"])
+        }
+      ]
     },
     {
       title: cleanTaskTitle(sessionData.tasks[2].title || "PARTIDO POR OLEADAS 6vs6+1c|1c|6+1c"),
@@ -381,7 +423,24 @@ async function main() {
       series_recovery_min: Number(sessionData.tasks[2].tiempo_pausa || 3),
       total_min: Number(sessionData.tasks[2].tiempo_total || 22),
       rules: sessionData.tasks[2].description || "PARA PASAR AL OTRO LADO LLEGAR A ZONA INTERMEDIA EN CONDUCCIÓN O 3º HOMBRE CON COMODÍN LEJANO. SI HAGO GOL SIGO ATACANDO",
-      equipos: sessionData.tasks[2].equipos
+      groups: [
+        {
+          name: "Equipo 1 (Oleadas)",
+          players: resolvePlayerIds(["LOSILLA", "GIL", "ELVIRA", "ALBITRE", "SOHA", "HUGUI"])
+        },
+        {
+          name: "Equipo 2 (Oleadas)",
+          players: resolvePlayerIds(["EBRI", "YAGO", "HECTOR", "MIÑAÑA", "MARTI"])
+        },
+        {
+          name: "Equipo 3 (Oleadas)",
+          players: resolvePlayerIds(["CHECA", "VICTOR", "HAME", "SAMU", "VILLA"])
+        },
+        {
+          name: "Comodines",
+          players: resolvePlayerIds(["SANTA", "RAYNER", "NEVES"])
+        }
+      ]
     },
     {
       title: cleanTaskTitle(sessionData.tasks[3].title || "TREN SUPERIOR Y CORE"),
@@ -392,7 +451,7 @@ async function main() {
       series_recovery_min: Number(sessionData.tasks[3].tiempo_pausa || 3),
       total_min: Number(sessionData.tasks[3].tiempo_total || 13),
       rules: "Estación física de fuerza de tren superior y fortalecimiento de zona media.",
-      equipos: sessionData.tasks[3].equipos
+      groups: []
     },
     // ──────── BLOQUE 3: VUELTA A LA CALMA ────────
     {
@@ -404,11 +463,11 @@ async function main() {
       series_recovery_min: 0,
       total_min: 10,
       rules: "Vuelta a la calma: Estiramientos estáticos asistidos y relajación muscular.",
-      equipos: null
+      groups: []
     }
   ];
 
-  console.log(`\n📚 Procesando ${allTasksConfig.length} tareas repartidas en los 4 Bloques (0, 1, 2, 3)...`);
+  console.log(`\n📚 Procesando ${allTasksConfig.length} elementos repartidos en los 4 Bloques (0, 1, 2, 3)...`);
   const sessionExercisesData: any[] = [];
 
   for (let idx = 0; idx < allTasksConfig.length; idx++) {
@@ -416,10 +475,9 @@ async function main() {
     const wb = generateWhiteboardData(item.title);
 
     let fullDesc = `📋 Consignas / Normas: ${item.rules}\n\n`;
-    if (item.equipos) fullDesc += `👥 Distribución de Equipos:\n${item.equipos}\n\n`;
     fullDesc += `⏱️ Series: ${item.num_series} | Duración/serie: ${item.series_duration_min} min | Pausa: ${item.series_recovery_min} min | Total: ${item.total_min} min`;
 
-    // Buscar o Insertar la tarea en la biblioteca de Pablo Ayuso
+    // Buscar o Insertar en la biblioteca de Pablo Ayuso
     const { data: existingEx } = await supabase
       .from("exercises")
       .select("id")
@@ -462,8 +520,8 @@ async function main() {
           space_dimensions: wb.space_dimensions,
           tactical_concepts: ontology.tactical_concept_keys,
           muscle_groups: ontology.muscle_group_keys,
-          needs_groups: Boolean(item.equipos),
-          num_groups: item.title.includes("TRICOLOR") ? 3 : item.title.includes("4vs4") ? 2 : 1
+          needs_groups: item.groups.length > 0,
+          num_groups: item.groups.length || 1
         })
         .select("id")
         .single();
@@ -475,7 +533,6 @@ async function main() {
       exerciseId = newEx.id;
     }
 
-    // Serializado exacto para que el frontend SessionForm.tsx des-serialice perfectamente cada bloque y sus pizarras
     const groupSetupPayload = {
       block_type: item.block_type,
       use_variable_series: false,
@@ -485,8 +542,8 @@ async function main() {
       series_recovery_min: item.series_recovery_min,
       transition_rest_min: 2,
       rules: item.rules,
-      objective_notes: item.equipos || "",
-      groups: []
+      objective_notes: "",
+      groups: item.groups
     };
 
     sessionExercisesData.push({
@@ -505,8 +562,10 @@ async function main() {
     });
   }
 
-  // 3. Actualizar la Cabecera de la Sesión
-  console.log("\n📝 Actualizando la Sesión #2 con Ontología y Bloques...");
+  // 3. Actualizar la Cabecera de la Sesión (Observaciones Limpias)
+  console.log("\n📝 Limpiando Observaciones y Actualizando Cabecera...");
+  const cleanNotes = "ENTRENAMIENTO EN HIERBA NATURAL (LA ARBOLEDA).";
+
   const { error: sessionUpdateErr } = await supabase
     .from("training_sessions")
     .update({
@@ -519,7 +578,7 @@ async function main() {
       objectives: [...ontology.physical_objectives, ...ontology.tactical_objectives],
       tactical_concepts: ontology.tactical_concept_keys,
       muscle_groups: ontology.muscle_group_keys,
-      notes: `${sessionData.observaciones}\n\n📌 Previo entreno (19:15-19:30): Protocolo de Tren Superior y Core\n🔥 Calentamiento: Carrera continua + Movilidad articular\n🧘 Vuelta a la calma: Estiramientos y relajación muscular`,
+      notes: cleanNotes,
       mesocycle: `MESO ${sessionData.meso}`,
       session_week_seq: sessionData.orden_sem,
       session_total_seq: 2,
@@ -555,21 +614,21 @@ async function main() {
   await supabase.from("session_attendance").insert(attendanceRecords);
 
   // 5. Vincular Ejercicios a la Sesión (`session_exercises`)
-  console.log("\n🎨 Vinculando las 8 tareas con sus bloques (0, 1, 2, 3) y pizarras visuales...");
+  console.log("\n🎨 Vinculando las 8 actividades/tareas con equipos y pizarras visuales...");
   await supabase.from("session_exercises").delete().eq("session_id", sessionId);
   const { error: insErr } = await supabase.from("session_exercises").insert(sessionExercisesData);
 
   if (insErr) {
     console.error("❌ Error insertando session_exercises:", insErr.message);
   } else {
-    console.log(`✅ Vinculadas exitosamente las ${sessionExercisesData.length} tareas en sus respectivos bloques.`);
+    console.log(`✅ Vinculadas exitosamente las ${sessionExercisesData.length} actividades/tareas en sus respectivos bloques.`);
   }
 
   // 6. Recalcular métricas
   console.log("\n📊 Recalculando métricas de sesión para el equipo...");
   await recalculateAndSaveSessionMetrics(ALMAZAN_TEAM_ID, supabase);
 
-  console.log("\n✨ ¡PROCESO COMPLETADO Y PERFECCIONADO! ✨");
+  console.log("\n✨ ¡PROCESO COMPLETADO PERFECTAMENTE! ✨");
 }
 
 main().catch(console.error);
