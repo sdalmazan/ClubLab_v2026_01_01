@@ -176,6 +176,11 @@ export function TrainingPrintExerciseCard({
                   );
                 })}
               </div>
+              {gs.series_rotations && (
+                <div className="mt-1 p-1 rounded bg-amber-50 border border-amber-200 text-[7pt] text-amber-900 font-medium">
+                  🔄 <strong>Cambios entre Series:</strong> {gs.series_rotations}
+                </div>
+              )}
             </div>
           )}
         </div>

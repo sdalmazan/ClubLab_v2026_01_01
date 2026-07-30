@@ -32,19 +32,36 @@ export function TacticalSvgRenderer({
   className = "",
   printMode = false,
 }: TacticalSvgRendererProps) {
-  if (!value) return null;
+  let parsedValue: any = value;
+  if (!parsedValue) return null;
 
-  const hasStrokes = Boolean(value.strokes && value.strokes.length > 0);
-  const hasMarkers = Boolean(value.markers && value.markers.length > 0);
-  const hasTexts   = Boolean(value.texts   && value.texts.length   > 0);
+  if (typeof parsedValue === "string") {
+    try {
+      parsedValue = JSON.parse(parsedValue);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  if (parsedValue && typeof parsedValue === "object") {
+    if (parsedValue.whiteboard_data && typeof parsedValue.whiteboard_data === "object") {
+      parsedValue = parsedValue.whiteboard_data;
+    }
+  }
+
+  if (!parsedValue || typeof parsedValue !== "object") return null;
+
+  const hasStrokes = Boolean(parsedValue.strokes && parsedValue.strokes.length > 0);
+  const hasMarkers = Boolean(parsedValue.markers && parsedValue.markers.length > 0);
+  const hasTexts   = Boolean(parsedValue.texts   && parsedValue.texts.length   > 0);
   const hasVectorData = hasStrokes || hasMarkers || hasTexts;
 
   // Fallback to raster thumbnail when no vector data
-  if (!hasVectorData && value.imageDataUrl) {
+  if (!hasVectorData && parsedValue.imageDataUrl) {
     return (
       <div className={`flex items-center justify-center bg-white overflow-hidden rounded ${className}`}>
         <img
-          src={value.imageDataUrl}
+          src={parsedValue.imageDataUrl}
           alt="Esquema Táctico"
           className="w-full h-full object-contain"
           style={{ mixBlendMode: "multiply", filter: "contrast(1.15)" }}
@@ -53,9 +70,9 @@ export function TacticalSvgRenderer({
     );
   }
 
-  if (!hasVectorData && !value.imageDataUrl) return null;
+  if (!hasVectorData && !parsedValue.imageDataUrl) return null;
 
-  const zone = value.zone || "full_field";
+  const zone = parsedValue.zone || "full_field";
   const viewBox = `0 0 ${width} ${height}`;
 
   // Field colours (Pure White background, solid black high-contrast lines)
@@ -174,7 +191,7 @@ export function TacticalSvgRenderer({
         )}
 
         {/* ── 3. Strokes ──────────────────────────────────────────────── */}
-        {value.strokes?.map((stroke: WhiteboardStroke, idx: number) => {
+        {parsedValue.strokes?.map((stroke: WhiteboardStroke, idx: number) => {
           if (!stroke.points || stroke.points.length < 2) return null;
           const sw    = Math.max((stroke as any).width ?? 2.5, 2.5);
           const color = stroke.color && stroke.color !== "#ffffff" ? stroke.color : DEFAULTS.stroke;
@@ -219,7 +236,7 @@ export function TacticalSvgRenderer({
         })}
 
         {/* ── 4. Markers ──────────────────────────────────────────────── */}
-        {value.markers?.map((marker: MarkerElement, idx: number) => {
+        {parsedValue.markers?.map((marker: MarkerElement, idx: number) => {
           const { x, y, type, number, rotation = 0 } = marker;
           const tf = `translate(${x},${y}) rotate(${rotation})`;
           const fill = markerFill(marker);
@@ -279,7 +296,7 @@ export function TacticalSvgRenderer({
         })}
 
         {/* ── 5. Text elements ────────────────────────────────────────── */}
-        {value.texts?.map((txt: TextElement, idx: number) => (
+        {parsedValue.texts?.map((txt: TextElement, idx: number) => (
           <text key={txt.id || idx} x={txt.x} y={txt.y}
             fill={txt.color && txt.color !== "#ffffff" ? txt.color : DEFAULTS.text}
             fontSize="12" fontWeight="bold" fontFamily="sans-serif">

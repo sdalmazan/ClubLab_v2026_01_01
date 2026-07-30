@@ -102,6 +102,17 @@ export function PhysioWorkspace({
   const [newInjuryReturnDate, setNewInjuryReturnDate] = useState("");
   const [newInjuryDescription, setNewInjuryDescription] = useState("");
   const [isSubmittingInjury, setIsSubmittingInjury] = useState(false);
+  const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+
+  const filteredSquadPlayers = useMemo(() => {
+    if (!playerSearchQuery.trim()) return squadPlayers;
+    const q = playerSearchQuery.toLowerCase().trim();
+    return squadPlayers.filter((p: any) => {
+      const name = (p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`).toLowerCase();
+      const jersey = String(p.membership?.jersey_number || p.jersey_number || "");
+      return name.includes(q) || jersey.includes(q);
+    });
+  }, [squadPlayers, playerSearchQuery]);
 
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingPlayerId, setBookingPlayerId] = useState("");
@@ -1499,19 +1510,36 @@ export function PhysioWorkspace({
             <form onSubmit={handleCreateDirectInjury} className="space-y-4 text-xs">
               <div>
                 <label className="font-semibold text-white block mb-1">Futbolista Afectado *</label>
-                <select
-                  required
-                  value={newInjuryPlayerId}
-                  onChange={(e) => setNewInjuryPlayerId(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                >
-                  <option value="">Seleccionar jugador de la plantilla...</option>
-                  {squadPlayers.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim()} #{p.membership?.jersey_number || ""}
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="🔍 Buscar por nombre o dorsal..."
+                    value={playerSearchQuery}
+                    onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <select
+                    required
+                    value={newInjuryPlayerId}
+                    onChange={(e) => setNewInjuryPlayerId(e.target.value)}
+                    className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    <option value="">
+                      {filteredSquadPlayers.length === 0
+                        ? "No se encontraron jugadores"
+                        : `Seleccionar jugador (${filteredSquadPlayers.length} en plantilla)...`}
                     </option>
-                  ))}
-                </select>
+                    {filteredSquadPlayers.map((p) => {
+                      const jersey = p.membership?.jersey_number || p.jersey_number;
+                      const displayName = p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim();
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {displayName} {jersey ? `#${jersey}` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
               </div>
 
               <div>

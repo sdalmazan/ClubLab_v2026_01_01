@@ -18,8 +18,8 @@ interface Group {
 
 interface GroupPlannerProps {
   presentPlayers: PlayerItem[];
-  value: { groups: Group[] };
-  onChange: (value: { groups: Group[] }) => void;
+  value: { groups: Group[]; series_rotations?: string };
+  onChange: (value: { groups: Group[]; series_rotations?: string }) => void;
   interactive?: boolean;
 }
 
@@ -380,9 +380,23 @@ export function GroupPlanner({
       </div>
 
       {interactive && (
-        <p className="text-[10px] text-slate-500 italic leading-tight">
-          Arrastra jugadores entre columnas o usa los controles para organizar los grupos de esta tarea.
-        </p>
+        <div className="space-y-3 pt-3 border-t border-white/10">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🔄 Cambios / Rotaciones entre Series (Opcional)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: Serie 1: Posesión A vs B | Serie 2: Rotación de Comodines | Serie 3: Intercambio de parejas"
+              value={value?.series_rotations ?? ""}
+              onChange={(e) => onChange({ ...value, series_rotations: e.target.value })}
+              className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+            />
+          </div>
+          <p className="text-[10px] text-slate-500 italic leading-tight">
+            Arrastra jugadores entre columnas o usa los controles para organizar los grupos de esta tarea.
+          </p>
+        </div>
       )}
     </div>
   );

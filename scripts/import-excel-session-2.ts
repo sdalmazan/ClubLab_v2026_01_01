@@ -409,14 +409,31 @@ async function main() {
       series_recovery_min: Number(sessionData.tasks[0].tiempo_pausa || 3),
       total_min: Number(sessionData.tasks[0].tiempo_total || 18),
       rules: sessionData.tasks[0].description || "TOQUE LIBRE (INTENTAR JUGAR EN 3)",
+      series_rotations: "Serie 1: Posesión 1 vs Posesión 2 (Campos 1 y 2 en paralelo) | Serie 2: Rotación de comodines entre cuadrados",
       groups: [
         {
-          name: "Posesión 1 (20x20m)",
-          players: resolvePlayerIds(["LOSILLA", "HUGUI", "VILLA", "RAYNER", "EBRI", "ALBITRE", "SOHA", "GIL", "TONI", "CHECA", "NEVES"])
+          name: "Posesión 1: Equipo A",
+          players: resolvePlayerIds(["LOSILLA", "HUGUI", "VILLA", "RAYNER"])
         },
         {
-          name: "Posesión 2 (20x20m)",
-          players: resolvePlayerIds(["VICTOR", "HAME", "YAGO", "ELVIRA", "MIÑAÑA", "MARTI", "SAMU", "JAVI", "HECTOR", "SANTA"])
+          name: "Posesión 1: Equipo B",
+          players: resolvePlayerIds(["EBRI", "ALBITRE", "SOHA", "GIL"])
+        },
+        {
+          name: "Posesión 1: Comodines",
+          players: resolvePlayerIds(["TONI", "CHECA", "NEVES"])
+        },
+        {
+          name: "Posesión 2: Equipo A",
+          players: resolvePlayerIds(["VICTOR", "HAME", "YAGO", "ELVIRA"])
+        },
+        {
+          name: "Posesión 2: Equipo B",
+          players: resolvePlayerIds(["MIÑAÑA", "MARTI", "SAMU", "JAVI"])
+        },
+        {
+          name: "Posesión 2: Comodines",
+          players: resolvePlayerIds(["HECTOR", "SANTA"])
         }
       ]
     },
@@ -429,6 +446,7 @@ async function main() {
       series_recovery_min: Number(sessionData.tasks[1].tiempo_pausa || 3),
       total_min: Number(sessionData.tasks[1].tiempo_total || 27),
       rules: sessionData.tasks[1].description || "3 TOQUES MÁXIMO MENOS CUANDO VENGO DE RECUPERAR QUE TENGO TOQUE LIBRE PARA ASEGURAR",
+      series_rotations: "Serie 1: Eq 1 y Eq 2 interior (Eq 3 perímetro) | Serie 2: Eq 1 y Eq 3 interior (Eq 2 perímetro) | Serie 3: Eq 2 y Eq 3 interior (Eq 1 perímetro)",
       groups: [
         {
           name: "Equipo 1",
@@ -457,6 +475,7 @@ async function main() {
       series_recovery_min: Number(sessionData.tasks[2].tiempo_pausa || 3),
       total_min: Number(sessionData.tasks[2].tiempo_total || 22),
       rules: sessionData.tasks[2].description || "PARA PASAR AL OTRO LADO LLEGAR A ZONA INTERMEDIA EN CONDUCCIÓN O 3º HOMBRE CON COMODÍN LEJANO. SI HAGO GOL SIGO ATACANDO",
+      series_rotations: "Serie 1: Oleada Eq 1 (Defensas Eq 2 y 3) | Serie 2: Oleada Eq 2 (Defensas Eq 1 y 3)",
       groups: [
         {
           name: "Equipo 1 (Oleadas)",
@@ -580,6 +599,7 @@ async function main() {
       transition_rest_min: 2,
       rules: item.rules,
       objective_notes: "",
+      series_rotations: (item as any).series_rotations || "",
       groups: item.groups
     };
 

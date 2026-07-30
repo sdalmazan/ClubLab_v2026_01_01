@@ -796,6 +796,11 @@ export function PlayerSessionView({
                                     );
                                   })}
                                 </div>
+                                {gs.series_rotations && (
+                                  <div className="mt-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-300 font-medium flex items-center gap-1.5">
+                                    <span>🔄 <strong>Cambios entre Series:</strong> {gs.series_rotations}</span>
+                                  </div>
+                                )}
                               </div>
                             )}
 
