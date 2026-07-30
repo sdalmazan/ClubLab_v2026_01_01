@@ -781,7 +781,7 @@ export function PlayerSessionView({
                                   <Users className="h-3 w-3 text-slate-400" />
                                   DISTRIBUCIÓN DE EQUIPOS / GRUPOS
                                 </span>
-                                <div className="grid grid-cols-1 gap-1.5 w-full min-w-0">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 w-full min-w-0">
                                   {assignedGroups.map((g: any, gIdx: number) => {
                                     const playerNames = (g.players ?? []).map((pId: string) => {
                                       const pl = session.attendance?.find((at: any) => (at.player?.id || at.player_id) === pId)?.player;

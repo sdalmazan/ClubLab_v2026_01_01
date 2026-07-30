@@ -39,32 +39,94 @@ export function GroupPlanner({
   const groups = value?.groups || [];
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
-  // Initialize with 2 default groups if empty
-  const initializeGroups = () => {
+  // Preset templates for quick team generation (parallel exercises, tri-color, rotational series)
+  const applyPreset = (presetType: '2teams' | '3teams' | 'parallel' | 'series') => {
     if (!interactive) return;
-    onChange({
-      groups: [
-        { name: "Equipo Verde", players: [] },
-        { name: "Equipo Azul", players: [] },
-      ],
-    });
+    if (presetType === '2teams') {
+      onChange({
+        groups: [
+          { name: "Equipo Verde", players: [] },
+          { name: "Equipo Azul", players: [] },
+        ],
+      });
+    } else if (presetType === '3teams') {
+      onChange({
+        groups: [
+          { name: "Equipo Verde", players: [] },
+          { name: "Equipo Azul", players: [] },
+          { name: "Equipo Rojo", players: [] },
+          { name: "Comodines", players: [] },
+        ],
+      });
+    } else if (presetType === 'parallel') {
+      onChange({
+        groups: [
+          { name: "Posesión 1 - Equipo A", players: [] },
+          { name: "Posesión 1 - Equipo B", players: [] },
+          { name: "Posesión 2 - Equipo C", players: [] },
+          { name: "Posesión 2 - Equipo D", players: [] },
+          { name: "Comodines / Apoyos", players: [] },
+        ],
+      });
+    } else if (presetType === 'series') {
+      onChange({
+        groups: [
+          { name: "Serie 1: Equipo A vs B", players: [] },
+          { name: "Serie 2: Equipo A vs C", players: [] },
+          { name: "Serie 3: Equipo B vs C", players: [] },
+          { name: "Comodines / Descansos", players: [] },
+        ],
+      });
+    }
   };
 
   if (groups.length === 0 && interactive) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border/50 rounded-lg bg-muted/50">
-        <Users className="h-8 w-8 text-slate-500 mb-3" />
-        <p className="text-sm text-slate-300 font-semibold mb-3">
-          No hay grupos de entrenamiento definidos para esta tarea
-        </p>
-        <button
-          type="button"
-          onClick={initializeGroups}
-          className="flex items-center gap-1.5 rounded-xl btn-corporate text-white text-xs font-semibold px-4 py-2 transition-all cursor-pointer shadow-lg"
-        >
-          <Plus className="h-4 w-4" />
-          Crear Equipos / Grupos
-        </button>
+      <div className="flex flex-col items-center justify-center py-8 px-4 border border-dashed border-border/50 rounded-lg bg-muted/50 space-y-4 text-center">
+        <Users className="h-8 w-8 text-slate-500" />
+        <div>
+          <p className="text-sm text-slate-200 font-bold">
+            Distribución de Equipos y Grupos
+          </p>
+          <p className="text-xs text-slate-400 mt-1 max-w-md">
+            Crea grupos simples, posesiones en campos paralelos o rotación por series para esta tarea.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => applyPreset('2teams')}
+            className="flex items-center gap-1.5 rounded-xl btn-corporate text-white text-xs font-semibold px-3 py-2 transition-all cursor-pointer shadow"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            2 Equipos (A vs B)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('3teams')}
+            className="flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-2 border border-slate-700 transition-all cursor-pointer shadow"
+          >
+            <Plus className="h-3.5 w-3.5 text-emerald-400" />
+            3 Equipos (Tricolor)
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('parallel')}
+            className="flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-2 border border-slate-700 transition-all cursor-pointer shadow"
+          >
+            <Plus className="h-3.5 w-3.5 text-sky-400" />
+            2 Posesiones Paralelas
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset('series')}
+            className="flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-2 border border-slate-700 transition-all cursor-pointer shadow"
+          >
+            <Plus className="h-3.5 w-3.5 text-amber-400" />
+            Rotación por Series
+          </button>
+        </div>
       </div>
     );
   }
@@ -303,7 +365,7 @@ export function GroupPlanner({
           })}
 
           {/* Add Group Card */}
-          {interactive && groups.length < 5 && (
+          {interactive && groups.length < 10 && (
             <button
               type="button"
               onClick={addGroup}

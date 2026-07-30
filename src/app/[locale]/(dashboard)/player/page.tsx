@@ -390,31 +390,45 @@ export default function PlayerTodayPage() {
       )}
 
       {/* Physio & Medical Consultation Notification Card */}
-      <div className="rounded-3xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-card to-card p-4 shadow-lg flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-indigo-600 text-white font-bold text-xs shadow-md shrink-0">
-            🩺
+      {physioSlots.length > 0 ? (
+        <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-card to-card p-4 shadow-lg flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-emerald-600 text-white font-bold text-xs shadow-md shrink-0">
+              🩺
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
+                Consulta de Fisioterapia Abierta
+              </span>
+              <h4 className="text-xs font-bold text-foreground capitalize mt-0.5">
+                {physioSlots[0]?.date ? new Date(physioSlots[0].date + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }) : "Convocatoria Hoy"} • {physioSlots[0]?.startTime} hs
+              </h4>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {physioBookedSuccess ? "¡Reserva solicitada con éxito!" : "Reserva tu franja con el fisioterapeuta del club."}
+              </p>
+            </div>
           </div>
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 block">
-              Consulta de Fisioterapia
-            </span>
-            <h4 className="text-xs font-bold text-foreground">
-              Citas abiertas de fisioterapia
-            </h4>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {physioBookedSuccess ? "¡Reserva solicitada con éxito!" : "Solicita o confirma tu cita con el fisio."}
-            </p>
+
+          <button
+            onClick={() => setPhysioModalOpen(true)}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+          >
+            {physioBookedSuccess ? "Ver Cita" : "Apuntarme"}
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-border/40 bg-accent/20 p-3.5 shadow-sm flex items-center justify-between gap-3 text-muted-foreground">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-accent text-muted-foreground font-bold text-xs shrink-0">
+              🩺
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Fisioterapia</span>
+              <p className="text-xs font-medium text-muted-foreground">Sin convocatorias de fisioterapia abiertas hoy</p>
+            </div>
           </div>
         </div>
-
-        <button
-          onClick={() => setPhysioModalOpen(true)}
-          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
-        >
-          {physioBookedSuccess ? "Ver Cita" : "Apuntarme"}
-        </button>
-      </div>
+      )}
 
       {/* "What Should I Do Now?" Dynamic Priority Card driven by evalPlayerTemporalState */}
       {temporalEval.actionType === "checkout" ? (

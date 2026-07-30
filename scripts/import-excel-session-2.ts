@@ -66,7 +66,7 @@ function resolvePlayerIds(names: string[]): string[] {
   return names.map(n => PLAYER_MAP[n]).filter(Boolean);
 }
 
-// ─── Generación de Pizarras Tácticas Vectoriales ──────────────────────────
+// ─── Generación de Pizarras Tácticas Vectoriales Exactas ──────────────────
 function generateWhiteboardData(taskTitle: string): { zone: string; space_dimensions: string; whiteboard_data: any } {
   if (taskTitle.toLowerCase().includes("protocolo") || taskTitle.toLowerCase().includes("core")) {
     return {
@@ -140,6 +140,7 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
       whiteboard_data: {
         zone: "half_field",
         markers: [
+          // Cuadrado 1 (Izquierda): 4 Azules, 4 Rojos, 3 Comodines Amarillos (11 jug)
           { id: "m1", x: 80, y: 100, type: "player", number: "1", color: "#3b82f6" },
           { id: "m2", x: 140, y: 100, type: "player", number: "2", color: "#3b82f6" },
           { id: "m3", x: 80, y: 180, type: "player", number: "3", color: "#3b82f6" },
@@ -160,6 +161,7 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
           { id: "c3", x: 60, y: 220, type: "cone" },
           { id: "c4", x: 180, y: 220, type: "cone" },
 
+          // Cuadrado 2 (Derecha): 4 Azules, 4 Rojos, 2 Comodines Amarillos (10 jug)
           { id: "m21", x: 380, y: 100, type: "player", number: "1", color: "#3b82f6" },
           { id: "m22", x: 440, y: 100, type: "player", number: "2", color: "#3b82f6" },
           { id: "m23", x: 380, y: 180, type: "player", number: "3", color: "#3b82f6" },
@@ -172,7 +174,6 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
 
           { id: "m29", x: 410, y: 80, type: "player", number: "C1", color: "#f59e0b" },
           { id: "m30", x: 410, y: 220, type: "player", number: "C2", color: "#f59e0b" },
-          { id: "m31", x: 420, y: 150, type: "player", number: "C3", color: "#f59e0b" },
           { id: "b2", x: 425, y: 155, type: "ball" },
 
           { id: "c21", x: 360, y: 80, type: "cone" },
@@ -200,34 +201,49 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
       whiteboard_data: {
         zone: "half_field",
         markers: [
-          { id: "e1_1", x: 120, y: 120, type: "player", number: "7", color: "#3b82f6" },
-          { id: "e1_2", x: 220, y: 100, type: "player", number: "8", color: "#3b82f6" },
-          { id: "e1_3", x: 340, y: 120, type: "player", number: "11", color: "#3b82f6" },
-          { id: "e1_4", x: 140, y: 250, type: "player", number: "4", color: "#3b82f6" },
+          // 7 Jugadores Equipo 1 (Azules - Interior)
+          { id: "e1_1", x: 140, y: 110, type: "player", number: "1", color: "#3b82f6" },
+          { id: "e1_2", x: 200, y: 100, type: "player", number: "2", color: "#3b82f6" },
+          { id: "e1_3", x: 270, y: 120, type: "player", number: "3", color: "#3b82f6" },
+          { id: "e1_4", x: 330, y: 110, type: "player", number: "4", color: "#3b82f6" },
+          { id: "e1_5", x: 160, y: 220, type: "player", number: "5", color: "#3b82f6" },
+          { id: "e1_6", x: 230, y: 240, type: "player", number: "6", color: "#3b82f6" },
+          { id: "e1_7", x: 300, y: 220, type: "player", number: "7", color: "#3b82f6" },
 
-          { id: "e2_1", x: 160, y: 140, type: "rival", number: "9", color: "#ef4444" },
-          { id: "e2_2", x: 280, y: 150, type: "rival", number: "10", color: "#ef4444" },
-          { id: "e2_3", x: 200, y: 220, type: "rival", number: "6", color: "#ef4444" },
+          // 7 Jugadores Equipo 2 (Rojos - Presión / Defensivo)
+          { id: "e2_1", x: 160, y: 130, type: "rival", number: "1", color: "#ef4444" },
+          { id: "e2_2", x: 220, y: 120, type: "rival", number: "2", color: "#ef4444" },
+          { id: "e2_3", x: 290, y: 140, type: "rival", number: "3", color: "#ef4444" },
+          { id: "e2_4", x: 350, y: 130, type: "rival", number: "4", color: "#ef4444" },
+          { id: "e2_5", x: 180, y: 200, type: "rival", number: "5", color: "#ef4444" },
+          { id: "e2_6", x: 250, y: 210, type: "rival", number: "6", color: "#ef4444" },
+          { id: "e2_7", x: 320, y: 200, type: "rival", number: "7", color: "#ef4444" },
 
-          { id: "e3_1", x: 80, y: 180, type: "player", number: "E3", color: "#10b981" },
-          { id: "e3_2", x: 400, y: 180, type: "player", number: "E3", color: "#10b981" },
-          { id: "e3_3", x: 240, y: 70, type: "player", number: "E3", color: "#10b981" },
-          { id: "e3_4", x: 240, y: 320, type: "player", number: "E3", color: "#10b981" },
+          // 7 Jugadores Equipo 3 (Verdes - Perímetro / Apoyo Exterior)
+          { id: "e3_1", x: 60, y: 80, type: "player", number: "V1", color: "#10b981" },
+          { id: "e3_2", x: 60, y: 190, type: "player", number: "V2", color: "#10b981" },
+          { id: "e3_3", x: 60, y: 300, type: "player", number: "V3", color: "#10b981" },
+          { id: "e3_4", x: 420, y: 80, type: "player", number: "V4", color: "#10b981" },
+          { id: "e3_5", x: 420, y: 190, type: "player", number: "V5", color: "#10b981" },
+          { id: "e3_6", x: 420, y: 300, type: "player", number: "V6", color: "#10b981" },
+          { id: "e3_7", x: 240, y: 50, type: "player", number: "V7", color: "#10b981" },
 
-          { id: "com1", x: 230, y: 190, type: "player", number: "C", color: "#f59e0b" },
-          { id: "b1", x: 235, y: 195, type: "ball" },
+          // 2 Comodines (Amarillos)
+          { id: "com1", x: 240, y: 170, type: "player", number: "C1", color: "#f59e0b" },
+          { id: "com2", x: 240, y: 320, type: "player", number: "C2", color: "#f59e0b" },
+          { id: "b1", x: 245, y: 175, type: "ball" },
 
-          { id: "c1", x: 80, y: 70, type: "cone" },
-          { id: "c2", x: 400, y: 70, type: "cone" },
-          { id: "c3", x: 80, y: 320, type: "cone" },
-          { id: "c4", x: 400, y: 320, type: "cone" }
+          { id: "c1", x: 60, y: 60, type: "cone" },
+          { id: "c2", x: 420, y: 60, type: "cone" },
+          { id: "c3", x: 60, y: 320, type: "cone" },
+          { id: "c4", x: 420, y: 320, type: "cone" }
         ],
         strokes: [
-          { id: "s1", type: "dashed_rectangle", points: [{ x: 80, y: 70 }, { x: 400, y: 320 }], color: "#10b981", width: 2.5 },
-          { id: "s2", type: "arrow", points: [{ x: 120, y: 120 }, { x: 220, y: 100 }], color: "#3b82f6", width: 2 }
+          { id: "s1", type: "dashed_rectangle", points: [{ x: 60, y: 60 }, { x: 420, y: 320 }], color: "#10b981", width: 2.5 },
+          { id: "s2", type: "arrow", points: [{ x: 140, y: 110 }, { x: 200, y: 100 }], color: "#3b82f6", width: 2 }
         ],
         texts: [
-          { id: "t1", x: 160, y: 50, text: "POSESIÓN TRICOLOR 7v7+7 (Máx 3 toques)", color: "#1e293b" }
+          { id: "t1", x: 160, y: 40, text: "POSESIÓN TRICOLOR 7v7+7 (23 Jugadores en campo)", color: "#1e293b" }
         ]
       }
     };
@@ -243,24 +259,43 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
           { id: "g1", x: 20, y: 225, type: "goal_11" },
           { id: "g2", x: 580, y: 225, type: "goal_11" },
 
-          { id: "z1_1", x: 80, y: 150, type: "player", number: "4", color: "#3b82f6" },
-          { id: "z1_2", x: 80, y: 300, type: "player", number: "5", color: "#3b82f6" },
-          { id: "z1_3", x: 140, y: 225, type: "player", number: "8", color: "#3b82f6" },
+          // 6 Jugadores Equipo 1 (Azules - Zona 1 Izquierda)
+          { id: "z1_1", x: 70, y: 120, type: "player", number: "1", color: "#3b82f6" },
+          { id: "z1_2", x: 70, y: 225, type: "player", number: "2", color: "#3b82f6" },
+          { id: "z1_3", x: 70, y: 330, type: "player", number: "3", color: "#3b82f6" },
+          { id: "z1_4", x: 120, y: 150, type: "player", number: "4", color: "#3b82f6" },
+          { id: "z1_5", x: 120, y: 300, type: "player", number: "5", color: "#3b82f6" },
+          { id: "z1_6", x: 160, y: 225, type: "player", number: "6", color: "#3b82f6" },
 
-          { id: "zc_1", x: 300, y: 225, type: "player", number: "C", color: "#f59e0b" },
-          { id: "b1", x: 305, y: 230, type: "ball" },
+          // 6 Jugadores Equipo 2 (Rojos - Zona 3 Derecha)
+          { id: "z3_1", x: 530, y: 120, type: "rival", number: "1", color: "#ef4444" },
+          { id: "z3_2", x: 530, y: 225, type: "rival", number: "2", color: "#ef4444" },
+          { id: "z3_3", x: 530, y: 330, type: "rival", number: "3", color: "#ef4444" },
+          { id: "z3_4", x: 480, y: 150, type: "rival", number: "4", color: "#ef4444" },
+          { id: "z3_5", x: 480, y: 300, type: "rival", number: "5", color: "#ef4444" },
+          { id: "z3_6", x: 440, y: 225, type: "rival", number: "6", color: "#ef4444" },
 
-          { id: "z3_1", x: 460, y: 150, type: "rival", number: "9", color: "#ef4444" },
-          { id: "z3_2", x: 460, y: 300, type: "rival", number: "11", color: "#ef4444" },
-          { id: "z3_3", x: 520, y: 225, type: "rival", number: "10", color: "#ef4444" }
+          // 6 Jugadores Equipo 3 (Verdes - Zona 2 Central / Oleada)
+          { id: "zc_1", x: 260, y: 100, type: "player", number: "V1", color: "#10b981" },
+          { id: "zc_2", x: 260, y: 350, type: "player", number: "V2", color: "#10b981" },
+          { id: "zc_3", x: 300, y: 150, type: "player", number: "V3", color: "#10b981" },
+          { id: "zc_4", x: 300, y: 300, type: "player", number: "V4", color: "#10b981" },
+          { id: "zc_5", x: 340, y: 180, type: "player", number: "V5", color: "#10b981" },
+          { id: "zc_6", x: 340, y: 270, type: "player", number: "V6", color: "#10b981" },
+
+          // 3 Comodines (Amarillos)
+          { id: "com_1", x: 300, y: 225, type: "player", number: "C1", color: "#f59e0b" },
+          { id: "com_2", x: 300, y: 50, type: "player", number: "C2", color: "#f59e0b" },
+          { id: "com_3", x: 300, y: 400, type: "player", number: "C3", color: "#f59e0b" },
+          { id: "b1", x: 305, y: 230, type: "ball" }
         ],
         strokes: [
           { id: "s1", type: "dashed_line", points: [{ x: 200, y: 20 }, { x: 200, y: 430 }], color: "#64748b", width: 2 },
           { id: "s2", type: "dashed_line", points: [{ x: 400, y: 20 }, { x: 400, y: 430 }], color: "#64748b", width: 2 },
-          { id: "s3", type: "arrow", points: [{ x: 140, y: 225 }, { x: 300, y: 225 }], color: "#3b82f6", width: 2.5 }
+          { id: "s3", type: "arrow", points: [{ x: 160, y: 225 }, { x: 300, y: 225 }], color: "#3b82f6", width: 2.5 }
         ],
         texts: [
-          { id: "t1", x: 180, y: 40, text: "OLEADAS POR ZONAS (Llegar en conducción / 3º hombre)", color: "#1e293b" }
+          { id: "t1", x: 180, y: 35, text: "OLEADAS POR ZONAS (6vs6+1c|1c|6+1c - 21 Jugadores)", color: "#1e293b" }
         ]
       }
     };
@@ -286,7 +321,6 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
     };
   }
 
-  // TAREA FÍSICA GENERAL
   return {
     zone: "custom_area",
     space_dimensions: "Gimnasio / Césped",
@@ -310,7 +344,7 @@ function generateWhiteboardData(taskTitle: string): { zone: string; space_dimens
 
 async function main() {
   console.log("═════════════════════════════════════════════════════════════");
-  console.log("  PROCESADOR ESTRUCTURAL DEFINITIVO DE LA SESIÓN 2");
+  console.log("  PROCESADOR ESTRUCTURAL DEFINITIVO CON PIZARRAS EXACTAS");
   console.log("═════════════════════════════════════════════════════════════\n");
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -473,6 +507,7 @@ async function main() {
   for (let idx = 0; idx < allTasksConfig.length; idx++) {
     const item = allTasksConfig[idx];
     const wb = generateWhiteboardData(item.title);
+    const hasGroups = item.groups.length > 0;
 
     let fullDesc = `📋 Consignas / Normas: ${item.rules}\n\n`;
     fullDesc += `⏱️ Series: ${item.num_series} | Duración/serie: ${item.series_duration_min} min | Pausa: ${item.series_recovery_min} min | Total: ${item.total_min} min`;
@@ -495,6 +530,8 @@ async function main() {
         .update({
           description: fullDesc,
           category: item.category,
+          needs_groups: hasGroups,
+          num_groups: item.groups.length || 1,
           whiteboard_data: wb.whiteboard_data,
           whiteboard_zone: wb.zone,
           space_dimensions: wb.space_dimensions,
@@ -520,7 +557,7 @@ async function main() {
           space_dimensions: wb.space_dimensions,
           tactical_concepts: ontology.tactical_concept_keys,
           muscle_groups: ontology.muscle_group_keys,
-          needs_groups: item.groups.length > 0,
+          needs_groups: hasGroups,
           num_groups: item.groups.length || 1
         })
         .select("id")
@@ -555,6 +592,8 @@ async function main() {
       recovery_min: item.series_recovery_min,
       space_dimensions: wb.space_dimensions,
       group_setup: groupSetupPayload,
+      needs_groups: hasGroups,
+      num_groups: item.groups.length || 1,
       whiteboard_data: wb.whiteboard_data,
       whiteboard_zone: wb.zone,
       tactical_concepts: ontology.tactical_concept_keys,
@@ -562,8 +601,8 @@ async function main() {
     });
   }
 
-  // 3. Actualizar la Cabecera de la Sesión (Observaciones Limpias)
-  console.log("\n📝 Limpiando Observaciones y Actualizando Cabecera...");
+  // 3. Actualizar la Cabecera de la Sesión
+  console.log("\n📝 Actualizando Cabecera de Sesión...");
   const cleanNotes = "ENTRENAMIENTO EN HIERBA NATURAL (LA ARBOLEDA).";
 
   const { error: sessionUpdateErr } = await supabase
@@ -614,7 +653,7 @@ async function main() {
   await supabase.from("session_attendance").insert(attendanceRecords);
 
   // 5. Vincular Ejercicios a la Sesión (`session_exercises`)
-  console.log("\n🎨 Vinculando las 8 actividades/tareas con equipos y pizarras visuales...");
+  console.log("\n🎨 Vinculando las 8 actividades/tareas con necesidades de grupos y pizarras vectoriales...");
   await supabase.from("session_exercises").delete().eq("session_id", sessionId);
   const { error: insErr } = await supabase.from("session_exercises").insert(sessionExercisesData);
 
@@ -628,7 +667,7 @@ async function main() {
   console.log("\n📊 Recalculando métricas de sesión para el equipo...");
   await recalculateAndSaveSessionMetrics(ALMAZAN_TEAM_ID, supabase);
 
-  console.log("\n✨ ¡PROCESO COMPLETADO PERFECTAMENTE! ✨");
+  console.log("\n✨ ¡PROCESO COMPLETADO Y PERFECCIONADO! ✨");
 }
 
 main().catch(console.error);
