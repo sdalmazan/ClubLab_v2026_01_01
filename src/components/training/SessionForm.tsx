@@ -145,7 +145,7 @@ export function SessionForm({
     if (initialData?.start_time) {
       return initialData.start_time.slice(0, 5);
     }
-    return organizationSettings?.default_training_time ?? "10:00";
+    return organizationSettings?.default_training_time ?? "19:30";
   });
   const [durationMin, setDurationMin] = useState(initialData?.duration_min ?? 90);
   const [sessionType, setSessionType] = useState<SessionType>(initialData?.session_type ?? "training");

@@ -14,7 +14,7 @@ export function WellnessCheckinModal({
   isOpen,
   onClose,
   onSubmitSuccess,
-  sessionTitle = "Entrenamiento Matinal (10:00h)",
+  sessionTitle = "Entrenamiento de Plantilla (19:30h)",
 }: WellnessCheckinModalProps) {
   const [sleepQuality, setSleepQuality] = useState<number>(4);
   const [fatigue, setFatigue] = useState<number>(2);

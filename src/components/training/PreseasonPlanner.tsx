@@ -217,7 +217,7 @@ const DEMO_SESSIONS: PreseasonSession[] = [
   }),
   makeDemoSession("2026-07-09", "rest"),
   makeDemoSession("2026-07-10", "training", {
-    startTime: "10:00",
+    startTime: "19:30",
     location: "Campo Municipal",
   }),
   makeDemoSession("2026-07-11", "training", {
@@ -236,7 +236,7 @@ const DEMO_SESSIONS: PreseasonSession[] = [
   }),
   makeDemoSession("2026-07-16", "rest"),
   makeDemoSession("2026-07-17", "training", {
-    startTime: "10:00",
+    startTime: "19:30",
     location: "Campo Municipal",
   }),
   makeDemoSession("2026-07-18", "training", {
@@ -261,7 +261,7 @@ const DEMO_SESSIONS: PreseasonSession[] = [
   }),
   makeDemoSession("2026-07-23", "rest"),
   makeDemoSession("2026-07-24", "training", {
-    startTime: "10:00",
+    startTime: "19:30",
     location: "Campo Municipal",
   }),
   makeDemoSession("2026-07-25", "training", {
@@ -286,7 +286,7 @@ const DEMO_SESSIONS: PreseasonSession[] = [
   }),
   makeDemoSession("2026-07-30", "rest"),
   makeDemoSession("2026-07-31", "training", {
-    startTime: "10:00",
+    startTime: "19:30",
     location: "Campo Municipal",
   }),
   makeDemoSession("2026-08-01", "training", {

@@ -75,8 +75,8 @@ export function PhysioWorkspace({
   // Modals state
   const [isOpeningConsultation, setIsOpeningConsultation] = useState(false);
   const [newConsDate, setNewConsDate] = useState(new Date().toISOString().split("T")[0]);
-  const [newConsStartTime, setNewConsStartTime] = useState("16:00");
-  const [newConsSlotMin, setNewConsSlotMin] = useState(15);
+  const [newConsStartTime, setNewConsStartTime] = useState("18:00");
+  const [newConsSlotMin, setNewConsSlotMin] = useState(10);
 
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingPlayerId, setBookingPlayerId] = useState("");

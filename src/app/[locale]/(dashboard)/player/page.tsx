@@ -594,14 +594,14 @@ export default function PlayerTodayPage() {
         isOpen={checkinOpen}
         onClose={() => setCheckinOpen(false)}
         onSubmitSuccess={handleCheckinSuccess}
-        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "10:00"}h)` : "Entrenamiento Matinal (10:00h)"}
+        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "19:30"}h)` : "Entrenamiento de Plantilla (19:30h)"}
       />
 
       <CheckoutRpeModal
         isOpen={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         onSubmitSuccess={handleCheckoutSuccess}
-        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "10:00"}h)` : "Entrenamiento Matinal (10:00h)"}
+        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "19:30"}h)` : "Entrenamiento de Plantilla (19:30h)"}
       />
 
       {/* Confirm Attendance Weight Modal */}
@@ -622,7 +622,7 @@ export default function PlayerTodayPage() {
                 <span className="p-2 rounded-xl bg-indigo-600 text-white font-bold text-xs">🩺</span>
                 <div>
                   <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider block">Cita Fisioterapia</span>
-                  <h3 className="text-sm font-bold text-foreground">Consulta de Fisioterapia</h3>
+                  <h3 className="text-sm font-bold text-foreground">Consulta de Fisioterapia (Turnos 10 min)</h3>
                 </div>
               </div>
               <button onClick={() => setPhysioModalOpen(false)} className="p-1 text-muted-foreground hover:text-foreground">
@@ -688,21 +688,21 @@ export default function PlayerTodayPage() {
               <div className="space-y-4">
                 <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-foreground space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-indigo-400 uppercase text-[10px]">Indica tu Disponibilidad (Franjas de 15 min)</span>
-                    <span className="text-[10px] font-mono text-muted-foreground">08:30h a {todaySession?.start_time?.slice(0, 5) || "10:00"}h</span>
+                    <span className="font-bold text-indigo-400 uppercase text-[10px]">Indica tu Disponibilidad (Franjas de 10 min)</span>
+                    <span className="text-[10px] font-mono text-muted-foreground">18:00h a {todaySession?.start_time?.slice(0, 5) || "19:30"}h</span>
                   </div>
                   <p className="text-muted-foreground text-[11px]">
-                    Selecciona todas las franjas horarias en las que puedes asistir antes del entrenamiento. El fisio recibirá tu disponibilidad y calculará la propuesta definitiva.
+                    Selecciona todas las franjas horarias de 10 minutos en las que puedes asistir antes del entrenamiento de las 19:30h. El fisio organizará la propuesta final.
                   </p>
                 </div>
 
                 <div className="space-y-3">
                   <div>
                     <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1.5">
-                      Franjas Disponibles (Multiselección):
+                      Franjas Disponibles de 10 min (Multiselección):
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {["08:30", "08:45", "09:00", "09:15", "09:30", "09:45"].map((timeSlot) => {
+                    <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1">
+                      {["18:00", "18:10", "18:20", "18:30", "18:40", "18:50", "19:00", "19:10", "19:20"].map((timeSlot) => {
                         const isSelected = selectedTimeSlots.includes(timeSlot);
                         return (
                           <button
@@ -715,7 +715,7 @@ export default function PlayerTodayPage() {
                                 setSelectedTimeSlots([...selectedTimeSlots, timeSlot]);
                               }
                             }}
-                            className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1 ${
+                            className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1 ${
                               isSelected
                                 ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-[1.02]"
                                 : "bg-card border-border/50 text-foreground hover:bg-accent"

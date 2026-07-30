@@ -134,7 +134,7 @@ export function PlayerSessionView({
   // Extract variables
   const title = session.title || "Sesión de Entrenamiento";
   const date = session.date ? new Date(session.date) : new Date();
-  const startTime = session.start_time ? session.start_time.slice(0, 5) : "10:00";
+  const startTime = session.start_time ? session.start_time.slice(0, 5) : "19:30";
   const durationMin = session.duration_min || 90;
   const exercises = session.exercises || [];
   const tacticalConcepts = session.tactical_concepts || [];
@@ -150,7 +150,7 @@ export function PlayerSessionView({
   const isPlayerUser = isPlayer ?? (userRole === "player");
   const isGroupTraining = session.session_type === "training";
   const dateStr = session.date || "";
-  const rawTimeStr = session.start_time || "10:00:00";
+  const rawTimeStr = session.start_time || "19:30:00";
   const timeStr = rawTimeStr.length === 5 ? `${rawTimeStr}:00` : rawTimeStr;
   const sessionStartMs = dateStr ? new Date(`${dateStr}T${timeStr}`).getTime() : 0;
   const twoHoursBeforeMs = sessionStartMs ? sessionStartMs - (2 * 60 * 60 * 1000) : 0;

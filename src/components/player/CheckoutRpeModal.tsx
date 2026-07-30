@@ -14,7 +14,7 @@ export function CheckoutRpeModal({
   isOpen,
   onClose,
   onSubmitSuccess,
-  sessionTitle = "Entrenamiento Matinal (10:00h)",
+  sessionTitle = "Entrenamiento de Plantilla (19:30h)",
 }: CheckoutRpeModalProps) {
   const [rpe, setRpe] = useState<number>(7);
   const [postFeeling, setPostFeeling] = useState<"very_good" | "good" | "loaded" | "very_loaded">("good");

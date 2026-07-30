@@ -204,7 +204,7 @@ export function SettingsForm({
   const [clubPrimaryColor, setClubPrimaryColor] = useState(organizationSettings?.club_primary_color ?? "#10b981");
   const [clubSecondaryColor, setClubSecondaryColor] = useState(organizationSettings?.club_secondary_color ?? "#6366f1");
   const [clubJerseyStyle, setClubJerseyStyle] = useState(organizationSettings?.club_jersey_style ?? "solid");
-  const [defaultTrainingTime, setDefaultTrainingTime] = useState(organizationSettings?.default_training_time ?? "10:00");
+  const [defaultTrainingTime, setDefaultTrainingTime] = useState(organizationSettings?.default_training_time ?? "19:30");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectedFileForAdjustment, setSelectedFileForAdjustment] = useState<File | null>(null);
 

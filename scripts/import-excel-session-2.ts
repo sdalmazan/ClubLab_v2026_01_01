@@ -11,7 +11,6 @@ const PABLO_AYUSO_ID = "0a607008-9066-4da0-affc-175e6e217efa";
 const ALMAZAN_TEAM_ID = "26e2583c-d367-40a5-be3a-f9ad0225222d";
 const ALMAZAN_ORG_ID = "2ef4ac4a-833a-4acf-8738-ac89d52d1a9d";
 
-// Dictionary mapping names from Excel to Player IDs in Supabase players table
 const PLAYER_MAP: Record<string, string> = {
   "JAVI M. (P)": "28eb840b-ed1a-4b16-83d2-ced3556586a1",
   "D. MADRUGA": "b5d1b25e-2cd9-4e95-a7da-73280ab3d1a4",
@@ -51,16 +50,80 @@ function statusToSupabase(status: string): "present" | "injured" | "absent" | "o
   }
 }
 
-// ─── Generación de Pizarras Tácticas Visuales ──────────────────────────────
-function generateWhiteboardData(taskKey: string): { zone: string; space_dimensions: string; whiteboard_data: any } {
-  if (taskKey === "TAREA 1" || taskKey.includes("4vs4+3")) {
+// ─── Generación de Pizarras Tácticas Vectoriales ──────────────────────────
+function generateWhiteboardData(taskTitle: string): { zone: string; space_dimensions: string; whiteboard_data: any } {
+  if (taskTitle.toLowerCase().includes("previo") || taskTitle.toLowerCase().includes("core")) {
+    return {
+      zone: "custom_area",
+      space_dimensions: "Gimnasio / Zona Previa",
+      whiteboard_data: {
+        zone: "custom_area",
+        markers: [
+          { id: "c1", x: 120, y: 150, type: "cone" },
+          { id: "c2", x: 240, y: 150, type: "cone" },
+          { id: "c3", x: 360, y: 150, type: "cone" },
+          { id: "m1", x: 180, y: 150, type: "player", number: "1", color: "#3b82f6" },
+          { id: "m2", x: 300, y: 150, type: "player", number: "2", color: "#3b82f6" }
+        ],
+        strokes: [
+          { id: "s1", type: "rectangle", points: [{ x: 80, y: 100 }, { x: 400, y: 200 }], color: "#f59e0b", width: 2 }
+        ],
+        texts: [
+          { id: "t1", x: 140, y: 80, text: "PROTOCOLO TREN SUPERIOR Y CORE (15 MIN)", color: "#1e293b" }
+        ]
+      }
+    };
+  }
+
+  if (taskTitle.toLowerCase().includes("carrera") || taskTitle.toLowerCase().includes("arboleda")) {
+    return {
+      zone: "full_field",
+      space_dimensions: "Parque / Exterior",
+      whiteboard_data: {
+        zone: "full_field",
+        markers: [
+          { id: "p1", x: 100, y: 220, type: "player", number: "1", color: "#3b82f6" },
+          { id: "p2", x: 140, y: 220, type: "player", number: "2", color: "#3b82f6" },
+          { id: "p3", x: 180, y: 220, type: "player", number: "3", color: "#3b82f6" }
+        ],
+        strokes: [
+          { id: "s1", type: "arrow", points: [{ x: 80, y: 220 }, { x: 500, y: 220 }], color: "#22c55e", width: 3 }
+        ],
+        texts: [
+          { id: "t1", x: 180, y: 180, text: "CARRERA CONTINUA - PARQUE DE LA ARBOLEDA (10 MIN)", color: "#1e293b" }
+        ]
+      }
+    };
+  }
+
+  if (taskTitle.toLowerCase().includes("movilidad")) {
+    return {
+      zone: "half_field",
+      space_dimensions: "Medio Campo",
+      whiteboard_data: {
+        zone: "half_field",
+        markers: [
+          { id: "c1", x: 150, y: 150, type: "cone" },
+          { id: "c2", x: 350, y: 150, type: "cone" },
+          { id: "p1", x: 250, y: 150, type: "player", number: "M", color: "#3b82f6" }
+        ],
+        strokes: [
+          { id: "s1", type: "line", points: [{ x: 150, y: 150 }, { x: 350, y: 150 }], color: "#3b82f6", width: 2 }
+        ],
+        texts: [
+          { id: "t1", x: 180, y: 110, text: "MOVILIDAD ARTICULAR DINÁMICA (5 MIN)", color: "#1e293b" }
+        ]
+      }
+    };
+  }
+
+  if (taskTitle.includes("4vs4+3") || taskTitle.toLowerCase().includes("posesiones")) {
     return {
       zone: "half_field",
       space_dimensions: "2 @ 20x20m",
       whiteboard_data: {
         zone: "half_field",
         markers: [
-          // Cuadrado 1 (Izquierda): 4 Azules, 4 Rojos, 3 Comodines Amarillos
           { id: "m1", x: 80, y: 100, type: "player", number: "1", color: "#3b82f6" },
           { id: "m2", x: 140, y: 100, type: "player", number: "2", color: "#3b82f6" },
           { id: "m3", x: 80, y: 180, type: "player", number: "3", color: "#3b82f6" },
@@ -76,13 +139,11 @@ function generateWhiteboardData(taskKey: string): { zone: string; space_dimensio
           { id: "m11", x: 120, y: 150, type: "player", number: "C3", color: "#f59e0b" },
           { id: "b1", x: 125, y: 155, type: "ball" },
 
-          // Conos delim
           { id: "c1", x: 60, y: 80, type: "cone" },
           { id: "c2", x: 180, y: 80, type: "cone" },
           { id: "c3", x: 60, y: 220, type: "cone" },
           { id: "c4", x: 180, y: 220, type: "cone" },
 
-          // Cuadrado 2 (Derecha)
           { id: "m21", x: 380, y: 100, type: "player", number: "1", color: "#3b82f6" },
           { id: "m22", x: 440, y: 100, type: "player", number: "2", color: "#3b82f6" },
           { id: "m23", x: 380, y: 180, type: "player", number: "3", color: "#3b82f6" },
@@ -116,7 +177,7 @@ function generateWhiteboardData(taskKey: string): { zone: string; space_dimensio
     };
   }
 
-  if (taskKey === "TAREA 2" || taskKey.includes("TRICOLOR")) {
+  if (taskTitle.includes("TRICOLOR") || taskTitle.includes("7vs7+7")) {
     return {
       zone: "half_field",
       space_dimensions: "45x35m",
@@ -156,7 +217,7 @@ function generateWhiteboardData(taskKey: string): { zone: string; space_dimensio
     };
   }
 
-  if (taskKey === "TAREA 3" || taskKey.includes("OLEADAS")) {
+  if (taskTitle.includes("OLEADAS") || taskTitle.includes("6vs6")) {
     return {
       zone: "full_field",
       space_dimensions: "60x40m",
@@ -189,7 +250,27 @@ function generateWhiteboardData(taskKey: string): { zone: string; space_dimensio
     };
   }
 
-  // TAREA 4: TREN SUPERIOR Y CORE
+  if (taskTitle.toLowerCase().includes("estiramientos") || taskTitle.toLowerCase().includes("relajación") || taskTitle.toLowerCase().includes("calma")) {
+    return {
+      zone: "custom_area",
+      space_dimensions: "Césped",
+      whiteboard_data: {
+        zone: "custom_area",
+        markers: [
+          { id: "p1", x: 200, y: 150, type: "player", number: "S", color: "#10b981" },
+          { id: "p2", x: 300, y: 150, type: "player", number: "S", color: "#10b981" }
+        ],
+        strokes: [
+          { id: "s1", type: "rectangle", points: [{ x: 150, y: 100 }, { x: 350, y: 200 }], color: "#10b981", width: 2 }
+        ],
+        texts: [
+          { id: "t1", x: 160, y: 80, text: "VUELTA A LA CALMA Y ESTIRAMIENTOS (10 MIN)", color: "#1e293b" }
+        ]
+      }
+    };
+  }
+
+  // TAREA FÍSICA GENERAL
   return {
     zone: "custom_area",
     space_dimensions: "Gimnasio / Césped",
@@ -205,7 +286,7 @@ function generateWhiteboardData(taskKey: string): { zone: string; space_dimensio
         { id: "s1", type: "line", points: [{ x: 80, y: 150 }, { x: 420, y: 150 }], color: "#f59e0b", width: 3 }
       ],
       texts: [
-        { id: "t1", x: 150, y: 100, text: "ESTACIÓN TREN SUPERIOR Y CORE (10 MIN)", color: "#1e293b" }
+        { id: "t1", x: 150, y: 100, text: "ESTACIÓN FÍSICA Y CORE (10 MIN)", color: "#1e293b" }
       ]
     }
   };
@@ -213,7 +294,7 @@ function generateWhiteboardData(taskKey: string): { zone: string; space_dimensio
 
 async function main() {
   console.log("═════════════════════════════════════════════════════════════");
-  console.log("  PROCESADOR COMPLETO Y ONTOLÓGICO - SESIÓN 2 (SD ALMAZÁN)");
+  console.log("  PROCESADOR ESTRUCTURAL DE TODOS LOS BLOQUES (0, 1, 2, 3)");
   console.log("═════════════════════════════════════════════════════════════\n");
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -223,60 +304,139 @@ async function main() {
   const { data: dbPlayers } = await supabase.from("players").select("id");
   const validPlayerIds = new Set(dbPlayers?.map(p => p.id));
 
-  // 1. Detección Ontológica de Objetivos de la Sesión
+  // 1. Detección Ontológica
   const rawFisico = "RESISTENCIA";
   const rawTactico = "CONSERVACIÓN DE BALÓN + ACTIVACIÓN PARA PRESIÓN TRAS PÉRDIDA";
   const ontology = parseSessionOntology(rawFisico, rawTactico);
 
-  console.log("🧠 Ontología Detectada:");
-  console.log("   - Objetivos Físicos:", ontology.physical_objectives);
-  console.log("   - Objetivos Tácticos:", ontology.tactical_objectives);
-  console.log("   - Claves Conceptos Tácticos:", ontology.tactical_concept_keys);
-  console.log("   - Claves Grupos Musculares / Físicos:", ontology.muscle_group_keys);
-
-  // 2. Localizar Sesión #2 por Número Absoluto en ID 853d22a8-1362-436c-b3e0-1f94627e8b6b
   const sessionId = "853d22a8-1362-436c-b3e0-1f94627e8b6b";
-  const sessionDate = "2026-07-28"; // Fecha original de Sesión #2 en el calendario consecutivo
+  const sessionDate = "2026-07-28";
 
-  // Bloque 0: Previo a Entreno y Bloque 1: Calentamiento
-  const previoEntrenoNote = "PREVIO ENTRENO (15 min): PROTOCOLO DE TREN SUPERIOR Y CORE (19:15 - 19:30)";
-  const calentamientoNote = "CALENTAMIENTO (15 min): CARRERA CONTINUA PARQUE DE LA ARBOLEDA, MOVILIDAD ARTICULAR, ACTIVACIÓN GENERAL (10 min), ACTIVACIÓN ESPECÍFICO (5 min)";
-  const observacionesFull = `${sessionData.observaciones}\n\n📌 ${previoEntrenoNote}\n🔥 ${calentamientoNote}`;
+  // 2. Estructuración Completa de Todos los Bloques de la Sesión:
+  const allTasksConfig = [
+    // ──────── BLOQUE 0: PREVIO ENTRENO ────────
+    {
+      title: "Protocolo de Tren Superior y Core",
+      block_type: "block0",
+      category: "activacion",
+      num_series: 1,
+      series_duration_min: 15,
+      series_recovery_min: 0,
+      total_min: 15,
+      rules: "Protocolo previo a entreno en gimnasio (19:15 - 19:30). Enfoque en core y prevención.",
+      equipos: null
+    },
+    // ──────── BLOQUE 1: CALENTAMIENTO ────────
+    {
+      title: "Carrera continua (Parque de la Arboleda)",
+      block_type: "warmup",
+      category: "activacion",
+      num_series: 1,
+      series_duration_min: 10,
+      series_recovery_min: 0,
+      total_min: 10,
+      rules: "Activación General: Carrera continua progresiva por el Parque de la Arboleda.",
+      equipos: null
+    },
+    {
+      title: "Movilidad articular",
+      block_type: "warmup",
+      category: "activacion",
+      num_series: 1,
+      series_duration_min: 5,
+      series_recovery_min: 0,
+      total_min: 5,
+      rules: "Activación Específica: Ejercicios dinámicos de movilidad articular y flexibilidad activa.",
+      equipos: null
+    },
+    // ──────── BLOQUE 2: PARTE PRINCIPAL ────────
+    {
+      title: cleanTaskTitle(sessionData.tasks[0].title || "POSESIÓN 4vs4+3"),
+      block_type: "main",
+      category: "posesion",
+      num_series: Number(sessionData.tasks[0].num_series || 2),
+      series_duration_min: Number(sessionData.tasks[0].tiempo_serie || 6),
+      series_recovery_min: Number(sessionData.tasks[0].tiempo_pausa || 3),
+      total_min: Number(sessionData.tasks[0].tiempo_total || 18),
+      rules: sessionData.tasks[0].description || "TOQUE LIBRE (INTENTAR JUGAR EN 3)",
+      equipos: sessionData.tasks[0].equipos
+    },
+    {
+      title: cleanTaskTitle(sessionData.tasks[1].title || "POSESIÓN TRICOLOR 7vs7+7"),
+      block_type: "main",
+      category: "posesion",
+      num_series: Number(sessionData.tasks[1].num_series || 3),
+      series_duration_min: Number(sessionData.tasks[1].tiempo_serie || 6),
+      series_recovery_min: Number(sessionData.tasks[1].tiempo_pausa || 3),
+      total_min: Number(sessionData.tasks[1].tiempo_total || 27),
+      rules: sessionData.tasks[1].description || "3 TOQUES MAXIMO MENOS CUANDO VENGO DE RECUPERAR QUE TENGO TOQUE LIBRE PARA ASEGURAR",
+      equipos: sessionData.tasks[1].equipos
+    },
+    {
+      title: cleanTaskTitle(sessionData.tasks[2].title || "PARTIDO POR OLEADAS 6vs6+1c|1c|6+1c"),
+      block_type: "main",
+      category: "progresion",
+      num_series: Number(sessionData.tasks[2].num_series || 2),
+      series_duration_min: Number(sessionData.tasks[2].tiempo_serie || 8),
+      series_recovery_min: Number(sessionData.tasks[2].tiempo_pausa || 3),
+      total_min: Number(sessionData.tasks[2].tiempo_total || 22),
+      rules: sessionData.tasks[2].description || "PARA PASAR AL OTRO LADO LLEGAR A ZONA INTERMEDIA EN CONDUCCIÓN O 3º HOMBRE CON COMODÍN LEJANO. SI HAGO GOL SIGO ATACANDO",
+      equipos: sessionData.tasks[2].equipos
+    },
+    {
+      title: cleanTaskTitle(sessionData.tasks[3].title || "TREN SUPERIOR Y CORE"),
+      block_type: "main",
+      category: "activacion",
+      num_series: Number(sessionData.tasks[3].num_series || 1),
+      series_duration_min: Number(sessionData.tasks[3].tiempo_serie || 10),
+      series_recovery_min: Number(sessionData.tasks[3].tiempo_pausa || 3),
+      total_min: Number(sessionData.tasks[3].tiempo_total || 13),
+      rules: "Estación física de fuerza de tren superior y fortalecimiento de zona media.",
+      equipos: sessionData.tasks[3].equipos
+    },
+    // ──────── BLOQUE 3: VUELTA A LA CALMA ────────
+    {
+      title: "Estiramientos y relajación muscular",
+      block_type: "cooldown",
+      category: "activacion",
+      num_series: 1,
+      series_duration_min: 10,
+      series_recovery_min: 0,
+      total_min: 10,
+      rules: "Vuelta a la calma: Estiramientos estáticos asistidos y relajación muscular.",
+      equipos: null
+    }
+  ];
 
-  // 3. Crear / Actualizar Tareas en la biblioteca personal de Pablo Ayuso
-  console.log("\n📚 Procesando Tareas con Nombres Limpios y Consignas Tácticas...");
+  console.log(`\n📚 Procesando ${allTasksConfig.length} tareas repartidas en los 4 Bloques (0, 1, 2, 3)...`);
   const sessionExercisesData: any[] = [];
 
-  for (let idx = 0; idx < sessionData.tasks.length; idx++) {
-    const t = sessionData.tasks[idx];
-    const cleanedTitle = cleanTaskTitle(t.title || t.num);
-    const category = t.num === "TAREA 4" ? "activacion" : t.num === "TAREA 3" ? "progresion" : "posesion";
-    const wb = generateWhiteboardData(t.num);
+  for (let idx = 0; idx < allTasksConfig.length; idx++) {
+    const item = allTasksConfig[idx];
+    const wb = generateWhiteboardData(item.title);
 
-    // Formatear normas/consignas completas + equipos asignados
-    let fullDescription = "";
-    if (t.description) fullDescription += `📋 Consignas / Normas: ${t.description}\n\n`;
-    if (t.equipos) fullDescription += `👥 Distribución de Equipos:\n${t.equipos}\n\n`;
-    fullDescription += `⏱️ Series: ${t.num_series} | Duración por serie: ${t.tiempo_serie} min | Pausa: ${t.tiempo_pausa} min | Total: ${t.tiempo_total} min`;
+    let fullDesc = `📋 Consignas / Normas: ${item.rules}\n\n`;
+    if (item.equipos) fullDesc += `👥 Distribución de Equipos:\n${item.equipos}\n\n`;
+    fullDesc += `⏱️ Series: ${item.num_series} | Duración/serie: ${item.series_duration_min} min | Pausa: ${item.series_recovery_min} min | Total: ${item.total_min} min`;
 
-    // Buscar o insertar en la biblioteca de Pablo Ayuso
+    // Buscar o Insertar la tarea en la biblioteca de Pablo Ayuso
     const { data: existingEx } = await supabase
       .from("exercises")
       .select("id")
       .eq("organization_id", ALMAZAN_ORG_ID)
       .eq("created_by", PABLO_AYUSO_ID)
-      .eq("title", cleanedTitle)
+      .eq("title", item.title)
       .maybeSingle();
 
     let exerciseId = existingEx?.id;
 
     if (exerciseId) {
-      console.log(`   - Tarea "${cleanedTitle}" actualizada en la biblioteca de Pablo Ayuso [ID: ${exerciseId}].`);
+      console.log(`   [Bloque ${item.block_type}] Tarea "${item.title}" actualizada en biblioteca [ID: ${exerciseId}].`);
       await supabase
         .from("exercises")
         .update({
-          description: fullDescription,
-          category: category,
+          description: fullDesc,
+          category: item.category,
           whiteboard_data: wb.whiteboard_data,
           whiteboard_zone: wb.zone,
           space_dimensions: wb.space_dimensions,
@@ -285,7 +445,7 @@ async function main() {
         })
         .eq("id", exerciseId);
     } else {
-      console.log(`   + Creando nueva tarea "${cleanedTitle}" en la biblioteca de Pablo Ayuso...`);
+      console.log(`   [Bloque ${item.block_type}] + Creando "${item.title}" en la biblioteca de Pablo Ayuso...`);
       const { data: newEx, error: exErr } = await supabase
         .from("exercises")
         .insert({
@@ -293,36 +453,51 @@ async function main() {
           created_by: PABLO_AYUSO_ID,
           library_scope: "coach",
           is_shared: true,
-          title: cleanedTitle,
-          description: fullDescription,
-          category: category,
-          tags: ["almazan", "sesion2", "pretemporada"],
+          title: item.title,
+          description: fullDesc,
+          category: item.category,
+          tags: ["almazan", "sesion2", item.block_type],
           whiteboard_data: wb.whiteboard_data,
           whiteboard_zone: wb.zone,
           space_dimensions: wb.space_dimensions,
           tactical_concepts: ontology.tactical_concept_keys,
           muscle_groups: ontology.muscle_group_keys,
-          needs_groups: Boolean(t.equipos),
-          num_groups: t.num === "TAREA 2" ? 3 : t.num === "TAREA 1" ? 2 : 1
+          needs_groups: Boolean(item.equipos),
+          num_groups: item.title.includes("TRICOLOR") ? 3 : item.title.includes("4vs4") ? 2 : 1
         })
         .select("id")
         .single();
 
       if (exErr || !newEx) {
-        console.error(`❌ Error creando ejercicio "${cleanedTitle}":`, exErr?.message);
+        console.error(`❌ Error creando "${item.title}":`, exErr?.message);
         continue;
       }
       exerciseId = newEx.id;
     }
+
+    // Serializado exacto para que el frontend SessionForm.tsx des-serialice perfectamente cada bloque y sus pizarras
+    const groupSetupPayload = {
+      block_type: item.block_type,
+      use_variable_series: false,
+      series: [],
+      num_series: item.num_series,
+      series_duration_min: item.series_duration_min,
+      series_recovery_min: item.series_recovery_min,
+      transition_rest_min: 2,
+      rules: item.rules,
+      objective_notes: item.equipos || "",
+      groups: []
+    };
 
     sessionExercisesData.push({
       organization_id: ALMAZAN_ORG_ID,
       session_id: sessionId,
       exercise_id: exerciseId,
       order_index: idx + 1,
-      duration_min: t.tiempo_total || 15,
-      recovery_min: t.tiempo_pausa || 3,
+      duration_min: item.total_min,
+      recovery_min: item.series_recovery_min,
       space_dimensions: wb.space_dimensions,
+      group_setup: groupSetupPayload,
       whiteboard_data: wb.whiteboard_data,
       whiteboard_zone: wb.zone,
       tactical_concepts: ontology.tactical_concept_keys,
@@ -330,8 +505,8 @@ async function main() {
     });
   }
 
-  // 4. Actualizar la Cabecera de la Sesión
-  console.log("\n📝 Actualizando la Sesión #2 con Ontología y Bloques 0 & 1...");
+  // 3. Actualizar la Cabecera de la Sesión
+  console.log("\n📝 Actualizando la Sesión #2 con Ontología y Bloques...");
   const { error: sessionUpdateErr } = await supabase
     .from("training_sessions")
     .update({
@@ -344,7 +519,7 @@ async function main() {
       objectives: [...ontology.physical_objectives, ...ontology.tactical_objectives],
       tactical_concepts: ontology.tactical_concept_keys,
       muscle_groups: ontology.muscle_group_keys,
-      notes: observacionesFull,
+      notes: `${sessionData.observaciones}\n\n📌 Previo entreno (19:15-19:30): Protocolo de Tren Superior y Core\n🔥 Calentamiento: Carrera continua + Movilidad articular\n🧘 Vuelta a la calma: Estiramientos y relajación muscular`,
       mesocycle: `MESO ${sessionData.meso}`,
       session_week_seq: sessionData.orden_sem,
       session_total_seq: 2,
@@ -357,7 +532,7 @@ async function main() {
     return;
   }
 
-  // 5. Asistencia de Jugadores (`session_attendance`)
+  // 4. Asistencia
   console.log("\n👥 Registrando asistencia de la plantilla...");
   await supabase.from("session_attendance").delete().eq("session_id", sessionId);
 
@@ -379,12 +554,18 @@ async function main() {
 
   await supabase.from("session_attendance").insert(attendanceRecords);
 
-  // 6. Vincular Ejercicios a la Sesión (`session_exercises`)
-  console.log("\n🎨 Vinculando las 4 tareas con sus pizarras vectoriales...");
+  // 5. Vincular Ejercicios a la Sesión (`session_exercises`)
+  console.log("\n🎨 Vinculando las 8 tareas con sus bloques (0, 1, 2, 3) y pizarras visuales...");
   await supabase.from("session_exercises").delete().eq("session_id", sessionId);
-  await supabase.from("session_exercises").insert(sessionExercisesData);
+  const { error: insErr } = await supabase.from("session_exercises").insert(sessionExercisesData);
 
-  // 7. Recalcular métricas
+  if (insErr) {
+    console.error("❌ Error insertando session_exercises:", insErr.message);
+  } else {
+    console.log(`✅ Vinculadas exitosamente las ${sessionExercisesData.length} tareas en sus respectivos bloques.`);
+  }
+
+  // 6. Recalcular métricas
   console.log("\n📊 Recalculando métricas de sesión para el equipo...");
   await recalculateAndSaveSessionMetrics(ALMAZAN_TEAM_ID, supabase);
 
