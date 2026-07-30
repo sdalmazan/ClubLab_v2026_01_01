@@ -481,23 +481,16 @@ export default function PlayerTodayPage() {
           </Link>
         </div>
       ) : !hasCompletedCheckin ? (
-        <div className="rounded-3xl border border-dashed border-border bg-card/60 p-6 text-center space-y-3 shadow-md">
-          <div className="mx-auto size-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
-            <HeartPulse className="size-6" />
+        <div className="rounded-3xl border border-dashed border-border bg-card/60 p-5 text-center space-y-2 shadow-md">
+          <div className="mx-auto size-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
+            <HeartPulse className="size-5" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-foreground">Resumen Sintético de Salud</h3>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Sin registros hoy. Completa tu Check-in Pre-Entrenamiento para activar tus métricas de salud, descanso y fatiga.
+            <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider">Resumen Sintético de Salud</h3>
+            <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
+              Pendiente de Check-in hoy. Las métricas de sueño, fatiga y descanso se activarán automáticamente al registrar tu estado en el panel superior.
             </p>
           </div>
-          <button
-            onClick={() => setCheckinOpen(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5"
-          >
-            <HeartPulse className="size-4" />
-            <span>Completar Check-in Ahora</span>
-          </button>
         </div>
       ) : (
         <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-lg space-y-3">
