@@ -83,6 +83,7 @@ export async function GET(request: Request) {
         isFull,
         isBookedByMe,
         myBookingNotes: myBooking?.notes || null,
+        slotMin: slot.slotMin || slot.slot_min || 10,
       };
     });
 
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
         availablePlaces: 10,
         isFull: false,
         isBookedByMe: false,
-        slotMin: slotMin || 15,
+        slotMin: slotMin || 10,
       };
 
       globalPhysioStore.slots = [newSlot, ...globalPhysioStore.slots.filter((s: any) => s.date !== newSlot.date)];

@@ -41,6 +41,10 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
     (player.membership?.kicker_roles as string[]) ?? []
   );
 
+  const [membershipStatus, setMembershipStatus] = useState<"active" | "inactive">(
+    player.membership?.status === "inactive" ? "inactive" : "active"
+  );
+
   // Physical status & availability
   const [physicalStatus, setPhysicalStatus] = useState<PlayerStatus>(
     player.physical_status ?? "green"
@@ -74,7 +78,8 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
     physicalStatus !== (player.physical_status ?? "green") ||
     availabilityStatus !== (player.availability_status ?? "available") ||
     availabilityNotes !== (player.availability_notes ?? "") ||
-    adjective !== (player.adjective ?? "");
+    adjective !== (player.adjective ?? "") ||
+    membershipStatus !== (player.membership?.status ?? "active");
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -87,8 +92,7 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasChanges]);
 
-  const handleCancelClick = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleCancelClick = () => {
     if (hasChanges) {
       setPendingNav(true);
     } else {
@@ -96,14 +100,21 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
     }
   };
 
-  async function savePlayerData(): Promise<boolean> {
+  const handleSaveAndExit = async () => {
+    const ok = await saveChanges();
+    if (ok) {
+      setPendingNav(false);
+      router.push(`/players/${player.id}`);
+    }
+  };
+
+  async function saveChanges() {
     setError(null);
     setLoading(true);
 
     if (jerseyNumber) {
       const num = Number(jerseyNumber);
       if (!isNaN(num) && num > 0) {
-        // Query to check if another player in the active team has this dorsal
         const { data: existing, error: checkError } = await supabase
           .from("player_team_memberships")
           .select("player_id, players ( first_name, last_name )")
@@ -146,6 +157,7 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
         availabilityNotes: availabilityNotes.trim() || null,
         teamId,
         adjective: adjective.trim() || null,
+        membershipStatus,
       }),
     });
 
@@ -188,19 +200,11 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const success = await savePlayerData();
+    const success = await saveChanges();
     if (success) {
       router.push(`/players/${player.id}`);
     }
   }
-
-  const handleSaveAndExit = async () => {
-    setPendingNav(false);
-    const success = await savePlayerData();
-    if (success) {
-      router.push(`/players/${player.id}`);
-    }
-  };
 
   const inputClass =
     "w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 corp-input-focus transition-all";
@@ -230,6 +234,50 @@ export function EditPlayerForm({ player, teams, userRole = "player" }: EditPlaye
       </div>
 
       <form id="edit-player-form" onSubmit={handleSubmit} className="bg-card rounded-lg border border-border p-6 space-y-6">
+        {/* Estado en Plantilla / Ficha */}
+        <section className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+              Estado de la Ficha en Plantilla
+            </span>
+            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
+              membershipStatus === "active" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-700 text-slate-300 border border-slate-600"
+            }`}>
+              {membershipStatus === "active" ? "🟢 Activo (Con ficha)" : "⚪ Desactivado (Sin ficha)"}
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Puedes desactivar temporalmente a un jugador (por lesión de larga duración, falta de ficha, etc.) para que <strong>no aparezca en entrenamientos, convocatorias, listas de asistencia ni convocatorias de fisioterapia</strong> sin perder sus datos ni su historial.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setMembershipStatus("active")}
+              className={`p-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                membershipStatus === "active"
+                  ? "bg-emerald-600/20 border-emerald-500 text-emerald-400 shadow-md"
+                  : "bg-black/20 border-white/10 text-slate-400 hover:text-white"
+              }`}
+            >
+              <span>🟢 Ficha Activa (En plantilla)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMembershipStatus("inactive")}
+              className={`p-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                membershipStatus === "inactive"
+                  ? "bg-rose-500/20 border-rose-500 text-rose-300 shadow-md"
+                  : "bg-black/20 border-white/10 text-slate-400 hover:text-white"
+              }`}
+            >
+              <span>⚪ Desactivado (Sin ficha / Baja)</span>
+            </button>
+          </div>
+        </section>
+
         <section>
           <h2 className="text-sm font-bold text-white mb-4 pb-2 border-b border-white/5">Datos personales</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

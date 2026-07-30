@@ -18,6 +18,7 @@ interface PlayerRow {
   signingStatus: "signed" | "close" | "difficult";
   birthYear: string;
   playerType: "main" | "reserve" | "youth" | "other";
+  status?: "active" | "inactive";
   isDeleted?: boolean;
 }
 
@@ -82,6 +83,7 @@ export function BulkEditForm({
       signingStatus: (p.signing_status as any) ?? "signed",
       birthYear: p.date_of_birth ? new Date(p.date_of_birth).getFullYear().toString() : "",
       playerType: p.membership?.player_type ?? "main",
+      status: p.membership?.status === "inactive" ? "inactive" : "active",
     }));
   };
 
@@ -163,6 +165,7 @@ export function BulkEditForm({
       signingStatus: "signed",
       birthYear: "",
       playerType: "main",
+      status: "active",
     };
     setPlayers((prev) => [...prev, newRow]);
   };
@@ -486,7 +489,21 @@ export function BulkEditForm({
                       </select>
                     </td>
 
-                    {/* Signing Status */}
+                    {/* Ficha / Estado */}
+                    <td className="py-2 px-4">
+                      <select
+                        value={p.status}
+                        onChange={(e) => updatePlayerField(p.id, "status", e.target.value)}
+                        className={`w-full rounded-lg bg-slate-950 border px-2 py-1 text-xs font-bold focus:outline-none cursor-pointer [&>option]:bg-slate-900 [&>option]:text-white ${
+                          p.status === "inactive"
+                            ? "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                            : "border-emerald-500/40 text-emerald-400 bg-emerald-500/5"
+                        }`}
+                      >
+                        <option value="active">🟢 Activo</option>
+                        <option value="inactive">⚪ Desactivado (Sin ficha)</option>
+                      </select>
+                    </td>
                     <td className="py-2 px-4">
                       <select
                         value={p.signingStatus}

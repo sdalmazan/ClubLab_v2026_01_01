@@ -45,19 +45,26 @@ export async function PATCH(
       adjective,
     });
 
-    // Update membership positions, jersey, kicker_roles, and team_id if provided
-    if (body.positions !== undefined || body.jerseyNumber !== undefined || kickerRoles !== undefined || body.teamId !== undefined) {
+    // Update membership positions, jersey, kicker_roles, status, and team_id if provided
+    if (body.positions !== undefined || body.jerseyNumber !== undefined || kickerRoles !== undefined || body.teamId !== undefined || body.membershipStatus !== undefined) {
       const updateFields: Record<string, unknown> = {};
       if (body.positions !== undefined) updateFields.positions = body.positions;
       if (body.jerseyNumber !== undefined) updateFields.jersey_number = body.jerseyNumber;
       if (kickerRoles !== undefined) updateFields.kicker_roles = kickerRoles;
       if (body.teamId !== undefined) updateFields.team_id = body.teamId;
+      if (body.membershipStatus !== undefined) {
+        updateFields.status = body.membershipStatus;
+        if (body.membershipStatus === "inactive") {
+          updateFields.left_date = new Date().toISOString().split("T")[0];
+        } else if (body.membershipStatus === "active") {
+          updateFields.left_date = null;
+        }
+      }
 
       await supabase
         .from("player_team_memberships")
         .update(updateFields)
-        .eq("player_id", id)
-        .eq("status", "active");
+        .eq("player_id", id);
     }
 
     if (error) return NextResponse.json({ error }, { status: 500 });

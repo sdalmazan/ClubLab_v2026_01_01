@@ -145,15 +145,16 @@ export async function PUT(request: Request) {
 
       if (playerError) throw new Error(playerError.message);
 
-      // Update active team membership jersey number and positions (upsert gracefully if missing)
+      // Update active team membership jersey number, positions, status, and player_type
       const { data: existingMember, error: checkError } = await supabase
         .from("player_team_memberships")
         .select("id")
         .eq("player_id", p.id)
-        .eq("status", "active")
         .maybeSingle();
 
       if (checkError) throw new Error(checkError.message);
+
+      const membershipStatus = p.status || "active";
 
       if (existingMember) {
         const { error: memberError } = await supabase
@@ -162,6 +163,8 @@ export async function PUT(request: Request) {
             jersey_number: p.jerseyNumber ? Number(p.jerseyNumber) : null,
             positions: p.positions ?? [],
             player_type: p.playerType || "main",
+            status: membershipStatus,
+            left_date: membershipStatus === "inactive" ? new Date().toISOString().split("T")[0] : null,
           })
           .eq("id", existingMember.id);
         if (memberError) throw new Error(memberError.message);
@@ -172,7 +175,7 @@ export async function PUT(request: Request) {
             player_id: p.id,
             team_id: p.teamId || teamId,
             season_id: p.seasonId || seasonId,
-            status: "active",
+            status: membershipStatus,
             jersey_number: p.jerseyNumber ? Number(p.jerseyNumber) : null,
             positions: p.positions ?? [],
             player_type: p.playerType || "main",

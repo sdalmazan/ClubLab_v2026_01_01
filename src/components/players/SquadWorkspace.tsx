@@ -63,9 +63,10 @@ export function SquadWorkspace({
   clubName,
 }: SquadWorkspaceProps) {
   const [search, setSearch] = useState("");
-  const [filterMode, setFilterMode] = useState<"all" | "attention" | "available" | "injured">("all");
+  const [filterMode, setFilterMode] = useState<"all" | "attention" | "available" | "injured" | "inactive">("all");
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"table" | "map">("table");
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
 
   // Sorting state (default: position asc - Portero a Delantero)
   const [sortKey, setSortKey] = useState<SortKey>("position");
@@ -82,16 +83,35 @@ export function SquadWorkspace({
 
   // Metrics
   const activePlayers = useMemo(() => players.filter((p) => p.membership?.status !== "inactive"), [players]);
+  const inactivePlayers = useMemo(() => players.filter((p) => p.membership?.status === "inactive"), [players]);
   const injuredCount = useMemo(() => activePlayers.filter((p) => p.active_injury?.status === "active").length, [activePlayers]);
   const readaptCount = useMemo(() => activePlayers.filter((p) => p.active_injury?.status === "readaptation").length, [activePlayers]);
   const fatiguedCount = useMemo(() => activePlayers.filter((p) => p.physical_status === "yellow").length, [activePlayers]);
   const availableCount = activePlayers.length - injuredCount - readaptCount;
   const attentionCount = injuredCount + readaptCount + fatiguedCount;
+  const inactiveCount = inactivePlayers.length;
+
+  const handleReactivatePlayer = async (playerId: string) => {
+    setReactivatingId(playerId);
+    try {
+      await fetch(`/api/players/${playerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ membershipStatus: "active" }),
+      });
+      window.location.reload();
+    } catch (e) {
+      console.error("Error reactivating player:", e);
+      setReactivatingId(null);
+    }
+  };
 
   // Filtered & Sorted players list
   const sortedAndFilteredPlayers = useMemo(() => {
     // 1. Filter
-    const filtered = activePlayers.filter((p) => {
+    const targetPool = filterMode === "inactive" ? inactivePlayers : activePlayers;
+
+    const filtered = targetPool.filter((p) => {
       const fullName = `${p.first_name || ""} ${p.last_name || ""}`.toLowerCase();
       const matchesSearch = !search || fullName.includes(search.toLowerCase()) || (p.membership?.jersey_number?.toString() === search);
 
@@ -233,6 +253,25 @@ export function SquadWorkspace({
           </div>
           <span className="text-xl font-semibold text-amber-400 mt-0.5 block">{attentionCount}</span>
         </button>
+
+        {inactiveCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setFilterMode("inactive")}
+            className={cn(
+              "p-3.5 rounded-lg border text-left transition-all cursor-pointer bg-card",
+              filterMode === "inactive" ? "border-rose-500/50 ring-1 ring-rose-500/30" : "border-border hover:border-border/80"
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-muted-foreground">Desactivados (Sin ficha)</span>
+              <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400">
+                Baja
+              </span>
+            </div>
+            <span className="text-xl font-semibold text-rose-400 mt-0.5 block">{inactiveCount}</span>
+          </button>
+        )}
       </div>
 
       {/* ── FILTER & TOGGLE TOOLBAR ── */}
@@ -426,12 +465,24 @@ export function SquadWorkspace({
                           )}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <Link 
-                            href={`/players/${player.id}`} 
-                            className={cn(buttonVariants({ variant: "ghost", size: "xs" }), "text-muted-foreground hover:text-foreground")}
-                          >
-                            Ver Ficha <ChevronRight className="size-3 ml-1" />
-                          </Link>
+                          <div className="flex items-center justify-end gap-2">
+                            {player.membership?.status === "inactive" && (
+                              <button
+                                type="button"
+                                disabled={reactivatingId === player.id}
+                                onClick={() => handleReactivatePlayer(player.id)}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition-all cursor-pointer disabled:opacity-50"
+                              >
+                                {reactivatingId === player.id ? "Reactivando..." : "🟢 Reactivar"}
+                              </button>
+                            )}
+                            <Link 
+                              href={`/players/${player.id}`} 
+                              className={cn(buttonVariants({ variant: "ghost", size: "xs" }), "text-muted-foreground hover:text-foreground")}
+                            >
+                              Ver Ficha <ChevronRight className="size-3 ml-1" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );

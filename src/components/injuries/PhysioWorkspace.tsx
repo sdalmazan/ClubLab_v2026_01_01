@@ -76,7 +76,13 @@ export function PhysioWorkspace({
   const [isOpeningConsultation, setIsOpeningConsultation] = useState(false);
   const [newConsDate, setNewConsDate] = useState(new Date().toISOString().split("T")[0]);
   const [newConsStartTime, setNewConsStartTime] = useState("18:00");
-  const [newConsSlotMin, setNewConsSlotMin] = useState(10);
+  const [newConsSlotMin, setNewConsSlotMin] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("cl_default_physio_slot_min");
+      if (saved) return Number(saved);
+    }
+    return 10;
+  });
 
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingPlayerId, setBookingPlayerId] = useState("");
@@ -112,7 +118,7 @@ export function PhysioWorkspace({
             id: first.id,
             date: first.date,
             start_time: first.startTime,
-            slot_duration_min: 15,
+            slot_duration_min: first.slotMin || 10,
             is_open: true,
           });
         }
@@ -759,7 +765,9 @@ export function PhysioWorkspace({
                   onChange={(e) => setNewConsSlotMin(Number(e.target.value))}
                   className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  <option value={15}>15 minutos (Estándar)</option>
+                  <option value={10}>10 minutos (Estándar recomendado)</option>
+                  <option value={5}>5 minutos</option>
+                  <option value={15}>15 minutos</option>
                   <option value={20}>20 minutos</option>
                   <option value={30}>30 minutos</option>
                 </select>
