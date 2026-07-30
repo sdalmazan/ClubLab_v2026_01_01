@@ -2,23 +2,40 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
 import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { PlayerProfileEditModal } from "@/components/player/PlayerProfileEditModal";
 import { PlayerSettingsModal } from "@/components/player/PlayerSettingsModal";
-import { User, ShieldCheck, Dumbbell, Activity, HeartPulse, ChevronRight, Lock, Settings, Edit3 } from "lucide-react";
+import { User, ShieldCheck, Dumbbell, Activity, HeartPulse, ChevronRight, Lock, Settings, Edit3, LogOut } from "lucide-react";
 import { getMockPlayerSummary } from "@/services/playerExperienceService";
 
 export default function PlayerProfilePage() {
+  const router = useRouter();
   const summary = getMockPlayerSummary();
   const player = summary.player;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [focusedField, setFocusedField] = useState<string | undefined>();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleOpenEdit = (fieldKey?: string) => {
     setFocusedField(fieldKey);
     setEditModalOpen(true);
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Error al cerrar sesión:", e);
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
   };
 
   return (
@@ -58,6 +75,15 @@ export default function PlayerProfilePage() {
             title="Ajustes del Jugador"
           >
             <Settings className="w-5 h-5 text-blue-500" />
+          </button>
+
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-2xl border border-rose-500/30 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -148,6 +174,18 @@ export default function PlayerProfilePage() {
               <span className="font-bold text-foreground">Diestro</span>
             </div>
           </div>
+        </div>
+
+        {/* Action Card: Logout Button */}
+        <div className="pt-2">
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full py-4 px-5 rounded-3xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-500 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2.5 shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{isLoggingOut ? "Cerrando sesión..." : "Cerrar Sesión de Jugador"}</span>
+          </button>
         </div>
       </div>
 

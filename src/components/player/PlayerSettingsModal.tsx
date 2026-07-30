@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Check, User, Lock, Bell, MessageSquare, ShieldCheck, Send, KeyRound } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { X, Check, User, Lock, Bell, MessageSquare, ShieldCheck, Send, KeyRound, LogOut } from "lucide-react";
 
 interface PlayerSettingsModalProps {
   isOpen: boolean;
@@ -9,7 +11,23 @@ interface PlayerSettingsModalProps {
 }
 
 export function PlayerSettingsModal({ isOpen, onClose }: PlayerSettingsModalProps) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activeTab, setActiveTab] = useState<"profile" | "security" | "notifications">("profile");
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Error signing out:", e);
+    } finally {
+      onClose();
+      router.push("/login");
+      router.refresh();
+    }
+  };
 
   // Profile Form
   const [sportingName, setSportingName] = useState("Diego A.");
@@ -434,6 +452,16 @@ export function PlayerSettingsModal({ isOpen, onClose }: PlayerSettingsModalProp
           >
             <Check className="w-5 h-5" />
             <span>Guardar Ajustes</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full py-3.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-extrabold text-xs uppercase tracking-wider rounded-2xl border border-rose-500/30 flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-50 mt-3"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{isLoggingOut ? "Cerrando sesión..." : "Cerrar Sesión"}</span>
           </button>
         </form>
       </div>

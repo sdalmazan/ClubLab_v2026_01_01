@@ -1,5 +1,9 @@
-import React from "react";
-import { CheckCircle, AlertTriangle, RefreshCw, Zap } from "lucide-react";
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { CheckCircle, AlertTriangle, RefreshCw, Zap, LogOut } from "lucide-react";
 import { ClubBranding } from "@/components/ui/ClubBranding";
 
 interface HeroStatusCardProps {
@@ -17,6 +21,22 @@ export function HeroStatusCard({
   clubLogoUrl,
   clubName,
 }: HeroStatusCardProps) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Error signing out:", e);
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  };
+
   const statusConfig = {
     GOOD: {
       label: "ÓPTIMO",
@@ -71,9 +91,20 @@ export function HeroStatusCard({
               </h1>
             </div>
           </div>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${config.badgeBg} font-extrabold text-xs tracking-wide shadow-sm shrink-0`}>
-            <Icon className="w-4 h-4 animate-pulse" />
-            <span>{config.label}</span>
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${config.badgeBg} font-extrabold text-xs tracking-wide shadow-sm shrink-0`}>
+              <Icon className="w-4 h-4 animate-pulse" />
+              <span>{config.label}</span>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 transition-all active:scale-95 cursor-pointer shrink-0 disabled:opacity-50"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
