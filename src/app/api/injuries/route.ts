@@ -150,8 +150,8 @@ export async function POST(request: Request) {
     } catch (e) {}
 
     // 2. Automatically update player availability_status & physical_status in players table
-    const availStatus = phase === 4 ? "available" : phase === 3 ? "doubtful" : "injured";
-    const physStatus = phase === 4 ? "green" : phase === 3 ? "yellow" : "red";
+        const availStatus = phase === 4 ? "available" : "not_available";
+        const physStatus = phase === 4 ? "green" : phase === 3 ? "yellow" : "red";
     const availNotes = phase === 4 ? null : `${bodyPart.trim()} (Fase ${phase})`;
 
     try {
@@ -267,7 +267,7 @@ export async function PATCH(request: Request) {
 
       // 3. Automatically update player availability_status & physical_status in players table
       if (targetPlayerId) {
-        const availStatus = phase === 4 ? "available" : phase === 3 ? "doubtful" : "injured";
+        const availStatus = phase === 4 ? "available" : "not_available";
         const physStatus = phase === 4 ? "green" : phase === 3 ? "yellow" : "red";
 
         try {

@@ -106,13 +106,45 @@ export async function getSquadPlayers(teamId?: string, strictTeamOnly: boolean =
     return [];
   }
 
+  // Fetch active injuries from organization settings fallback to ensure complete sync
+  const firstOrgId = data?.[0]?.organization_id;
+  let settingsInjuries: any[] = [];
+  if (firstOrgId) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("settings")
+      .eq("id", firstOrgId)
+      .single();
+    settingsInjuries = org?.settings?.active_injuries || [];
+  }
+
   const mappedPlayers = (data ?? [])
     .filter((p: any) => includeInvisible || (p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com"))
-    .map((p: any) => ({
-      ...p,
-      membership: Array.isArray(p.membership) ? p.membership[0] : p.membership,
-      active_injury: Array.isArray(p.active_injury) ? p.active_injury[0] : p.active_injury,
-    }));
+    .map((p: any) => {
+      const dbInj = Array.isArray(p.active_injury) ? p.active_injury[0] : p.active_injury;
+      const settingInj = settingsInjuries.find((i: any) => i.player_id === p.id && i.status !== "healed");
+      const activeInj = dbInj || settingInj || null;
+
+      let physStatus = p.physical_status || "green";
+      let availStatus = p.availability_status || "available";
+      let availNotes = p.availability_notes || null;
+
+      if (activeInj) {
+        const phase = activeInj.recovery_phase || 1;
+        physStatus = phase === 4 ? "green" : phase === 3 ? "yellow" : "red";
+        availStatus = phase === 4 ? "available" : "not_available";
+        availNotes = phase === 4 ? null : `${activeInj.body_part || activeInj.injury_type || "Lesión"} (Fase ${phase})`;
+      }
+
+      return {
+        ...p,
+        membership: Array.isArray(p.membership) ? p.membership[0] : p.membership,
+        active_injury: activeInj,
+        physical_status: physStatus,
+        availability_status: availStatus,
+        availability_notes: availNotes,
+      };
+    });
 
   // Fetch today's wellness and rpe entries to attach latest_wellness and latest_rpe
   const todayStr = new Date().toISOString().split("T")[0];
