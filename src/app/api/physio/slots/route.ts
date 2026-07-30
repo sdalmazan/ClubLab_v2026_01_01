@@ -74,37 +74,49 @@ export async function GET(request: Request) {
       .eq("id", orgId)
       .single();
 
-    const activeCons = org?.settings?.active_physio_consultation;
+    const settings = org?.settings || {};
+    let consList: any[] = [];
 
-    if (!activeCons || !activeCons.isOpen) {
-      return NextResponse.json({ slots: [] });
+    if (Array.isArray(settings.physio_consultations)) {
+      consList = settings.physio_consultations;
+    } else if (settings.active_physio_consultation) {
+      consList = [settings.active_physio_consultation];
     }
 
-    // If dateParam is specified, filter by date, otherwise compare with todayStr
-    const targetDate = dateParam || todayStr;
-    if (activeCons.date && activeCons.date !== targetDate) {
-      return NextResponse.json({ slots: [] });
+    // Filter active open consultations
+    let activeOpenCons = consList.filter((c: any) => c && c.isOpen !== false);
+
+    if (dateParam) {
+      activeOpenCons = activeOpenCons.filter((c: any) => c.date === dateParam);
+    } else {
+      // Return consultations for today or upcoming future dates (date >= todayStr)
+      activeOpenCons = activeOpenCons.filter((c: any) => !c.date || c.date >= todayStr);
     }
 
-    const bookings = activeCons.bookings || [];
-    const myBooking = bookings.find((b: any) => b.playerId === player?.id);
+    // Sort by date ASC
+    activeOpenCons.sort((a: any, b: any) => (a.date || "").localeCompare(b.date || ""));
 
-    const slotObj = {
-      id: activeCons.id || `slot-${activeCons.date || todayStr}`,
-      date: activeCons.date || todayStr,
-      startTime: activeCons.startTime || "18:00",
-      endTime: "20:00",
-      physioName: activeCons.physioName || "Fisioterapeuta del Club",
-      maxCapacity: activeCons.maxCapacity || 10,
-      currentBookingsCount: bookings.length,
-      availablePlaces: Math.max(0, (activeCons.maxCapacity || 10) - bookings.length),
-      isFull: bookings.length >= (activeCons.maxCapacity || 10),
-      isBookedByMe: !!myBooking,
-      myBookingNotes: myBooking?.notes || null,
-      slotMin: activeCons.slotMin || 10,
-    };
+    const formattedSlots = activeOpenCons.map((activeCons: any) => {
+      const bookings = activeCons.bookings || [];
+      const myBooking = bookings.find((b: any) => b.playerId === player?.id);
 
-    return NextResponse.json({ slots: [slotObj] });
+      return {
+        id: activeCons.id || `slot-${activeCons.date || todayStr}`,
+        date: activeCons.date || todayStr,
+        startTime: activeCons.startTime || "18:00",
+        endTime: "20:00",
+        physioName: activeCons.physioName || "Fisioterapeuta del Club",
+        maxCapacity: activeCons.maxCapacity || 10,
+        currentBookingsCount: bookings.length,
+        availablePlaces: Math.max(0, (activeCons.maxCapacity || 10) - bookings.length),
+        isFull: bookings.length >= (activeCons.maxCapacity || 10),
+        isBookedByMe: !!myBooking,
+        myBookingNotes: myBooking?.notes || null,
+        slotMin: activeCons.slotMin || 10,
+      };
+    });
+
+    return NextResponse.json({ slots: formattedSlots });
   } catch (err: any) {
     return NextResponse.json({ slots: [] });
   }
@@ -181,9 +193,24 @@ export async function POST(request: Request) {
         .eq("id", orgId)
         .single();
 
+      const existingSettings = org?.settings || {};
+      let consList: any[] = Array.isArray(existingSettings.physio_consultations) ? [...existingSettings.physio_consultations] : [];
+      if (existingSettings.active_physio_consultation && !consList.some((c: any) => c.date === existingSettings.active_physio_consultation.date)) {
+        consList.push(existingSettings.active_physio_consultation);
+      }
+
+      // Upsert by date
+      const idx = consList.findIndex((c: any) => c.date === consDate);
+      if (idx >= 0) {
+        consList[idx] = { ...consList[idx], ...newSlot, bookings: consList[idx].bookings || [] };
+      } else {
+        consList.push(newSlot);
+      }
+
       const updatedSettings = {
-        ...(org?.settings || {}),
+        ...existingSettings,
         active_physio_consultation: newSlot,
+        physio_consultations: consList,
       };
 
       await supabase
@@ -195,15 +222,25 @@ export async function POST(request: Request) {
     }
 
     if (action === "delete_consultation") {
+      const targetDate = date || new Date().toISOString().split("T")[0];
       const { data: org } = await supabase
         .from("organizations")
         .select("settings")
         .eq("id", orgId)
         .single();
 
+      const existingSettings = org?.settings || {};
+      let consList: any[] = Array.isArray(existingSettings.physio_consultations) ? [...existingSettings.physio_consultations] : [];
+
+      consList = consList.filter((c: any) => c.date !== targetDate);
+
+      const activeCons = existingSettings.active_physio_consultation;
+      const updatedActive = activeCons && activeCons.date === targetDate ? null : activeCons;
+
       const updatedSettings = {
-        ...(org?.settings || {}),
-        active_physio_consultation: null,
+        ...existingSettings,
+        active_physio_consultation: updatedActive,
+        physio_consultations: consList,
       };
 
       await supabase
@@ -215,7 +252,8 @@ export async function POST(request: Request) {
         await supabase
           .from("physio_slots")
           .update({ is_cancelled: true })
-          .eq("organization_id", orgId);
+          .eq("organization_id", orgId)
+          .eq("date", targetDate);
       } catch (e) {}
 
       return NextResponse.json({ success: true, message: "Consulta eliminada" });
@@ -247,9 +285,14 @@ export async function POST(request: Request) {
         .eq("id", orgId)
         .single();
 
-      const activeCons = org?.settings?.active_physio_consultation;
-      if (activeCons) {
-        const bookings = activeCons.bookings || [];
+      const existingSettings = org?.settings || {};
+      let consList: any[] = Array.isArray(existingSettings.physio_consultations) ? [...existingSettings.physio_consultations] : [];
+      let activeCons = existingSettings.active_physio_consultation;
+
+      const targetSlot = consList.find((c: any) => c.id === slotId || `slot-${c.date}` === slotId) || activeCons;
+
+      if (targetSlot) {
+        const bookings = targetSlot.bookings || [];
         const existingIdx = bookings.findIndex((b: any) => b.playerId === player?.id);
         const newBooking = {
           id: `book-${Date.now()}`,
@@ -265,10 +308,16 @@ export async function POST(request: Request) {
           bookings.push(newBooking);
         }
 
-        activeCons.bookings = bookings;
+        targetSlot.bookings = bookings;
+
+        // Update list
+        const idx = consList.findIndex((c: any) => c.date === targetSlot.date);
+        if (idx >= 0) consList[idx] = targetSlot;
+
         const updatedSettings = {
-          ...(org?.settings || {}),
-          active_physio_consultation: activeCons,
+          ...existingSettings,
+          active_physio_consultation: targetSlot,
+          physio_consultations: consList,
         };
 
         await supabase
