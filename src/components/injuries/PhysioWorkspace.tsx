@@ -421,12 +421,14 @@ export function PhysioWorkspace({
       })
     );
 
+    const targetInj = injuries.find((i) => i.id === injuryId);
     try {
       await fetch("/api/injuries", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           injuryId,
+          playerId: targetInj?.player_id,
           recoveryPhase: newPhase,
           status: newPhase >= 2 ? "readaptation" : "active",
         }),

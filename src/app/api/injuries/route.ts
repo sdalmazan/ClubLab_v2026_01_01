@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       };
     });
 
-    // Merge DB injuries with settings injuries (dedup by id or player_id+body_part)
+    // Merge DB injuries with settings injuries
     const combinedMap = new Map();
     for (const inj of [...settingsInjuries, ...dbMapped]) {
       const key = inj.id || `${inj.player_id}-${inj.body_part}`;
@@ -117,6 +117,7 @@ export async function POST(request: Request) {
     }
 
     const pName = playerName || (player ? (player.sporting_name || `${player.first_name || ""} ${player.last_name || ""}`.trim()) : "Jugador");
+    const phase = recoveryPhase || 1;
 
     const newInjRecord = {
       id: `inj-${Date.now()}`,
@@ -124,8 +125,8 @@ export async function POST(request: Request) {
       player_name: pName,
       body_part: bodyPart.trim(),
       severity: severity || "medium",
-      status: "active",
-      recovery_phase: recoveryPhase || 1,
+      status: phase >= 2 ? "readaptation" : "active",
+      recovery_phase: phase,
       expected_return_date: expectedReturnDate || null,
       description: notes || "",
       reports: [],
@@ -141,14 +142,31 @@ export async function POST(request: Request) {
         injury_type: bodyPart.trim(),
         body_part: bodyPart.trim(),
         severity: severity || "medium",
-        status: "active",
-        recovery_phase: recoveryPhase || 1,
+        status: phase >= 2 ? "readaptation" : "active",
+        recovery_phase: phase,
         expected_return_date: expectedReturnDate || null,
         notes: notes || null,
       });
     } catch (e) {}
 
-    // 2. Persist in organizations.settings JSONB column (100% durable)
+    // 2. Automatically update player availability_status & physical_status in players table
+    const availStatus = phase === 4 ? "available" : phase === 3 ? "doubtful" : "injured";
+    const physStatus = phase === 4 ? "green" : phase === 3 ? "yellow" : "red";
+    const availNotes = phase === 4 ? null : `${bodyPart.trim()} (Fase ${phase})`;
+
+    try {
+      await supabase
+        .from("players")
+        .update({
+          availability_status: availStatus,
+          physical_status: physStatus,
+          availability_notes: availNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", playerId);
+    } catch (e) {}
+
+    // 3. Persist in organizations.settings JSONB column (100% durable)
     const { data: org } = await supabase
       .from("organizations")
       .select("settings")
@@ -185,7 +203,7 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { injuryId, recoveryPhase, expectedReturnDate, status } = body;
+    const { injuryId, recoveryPhase, expectedReturnDate, status, playerId } = body;
 
     if (!injuryId) {
       return NextResponse.json({ error: "Falta injuryId" }, { status: 400 });
@@ -206,14 +224,17 @@ export async function PATCH(request: Request) {
     const orgId = player?.organization_id || userRole?.organization_id;
 
     if (orgId) {
+      const phase = recoveryPhase ?? 1;
+      const injStatus = status || (phase >= 2 ? "readaptation" : "active");
+
       // 1. Update DB injuries table
       try {
         await supabase
           .from("injuries")
           .update({
-            recovery_phase: recoveryPhase,
+            recovery_phase: phase,
             expected_return_date: expectedReturnDate || null,
-            status: status || "active",
+            status: injStatus,
             updated_at: new Date().toISOString(),
           })
           .eq("id", injuryId);
@@ -229,18 +250,37 @@ export async function PATCH(request: Request) {
       const existingSettings = org?.settings || {};
       let activeInjuries: any[] = Array.isArray(existingSettings.active_injuries) ? [...existingSettings.active_injuries] : [];
 
+      let targetPlayerId = playerId;
       activeInjuries = activeInjuries.map((inj: any) => {
-        if (inj.id === injuryId || (inj.player_id && inj.player_id === body.playerId)) {
+        if (inj.id === injuryId || (inj.player_id && inj.player_id === playerId)) {
+          targetPlayerId = inj.player_id || targetPlayerId;
           return {
             ...inj,
-            recovery_phase: recoveryPhase ?? inj.recovery_phase,
+            recovery_phase: phase,
             expected_return_date: expectedReturnDate ?? inj.expected_return_date,
-            status: status ?? inj.status,
+            status: injStatus,
             updated_at: new Date().toISOString(),
           };
         }
         return inj;
       });
+
+      // 3. Automatically update player availability_status & physical_status in players table
+      if (targetPlayerId) {
+        const availStatus = phase === 4 ? "available" : phase === 3 ? "doubtful" : "injured";
+        const physStatus = phase === 4 ? "green" : phase === 3 ? "yellow" : "red";
+
+        try {
+          await supabase
+            .from("players")
+            .update({
+              availability_status: availStatus,
+              physical_status: physStatus,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", targetPlayerId);
+        } catch (e) {}
+      }
 
       const updatedSettings = {
         ...existingSettings,
