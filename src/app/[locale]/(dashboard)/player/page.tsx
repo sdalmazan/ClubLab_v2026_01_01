@@ -757,6 +757,7 @@ export default function PlayerTodayPage() {
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             action: "request_availability",
+                            date: todaySession?.date || new Date().toISOString().split("T")[0],
                             preferredDay,
                             preferredShift,
                             reason: physioReason,

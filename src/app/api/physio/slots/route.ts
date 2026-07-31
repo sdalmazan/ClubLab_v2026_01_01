@@ -48,11 +48,32 @@ export async function GET(request: Request) {
       consList.push(settings.active_physio_consultation);
     }
 
+    // Query squad players to enrich player names & jersey numbers
+    const { data: squadPlayers } = await supabase
+      .from("players")
+      .select(`
+        id,
+        first_name,
+        last_name,
+        sporting_name,
+        player_team_memberships(jersey_number)
+      `)
+      .eq("organization_id", orgId);
+
+    const playerMap = new Map<string, { name: string; jersey: number | null }>();
+    if (squadPlayers) {
+      for (const p of squadPlayers) {
+        const name = p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Jugador";
+        const jersey = (p.player_team_memberships as any)?.[0]?.jersey_number ?? null;
+        playerMap.set(p.id, { name, jersey });
+      }
+    }
+
     // Filter active open consultations
     let activeOpenCons = consList.filter((c: any) => c && c.isOpen !== false);
 
     if (dateParam) {
-      activeOpenCons = activeOpenCons.filter((c: any) => c.date === dateParam);
+      activeOpenCons = activeOpenCons.filter((c: any) => c.date === dateParam || c.date === todayStr);
     } else {
       activeOpenCons = activeOpenCons.filter((c: any) => !c.date || c.date >= todayStr);
     }
@@ -80,13 +101,50 @@ export async function GET(request: Request) {
     });
 
     // Retrieve saved appointments
-    let appList: any[] = Array.isArray(settings.physio_appointments) ? settings.physio_appointments : [];
+    let rawAppList: any[] = Array.isArray(settings.physio_appointments) ? [...settings.physio_appointments] : [];
 
-    if (dateParam) {
-      appList = appList.filter((a: any) => a.date === dateParam);
+    // Also synthesize any consultation bookings into appointments list if not present
+    for (const cons of activeOpenCons) {
+      const bookings = cons.bookings || [];
+      for (const b of bookings) {
+        const pId = b.playerId || b.player_id;
+        if (pId && !rawAppList.some((a: any) => a.player_id === pId && (a.date === cons.date || !a.date))) {
+          const pInfo = playerMap.get(pId);
+          rawAppList.push({
+            id: b.id || `app-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            consultation_id: cons.id,
+            player_id: pId,
+            player_name: b.playerName || pInfo?.name || "Jugador",
+            jersey_number: b.jerseyNumber ?? pInfo?.jersey ?? null,
+            reason: b.notes || b.reason || "Consulta Fisioterapia",
+            status: "pending",
+            scheduled_time: b.scheduledTime || undefined,
+            date: cons.date || todayStr,
+            created_at: b.createdAt || new Date().toISOString(),
+          });
+        }
+      }
     }
 
-    return NextResponse.json({ slots: formattedSlots, appointments: appList });
+    // Normalize dates (e.g. non-ISO strings like "Viernes" -> todayStr) and enrich player info
+    const appList = rawAppList.map((a: any) => {
+      const normalizedDate = (!a.date || !a.date.includes("-")) ? todayStr : a.date;
+      const pInfo = playerMap.get(a.player_id);
+
+      return {
+        ...a,
+        date: normalizedDate,
+        player_name: (a.player_name && a.player_name !== "Jugador") ? a.player_name : (pInfo?.name || a.player_name || "Jugador"),
+        jersey_number: a.jersey_number ?? pInfo?.jersey ?? null,
+      };
+    });
+
+    let filteredAppList = appList;
+    if (dateParam) {
+      filteredAppList = appList.filter((a: any) => a.date === dateParam || a.date === todayStr);
+    }
+
+    return NextResponse.json({ slots: formattedSlots, appointments: filteredAppList });
   } catch (err: any) {
     return NextResponse.json({ slots: [], appointments: [] });
   }
