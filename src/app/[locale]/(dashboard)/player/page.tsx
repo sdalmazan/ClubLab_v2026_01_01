@@ -226,10 +226,12 @@ export default function PlayerTodayPage() {
           setSummary((prev: any) => ({
             ...prev,
             checkinPending: false,
-            status: c.fatigue >= 4 || c.muscle_soreness >= 4 ? "ATTENTION" : c.fatigue >= 3 ? "RECOVER" : "GOOD",
+            status: c.fatigue >= 3 || c.muscle_soreness >= 3 ? "FATIGADO" : "PREPARADO",
             statusMessage: c.has_discomfort
               ? `Check-in completado. Molestia reportada en ${c.discomfort_body_part || "zona desconocida"}.`
-              : "Check-in completado. Estás listo para entrenar.",
+              : c.fatigue >= 3
+              ? "Cuestionario completado. Has reportado fatiga acumulada; el preparador ha sido notificado."
+              : "Check-in completado. Estás preparado para entrenar.",
             metricsSummary: {
               ...prev.metricsSummary,
               sleepQuality: c.sleep_quality ?? 0,
@@ -328,10 +330,12 @@ export default function PlayerTodayPage() {
     setSummary((prev: any) => ({
       ...prev,
       checkinPending: false,
-      status: values.fatigue >= 4 || values.muscleSoreness >= 4 ? "ATTENTION" : values.fatigue >= 3 ? "RECOVER" : "GOOD",
+      status: values.fatigue >= 3 || values.muscleSoreness >= 3 ? "FATIGADO" : "PREPARADO",
       statusMessage: values.hasDiscomfort
         ? `Check-in completado. Molestia reportada en ${values.discomfortPart || "zona desconocida"}. El fisio ha sido notificado.`
-        : "Check-in completado. Estás en un estado óptimo para entrenar.",
+        : values.fatigue >= 3
+        ? "Check-in completado. Nivel de fatiga registrado; el preparador ha sido notificado."
+        : "Check-in completado. Estás preparado para entrenar.",
       metricsSummary: {
         ...prev.metricsSummary,
         sleepQuality: values.sleepQuality,
@@ -910,6 +914,16 @@ export default function PlayerTodayPage() {
           </div>
         </div>
       )}
+
+      {/* Player Profile Edit Modal */}
+      <PlayerProfileEditModal
+        isOpen={editProfileOpen}
+        onClose={() => setEditProfileOpen(false)}
+        onSaved={() => {
+          window.location.reload();
+        }}
+        onOpenAddInjury={() => setAddInjuryOpen(true)}
+      />
 
       {/* Mobile Glassmorphism Bottom Navigation */}
       <PlayerBottomNav />

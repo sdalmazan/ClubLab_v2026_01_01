@@ -39,40 +39,64 @@ export function HeroStatusCard({
     }
   };
 
-  const statusConfig = {
-    GOOD: {
-      label: "ÓPTIMO",
-      badgeBg: "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400",
+  const statusConfig: Record<string, { label: string; badgeBg: string; icon: any; glowColor: string }> = {
+    PREPARADO: {
+      label: "PREPARADO",
+      badgeBg: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
       icon: CheckCircle,
-      glowColor: "from-blue-600/20 via-transparent to-transparent",
+      glowColor: "from-emerald-500/20 via-transparent to-transparent",
+    },
+    GOOD: {
+      label: "PREPARADO",
+      badgeBg: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+      icon: CheckCircle,
+      glowColor: "from-emerald-500/20 via-transparent to-transparent",
     },
     READY: {
-      label: "LISTO",
-      badgeBg: "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400",
-      icon: Zap,
-      glowColor: "from-blue-600/20 via-transparent to-transparent",
+      label: "PREPARADO",
+      badgeBg: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+      icon: CheckCircle,
+      glowColor: "from-emerald-500/20 via-transparent to-transparent",
+    },
+    FATIGADO: {
+      label: "FATIGADO",
+      badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-400",
+      icon: AlertTriangle,
+      glowColor: "from-amber-500/20 via-transparent to-transparent",
     },
     RECOVER: {
-      label: "RECUPERACIÓN",
-      badgeBg: "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400",
-      icon: RefreshCw,
+      label: "FATIGADO",
+      badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-400",
+      icon: AlertTriangle,
       glowColor: "from-amber-500/20 via-transparent to-transparent",
     },
     ATTENTION: {
-      label: "VIGILAR",
-      badgeBg: "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400",
+      label: "FATIGADO",
+      badgeBg: "bg-rose-500/10 border-rose-500/30 text-rose-400",
       icon: AlertTriangle,
+      glowColor: "from-rose-500/20 via-transparent to-transparent",
+    },
+    READAPTACIÓN: {
+      label: "READAPTACIÓN",
+      badgeBg: "bg-sky-500/10 border-sky-500/30 text-sky-400",
+      icon: Zap,
+      glowColor: "from-sky-500/20 via-transparent to-transparent",
+    },
+    RECUPERACIÓN: {
+      label: "RECUPERACIÓN",
+      badgeBg: "bg-rose-500/10 border-rose-500/30 text-rose-400",
+      icon: RefreshCw,
       glowColor: "from-rose-500/20 via-transparent to-transparent",
     },
     PENDING: {
       label: "PENDIENTE",
-      badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400",
+      badgeBg: "bg-amber-500/10 border-amber-500/30 text-amber-400",
       icon: RefreshCw,
       glowColor: "from-amber-500/20 via-transparent to-transparent",
     },
   };
 
-  const config = statusConfig[status] || statusConfig.READY;
+  const config = statusConfig[status] || statusConfig.PREPARADO;
   const Icon = config.icon;
 
   return (

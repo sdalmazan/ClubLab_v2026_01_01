@@ -181,6 +181,9 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
   // Filter clips by category tab
   const [filterCategory, setFilterCategory] = useState<string>("Todos");
 
+  // Selected clip for deletion/editing
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+
   // Cross-match rival analysis selections
   const [selectedRivalMatchId, setSelectedRivalMatchId] = useState<string>("");
   const [rivalMatchClips, setRivalMatchClips] = useState<any[]>([]);
@@ -256,6 +259,20 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
         setLoading(false);
       });
   }, [match.id, activeType]);
+
+  // Step 2 Clean Match playback watcher: auto-skip halftime rest & dead zones
+  useEffect(() => {
+    if (wizardStep === 2 && videoDuration > 0) {
+      if (t1Start > 0 && currentTime < t1Start) {
+        playerRef.current?.seekTo(t1Start, true);
+      } else if (t1End > 0 && t2Start > t1End && currentTime >= t1End && currentTime < t2Start) {
+        // Auto-skip over rest period straight to 2nd half kickoff!
+        playerRef.current?.seekTo(t2Start, true);
+      } else if (t2End > t2Start && currentTime > t2End) {
+        playerRef.current?.pause();
+      }
+    }
+  }, [wizardStep, currentTime, t1Start, t1End, t2Start, t2End, videoDuration]);
 
   // Auto-name video based on match teams
   useEffect(() => {
@@ -412,19 +429,34 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
     handleConfirmHalves();
   };
 
-  const handleConfirmHalves = () => {
+  const handleConfirmHalves = async () => {
     if (!activeVideo) return;
     const halves: [number, number][] = [
       [t1Start, t1End],
       [t2Start, t2End]
     ];
-    setVideoData((prev) => ({
-      ...prev,
-      videos: prev.videos.map((v) =>
-        v.id === activeVideo.id ? { ...v, halves, isFinalized: true } : v
-      )
-    }));
+    const updatedVideos = videoData.videos.map((v) =>
+      v.id === activeVideo.id ? { ...v, halves, isFinalized: true } : v
+    );
+    const updatedData = { ...videoData, videos: updatedVideos };
+    setVideoData(updatedData);
     setWizardStep(2);
+
+    // Auto-save halves selection to API & show confirmation toast!
+    try {
+      setSaving(true);
+      await fetch(`/api/scouting/matches/${match.id}/video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData)
+      });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 5000);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Save changes to API
@@ -441,8 +473,7 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
       });
       if (!response.ok) throw new Error("Error al guardar en el servidor");
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-      router.refresh();
+      setTimeout(() => setSaveSuccess(false), 5000);
     } catch (err: any) {
       setError(err.message || "Error al guardar el análisis.");
     } finally {
@@ -705,15 +736,16 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
 
   // Delete clip
   const handleDeleteClip = (clipId: string) => {
-    if (confirm("¿Seguro que quieres borrar este clip?")) {
-      setVideoData((prev) => ({
-        ...prev,
-        videos: prev.videos.map((v) =>
-          v.type === activeType
-            ? { ...v, clips: v.clips.filter((c) => c.id !== clipId) }
-            : v
-        )
-      }));
+    setVideoData((prev) => ({
+      ...prev,
+      videos: prev.videos.map((v) =>
+        v.type === activeType
+          ? { ...v, clips: v.clips.filter((c) => c.id !== clipId) }
+          : v
+      )
+    }));
+    if (selectedClipId === clipId) {
+      setSelectedClipId(null);
     }
   };
 
@@ -1104,10 +1136,10 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
         {/* Global Save Button */}
         <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
           {saveSuccess && (
-            <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl flex items-center gap-1">
-              <Check className="h-3 w-3" />
-              <span>Acciones Guardadas en BD</span>
-            </span>
+            <div className="bg-emerald-500 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 shadow-xl border border-emerald-400 animate-pulse">
+              <Check className="h-4 w-4 stroke-[3]" />
+              <span>✅ ¡Edición guardada en la Base de Datos!</span>
+            </div>
           )}
           <button
             onClick={handleSave}
@@ -1480,41 +1512,88 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                 onStopCut={handleStopCut}
                 onRetroactiveCut={handleRetroactiveCut}
               />
+            </div>
 
-              {/* Whiteboard and Freeze Frame Bar */}
-              <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+            {/* Editing Action Bar: Pizarra, Iniciar Corte, Congelar Pantalla */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-white/10 p-3.5 rounded-2xl shadow-xl">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Draw on Whiteboard */}
                 <button
                   onClick={() => setIsBoardActive(!isBoardActive)}
-                  className={`px-3.5 py-1.5 rounded-xl border text-[10px] font-black uppercase flex items-center gap-1.5 transition-all shadow-lg cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl border text-[10px] font-black uppercase flex items-center gap-1.5 transition-all shadow-lg cursor-pointer ${
                     isBoardActive 
-                      ? "bg-indigo-600 border-indigo-500 text-white" 
-                      : "bg-slate-950/85 border-white/10 text-slate-300 hover:bg-slate-900"
+                      ? "bg-indigo-600 border-indigo-500 text-white ring-2 ring-indigo-400/40" 
+                      : "bg-slate-950 border-white/10 text-slate-200 hover:bg-slate-800"
                   }`}
                 >
                   <span>✏️</span>
                   <span>{isBoardActive ? "Cerrar Pizarra" : "Dibujar en Pizarra"}</span>
                 </button>
 
-                <div className="flex items-center gap-1 bg-slate-950/85 border border-white/10 rounded-xl p-1 shadow-lg">
+                {/* Iniciar / Parar Corte */}
+                <button
+                  onClick={() => {
+                    if (isCutting) {
+                      handleStopCut();
+                    } else {
+                      handleStartCut();
+                    }
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all shadow-lg cursor-pointer ${
+                    isCutting
+                      ? "bg-rose-600 text-white animate-pulse"
+                      : "bg-slate-950 border border-white/10 text-slate-200 hover:bg-slate-800"
+                  }`}
+                >
+                  <Scissors className="h-3.5 w-3.5" />
+                  <span>{isCutting ? "⏹ Parar Corte" : "✂️ Iniciar Corte"}</span>
+                </button>
+
+                {/* Freeze Frame Button (Congelar 3s por defecto) */}
+                <div className="flex items-center gap-1 bg-slate-950 border border-white/10 rounded-xl p-1 shadow-lg">
                   <button
                     onClick={handleAddFreezeFrame}
-                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-[10px] font-extrabold uppercase flex items-center gap-1 transition-all cursor-pointer"
-                    title="Congelar fotograma actual durante X segundos"
+                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer shadow"
+                    title="Congelar pantalla actual durante X segundos"
                   >
-                    <span>⏸ Congelar</span>
+                    <span>⏸ Congelar Pantalla</span>
                   </button>
                   <select
                     value={freezeSeconds}
                     onChange={(e) => setFreezeSeconds(Number(e.target.value))}
-                    className="bg-slate-900 border border-white/10 text-white text-[10px] font-bold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+                    className="bg-slate-900 border border-white/10 text-amber-300 font-extrabold text-[10px] rounded px-2 py-1 focus:outline-none cursor-pointer"
                   >
                     <option value={2}>2s</option>
-                    <option value={3}>3s</option>
+                    <option value={3}>3s (Defecto)</option>
                     <option value={5}>5s</option>
                     <option value={10}>10s</option>
                   </select>
                 </div>
               </div>
+
+              {/* Selected Clip Deletion Bar */}
+              {selectedClipId && (
+                <div className="flex items-center gap-2 bg-rose-950/80 border border-rose-500/40 px-3 py-1.5 rounded-xl shadow">
+                  <span className="text-[10px] font-extrabold text-rose-300">
+                    Corte seleccionado: {activeVideo?.clips.find(c => c.id === selectedClipId)?.title || "Recorte"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteClip(selectedClipId)}
+                    className="bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Eliminar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedClipId(null)}
+                    className="text-slate-400 hover:text-white text-[10px] font-bold px-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Timeline Bar with Match Events */}
@@ -1531,11 +1610,11 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
               >
                 {/* 1st Half track */}
                 <div 
-                  className="absolute top-0 bottom-0 bg-indigo-500/20 border-r border-indigo-500/40"
+                  className="absolute top-0 bottom-0 bg-indigo-600/40 border-r border-indigo-500/60"
                   style={{ left: `${(t1Start / (videoDuration || 1)) * 100}%`, width: `${((t1End - t1Start) / (videoDuration || 1)) * 100}%` }}
                 />
 
-                {/* Rest Gap marker */}
+                {/* Rest Gap marker line */}
                 <div 
                   className="absolute top-0 bottom-0 bg-amber-500/20 border-r border-amber-500/40 flex items-center justify-center"
                   style={{ left: `${(t1End / (videoDuration || 1)) * 100}%`, width: `${((t2Start - t1End) / (videoDuration || 1)) * 100}%` }}
@@ -1545,7 +1624,7 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
 
                 {/* 2nd Half track */}
                 <div 
-                  className="absolute top-0 bottom-0 bg-indigo-500/20"
+                  className="absolute top-0 bottom-0 bg-indigo-600/40"
                   style={{ left: `${(t2Start / (videoDuration || 1)) * 100}%`, width: `${((t2End - t2Start) / (videoDuration || 1)) * 100}%` }}
                 />
 
@@ -1576,23 +1655,36 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                   );
                 })}
 
-                {/* Clips highlights */}
+                {/* Clips highlights on timeline */}
                 {activeVideo.clips.map((clip) => {
                   const startPct = (clip.start / (videoDuration || 1)) * 100;
-                  const widthPct = ((clip.end - clip.start) / (videoDuration || 1)) * 100;
+                  const widthPct = Math.max(0.5, ((clip.end - clip.start) / (videoDuration || 1)) * 100);
+                  const isSelected = selectedClipId === clip.id;
                   return (
                     <div
                       key={clip.id}
-                      className="absolute top-0 bottom-0 bg-emerald-500/30 border-x border-emerald-500/50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedClipId(clip.id);
+                        if (playerRef.current) {
+                          playerRef.current.seekTo(clip.start, true);
+                          setCurrentTime(clip.start);
+                        }
+                      }}
+                      className={`absolute top-0 bottom-0 cursor-pointer transition-all ${
+                        isSelected 
+                          ? "bg-rose-500/60 border-2 border-rose-400 z-20 shadow-lg scale-y-110" 
+                          : "bg-emerald-500/40 border-x border-emerald-400/60 hover:bg-emerald-500/60 z-10"
+                      }`}
                       style={{ left: `${startPct}%`, width: `${widthPct}%` }}
-                      title={clip.title}
+                      title={`Clic para seleccionar y eliminar: ${clip.title}`}
                     />
                   );
                 })}
 
                 {/* Playhead bar */}
                 <div 
-                  className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-20"
+                  className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-30 shadow-lg"
                   style={{ left: `${(currentTime / (videoDuration || 1)) * 100}%` }}
                 />
               </div>

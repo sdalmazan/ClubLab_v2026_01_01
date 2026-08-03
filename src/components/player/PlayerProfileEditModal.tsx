@@ -9,6 +9,7 @@ interface PlayerProfileEditModalProps {
   onClose: () => void;
   initialFieldFocus?: string;
   onSaved?: () => void;
+  onOpenAddInjury?: () => void;
 }
 
 export function PlayerProfileEditModal({
@@ -16,6 +17,7 @@ export function PlayerProfileEditModal({
   onClose,
   initialFieldFocus,
   onSaved,
+  onOpenAddInjury,
 }: PlayerProfileEditModalProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -293,6 +295,51 @@ export function PlayerProfileEditModal({
                       placeholder="Española"
                     />
                   </div>
+                </div>
+
+                {/* Injury History & Antecedentes Médicos Card */}
+                <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-indigo-400 flex items-center gap-1.5 uppercase tracking-wider">
+                      <Activity className="w-3.5 h-3.5" /> Histórico Lesional & Antecedentes
+                    </span>
+                    <span className="text-[10px] font-bold text-muted-foreground bg-accent px-2 py-0.5 rounded-full border border-border/40">
+                      {injuries.length} {injuries.length === 1 ? "lesión" : "lesiones"}
+                    </span>
+                  </div>
+
+                  {injuries.length > 0 ? (
+                    <div className="space-y-1.5 pt-1">
+                      {injuries.map((inj: any) => (
+                        <div key={inj.id} className="p-2 rounded-xl bg-card/60 border border-border/40 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="font-bold text-foreground block">{inj.body_part || inj.injury_type || "Lesión"}</span>
+                            <span className="text-[10px] text-muted-foreground">{inj.occurred_date || "Fecha previa"}</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                            {inj.status === "active" ? "Baja" : inj.status === "readaptation" ? "Readaptación" : "Superada"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground italic">
+                      No tienes lesiones registradas en tu historial previo.
+                    </p>
+                  )}
+
+                  {onOpenAddInjury && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenAddInjury();
+                      }}
+                      className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <span>+ Registrar Antecedente Lesional</span>
+                    </button>
+                  )}
                 </div>
 
                 {error && (

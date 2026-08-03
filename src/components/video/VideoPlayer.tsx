@@ -1211,6 +1211,29 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       return () => window.removeEventListener("keydown", handleKeyDown);
     }, [isBoardActive, readOnly, stepSize, largeStepSize]);
 
+    // Freeze frame playback watcher: auto-pause video for freezeDuration seconds
+    const activeFreezeIdRef = useRef<string | null>(null);
+    useEffect(() => {
+      if (playerType !== "html5" || !videoRef.current) return;
+      const currentVid = videoRef.current;
+      const activeFreezeAnn = localAnnotations.find(
+        (ann) => ann.freezeDuration && ann.freezeDuration > 0 && Math.abs(currentTime - ann.startTime) <= 0.35
+      );
+
+      if (activeFreezeAnn && !currentVid.paused && activeFreezeIdRef.current !== activeFreezeAnn.id) {
+        activeFreezeIdRef.current = activeFreezeAnn.id;
+        currentVid.pause();
+        const durationMs = (activeFreezeAnn.freezeDuration || 3) * 1000;
+        const timer = setTimeout(() => {
+          activeFreezeIdRef.current = null;
+          if (videoRef.current) {
+            videoRef.current.play().catch(() => {});
+          }
+        }, durationMs);
+        return () => clearTimeout(timer);
+      }
+    }, [currentTime, localAnnotations, playerType]);
+
     // Parse URL to detect type
     useEffect(() => {
       if (!url) return;
