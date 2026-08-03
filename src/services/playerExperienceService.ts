@@ -207,60 +207,23 @@ export function getMockTeamComparisons(): TeamComparisonData[] {
 }
 
 export function getMockPlayerMatches(): PlayerMatchSummary[] {
-  return [
-    {
-      id: "m-1",
-      opponentName: "CD Numancia B",
-      date: "2026-07-19",
-      isHome: true,
-      scoreHome: 2,
-      scoreAway: 1,
-      isStarter: true,
-      minutesPlayed: 85,
-      goals: 1,
-      assists: 1,
-      yellowCards: 0,
-      redCards: 0,
-      matchType: "Amistoso",
-    },
-    {
-      id: "m-2",
-      opponentName: "Sigüenza",
-      date: "2026-07-12",
-      isHome: false,
-      scoreHome: 0,
-      scoreAway: 3,
-      isStarter: true,
-      minutesPlayed: 90,
-      goals: 2,
-      assists: 0,
-      yellowCards: 1,
-      redCards: 0,
-      matchType: "Amistoso",
-    },
-  ];
+  return [];
 }
 
 export function getMockSeasonStats(): SeasonAccumulatedStats {
   return {
-    matchesPlayed: 14,
-    starts: 12,
-    totalMinutes: 1120,
-    totalGoals: 6,
-    totalAssists: 4,
-    yellowCards: 2,
+    matchesPlayed: 0,
+    starts: 0,
+    totalMinutes: 0,
+    totalGoals: 0,
+    totalAssists: 0,
+    yellowCards: 0,
     redCards: 0,
   };
 }
 
 export function getMockLeagueStandings(): StandingTeamRow[] {
-  return [
-    { position: 1, teamName: "SD Almazán", isCurrentTeam: true, played: 14, won: 10, drawn: 3, lost: 1, goalsFor: 28, goalsAgainst: 10, points: 33 },
-    { position: 2, teamName: "CD Numancia B", isCurrentTeam: false, played: 14, won: 9, drawn: 4, lost: 1, goalsFor: 25, goalsAgainst: 12, points: 31 },
-    { position: 3, teamName: "Real Ávila", isCurrentTeam: false, played: 14, won: 8, drawn: 4, lost: 2, goalsFor: 22, goalsAgainst: 14, points: 28 },
-    { position: 4, teamName: "Palencia CF", isCurrentTeam: false, played: 14, won: 7, drawn: 4, lost: 3, goalsFor: 20, goalsAgainst: 15, points: 25 },
-    { position: 5, teamName: "Burgos Promesas", isCurrentTeam: false, played: 14, won: 6, drawn: 5, lost: 3, goalsFor: 18, goalsAgainst: 14, points: 23 },
-  ];
+  return [];
 }
 
 export function calculateProfileCompletion(player: Partial<Player>): {

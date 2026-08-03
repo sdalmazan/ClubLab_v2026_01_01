@@ -1,20 +1,120 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
-import {
-  getMockPlayerMatches,
-  getMockSeasonStats,
-  getMockLeagueStandings,
-} from "@/services/playerExperienceService";
-import { Trophy, Calendar, Flame, Award, Shield, CheckCircle2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { Trophy, Calendar, Shield, Activity, CalendarDays } from "lucide-react";
 
 export default function PlayerMatchesPage() {
-  const matches = getMockPlayerMatches();
-  const seasonStats = getMockSeasonStats();
-  const standings = getMockLeagueStandings();
-
+  const [selectedSeason, setSelectedSeason] = useState("2026/27");
+  const [availableSeasons, setAvailableSeasons] = useState<string[]>(["2026/27", "2025/26"]);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [seasonStats, setSeasonStats] = useState({
+    matchesPlayed: 0,
+    starts: 0,
+    totalMinutes: 0,
+    totalGoals: 0,
+    totalAssists: 0,
+    yellowCards: 0,
+    redCards: 0,
+  });
   const [activeTab, setActiveTab] = useState<"my_matches" | "standings">("my_matches");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadMatchesData() {
+      setLoading(true);
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+          // Resolve player row
+          const { data: player } = await supabase
+            .from("players")
+            .select("id, organization_id, team_id")
+            .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+            .maybeSingle();
+
+          const orgId = player?.organization_id;
+
+          // Fetch seasons in org
+          const { data: dbSeasons } = await supabase
+            .from("seasons")
+            .select("name")
+            .order("start_date", { ascending: false });
+
+          if (dbSeasons && dbSeasons.length > 0) {
+            const seasonNames = Array.from(new Set(dbSeasons.map((s: any) => s.name === "2026/27" ? "2026/27" : s.name)));
+            if (!seasonNames.includes("2025/26")) seasonNames.push("2025/26");
+            setAvailableSeasons(seasonNames);
+          }
+
+          if (orgId) {
+            // Fetch real matches for selected season
+            const { data: dbMatches } = await supabase
+              .from("matches")
+              .select("*, match_player_stats(*)")
+              .eq("organization_id", orgId)
+              .order("date", { ascending: false });
+
+            if (dbMatches && dbMatches.length > 0) {
+              setMatches(dbMatches);
+
+              if (player?.id) {
+                // Compute real stats for player
+                let minutes = 0;
+                let goals = 0;
+                let assists = 0;
+                let yellow = 0;
+                let red = 0;
+                let starts = 0;
+
+                dbMatches.forEach((m: any) => {
+                  const pStat = (m.match_player_stats || []).find((st: any) => st.player_id === player.id);
+                  if (pStat) {
+                    minutes += pStat.minutes_played || 0;
+                    goals += pStat.goals || 0;
+                    assists += pStat.assists || 0;
+                    yellow += pStat.yellow_cards || 0;
+                    red += pStat.red_cards || 0;
+                    if (pStat.is_starter) starts++;
+                  }
+                });
+
+                setSeasonStats({
+                  matchesPlayed: dbMatches.length,
+                  starts,
+                  totalMinutes: minutes,
+                  totalGoals: goals,
+                  totalAssists: assists,
+                  yellowCards: yellow,
+                  redCards: red,
+                });
+              }
+            } else {
+              setMatches([]);
+              setSeasonStats({
+                matchesPlayed: 0,
+                starts: 0,
+                totalMinutes: 0,
+                totalGoals: 0,
+                totalAssists: 0,
+                yellowCards: 0,
+                redCards: 0,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading player matches:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadMatchesData();
+  }, [selectedSeason]);
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24 px-4 py-6 max-w-lg mx-auto space-y-5">
@@ -22,7 +122,7 @@ export default function PlayerMatchesPage() {
       <div className="flex items-center justify-between">
         <div>
           <span className="text-[11px] font-bold text-blue-500 uppercase tracking-wider">
-            Competición & Estadísticas
+            Competición & Estadísticas Reales
           </span>
           <h1 className="text-2xl font-black text-foreground tracking-tight">
             Partidos
@@ -36,9 +136,17 @@ export default function PlayerMatchesPage() {
       {/* Season Totals Cards */}
       <div className="rounded-3xl border border-blue-500/30 bg-gradient-to-br from-blue-500/10 via-card to-card p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">
-            Acumulado Temporada 2026/27
-          </span>
+          <select
+            value={selectedSeason}
+            onChange={(e) => setSelectedSeason(e.target.value)}
+            className="text-xs font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 px-3 py-1 rounded-xl focus:outline-none cursor-pointer"
+          >
+            {availableSeasons.map((s) => (
+              <option key={s} value={s} className="bg-slate-900 text-white">
+                Temporada {s}
+              </option>
+            ))}
+          </select>
           <span className="text-xs font-bold text-foreground bg-accent px-2.5 py-0.5 rounded-full border border-border/40">
             {seasonStats.matchesPlayed} Partidos
           </span>
@@ -94,107 +202,75 @@ export default function PlayerMatchesPage() {
       {/* Tab 1: Mis Partidos */}
       {activeTab === "my_matches" && (
         <div className="space-y-3 animate-in fade-in duration-200">
-          {matches.map((m) => (
-            <div
-              key={m.id}
-              className="rounded-3xl border border-border/60 bg-card p-5 shadow-lg space-y-3"
-            >
-              <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                  {m.date} • {m.matchType}
-                </span>
-                <span className="text-[11px] font-bold text-blue-500 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20">
-                  {m.isStarter ? "Titular" : "Suplente"}
-                </span>
-              </div>
-
-              {/* Scoreboard */}
-              <div className="flex items-center justify-between py-1">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-blue-500" />
-                  <span className="text-sm font-extrabold text-foreground">SD Almazán</span>
-                </div>
-
-                <div className="text-base font-black px-3 py-1 bg-accent rounded-xl border border-border/50">
-                  {m.isHome ? `${m.scoreHome} - ${m.scoreAway}` : `${m.scoreAway} - ${m.scoreHome}`}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-extrabold text-foreground">{m.opponentName}</span>
-                </div>
-              </div>
-
-              {/* Player Contribution Badges */}
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-border/40 text-xs">
-                <span className="bg-accent/60 px-3 py-1 rounded-xl font-bold text-foreground border border-border/40">
-                  ⏱️ {m.minutesPlayed} minutos
-                </span>
-
-                {m.goals > 0 && (
-                  <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-xl font-bold border border-emerald-500/20">
-                    ⚽ {m.goals} Goles
-                  </span>
-                )}
-
-                {m.assists > 0 && (
-                  <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 px-3 py-1 rounded-xl font-bold border border-purple-500/20">
-                    🅰️ {m.assists} Asistencias
-                  </span>
-                )}
-
-                {m.yellowCards > 0 && (
-                  <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1 rounded-xl font-bold border border-amber-500/20">
-                    🟨 1 Tarjeta Amarilla
-                  </span>
-                )}
+          {loading ? (
+            <div className="p-8 text-center text-xs text-muted-foreground animate-pulse">
+              Cargando partidos de la temporada...
+            </div>
+          ) : matches.length === 0 ? (
+            <div className="p-8 rounded-3xl border border-border/50 bg-card text-center space-y-3 shadow-sm">
+              <CalendarDays className="w-8 h-8 text-muted-foreground mx-auto" />
+              <div>
+                <h4 className="text-xs font-bold text-foreground">Sin partidos disputados en {selectedSeason}</h4>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {selectedSeason === "2026/27"
+                    ? "Estamos en fase de pretemporada 2026/27. Las estadísticas se actualizarán automáticamente conforme el cuerpo técnico registre las actas oficiales de los partidos."
+                    : "No hay actas registradas para esta temporada previa."}
+                </p>
               </div>
             </div>
-          ))}
+          ) : (
+            matches.map((m) => (
+              <div
+                key={m.id}
+                className="rounded-3xl border border-border/60 bg-card p-5 shadow-lg space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                    {m.date} • {m.competition || "Oficial / Amistoso"}
+                  </span>
+                  <span className="text-[11px] font-bold text-blue-500 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20">
+                    {m.is_starter ? "Titular" : "Convocado"}
+                  </span>
+                </div>
+
+                {/* Scoreboard */}
+                <div className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-blue-500" />
+                    <span className="text-sm font-extrabold text-foreground">SD Almazán</span>
+                  </div>
+
+                  <div className="text-base font-black px-3 py-1 bg-accent rounded-xl border border-border/50">
+                    {m.home_score ?? 0} - {m.away_score ?? 0}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-foreground">{m.opponent_name || "Rival"}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
       {/* Tab 2: Clasificación */}
       {activeTab === "standings" && (
-        <div className="rounded-3xl border border-border/60 bg-card p-4 shadow-lg space-y-3 animate-in fade-in duration-200">
+        <div className="rounded-3xl border border-border/60 bg-card p-5 shadow-lg space-y-3 animate-in fade-in duration-200">
           <div className="flex items-center justify-between pb-2 border-b border-border/40">
             <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-              Clasificación Grupo VIII
+              Clasificación Oficial ({selectedSeason})
             </span>
             <span className="text-[11px] text-muted-foreground font-semibold">
-              Jornada 14
+              Tercera RFEF
             </span>
           </div>
 
-          <div className="space-y-1 text-xs">
-            {/* Header row */}
-            <div className="grid grid-cols-12 font-bold text-muted-foreground px-2 py-1 text-[10px] uppercase">
-              <span className="col-span-1">#</span>
-              <span className="col-span-6">Equipo</span>
-              <span className="col-span-1 text-center">J</span>
-              <span className="col-span-2 text-center">G/E/P</span>
-              <span className="col-span-2 text-right">Pts</span>
-            </div>
-
-            {/* Team Rows */}
-            {standings.map((t) => (
-              <div
-                key={t.position}
-                className={`grid grid-cols-12 items-center px-2 py-2.5 rounded-xl transition-all ${
-                  t.isCurrentTeam
-                    ? "bg-blue-600 text-white font-extrabold shadow-md"
-                    : "hover:bg-accent/40 text-foreground"
-                }`}
-              >
-                <span className="col-span-1 font-black">{t.position}</span>
-                <span className="col-span-6 font-bold truncate">{t.teamName}</span>
-                <span className="col-span-1 text-center font-medium">{t.played}</span>
-                <span className="col-span-2 text-center text-[10px]">
-                  {t.won}/{t.drawn}/{t.lost}
-                </span>
-                <span className="col-span-2 text-right font-black">{t.points}</span>
-              </div>
-            ))}
+          <div className="p-6 text-center text-xs text-muted-foreground space-y-2">
+            <Trophy className="w-6 h-6 text-amber-400 mx-auto" />
+            <p className="font-bold text-foreground">Fase Pretemporada {selectedSeason}</p>
+            <p>La tabla de clasificación oficial se activará con el inicio del campeonato de liga regular.</p>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { VideoPlayer, type VideoPlayerRef } from "@/components/video/VideoPlayer";
+import { saveLocalVideoToIDB, getLocalVideoFromIDB } from "@/lib/clublab/idbVideo";
 import type { 
   SessionVideoData, 
   VideoItem, 
@@ -184,50 +185,77 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
   const [selectedRivalMatchId, setSelectedRivalMatchId] = useState<string>("");
   const [rivalMatchClips, setRivalMatchClips] = useState<any[]>([]);
 
-  // Load video analysis from API on mount
+  // Ref to ensure initial step determination runs only ONCE on initial page load
+  const isInitialLoadedRef = useRef(false);
+
+  // Load video analysis from API on mount + restore local video from IndexedDB if present
   useEffect(() => {
     fetch(`/api/scouting/matches/${match.id}/video`)
       .then((res) => res.json())
-      .then((data: SessionVideoData) => {
-        const loadedData = data || { general_notes: "", videos: [], montages: [], cut_bank: [] };
+      .then(async (data: SessionVideoData) => {
+        let loadedData = data || { general_notes: "", videos: [], montages: [], cut_bank: [] };
+
+        // Restore local video files from IndexedDB for own and rival types if present
+        for (const type of ["own", "rival"]) {
+          const localFile = await getLocalVideoFromIDB(match.id, type);
+          if (localFile) {
+            const restoredUrl = URL.createObjectURL(localFile);
+            const existingIndex = loadedData.videos.findIndex(v => v.type === type);
+            if (existingIndex >= 0) {
+              loadedData.videos[existingIndex].url = restoredUrl;
+              if (!loadedData.videos[existingIndex].title) {
+                loadedData.videos[existingIndex].title = localFile.name;
+              }
+            } else {
+              loadedData.videos.push({
+                id: `vid-idb-${type}`,
+                type: type as "own" | "rival",
+                url: restoredUrl,
+                title: localFile.name,
+                clips: [],
+                halves: [[0, 2700], [3600, 6300]]
+              });
+            }
+          }
+        }
+
         setVideoData(loadedData);
         setLoading(false);
+
+        // Initial wizard step determination (ONLY ONCE on page load!)
+        if (!isInitialLoadedRef.current) {
+          isInitialLoadedRef.current = true;
+          const activeVid = loadedData.videos?.find(v => v.type === activeType) || loadedData.videos?.[0];
+          if (activeVid) {
+            if (activeVid.halves && activeVid.halves.length >= 2) {
+              setT1Start(activeVid.halves[0][0]);
+              setT1End(activeVid.halves[0][1]);
+              setT2Start(activeVid.halves[1][0]);
+              setT2End(activeVid.halves[1][1]);
+            }
+            const hasClips = Boolean(activeVid.clips && activeVid.clips.length > 0);
+            const hasMontages = Boolean(loadedData.montages && loadedData.montages.length > 0);
+            const hasCutBank = Boolean(loadedData.cut_bank && loadedData.cut_bank.length > 0);
+            const isFinalized = Boolean(activeVid.isFinalized);
+
+            if (hasClips || hasMontages || hasCutBank || isFinalized) {
+              setWizardStep(3);
+              if (hasMontages && loadedData.montages && loadedData.montages.length > 0) {
+                setActiveMontageId(loadedData.montages[0].id);
+              }
+            } else {
+              setWizardStep(1);
+            }
+          } else {
+            setWizardStep(1);
+          }
+        }
       })
       .catch((err) => {
         setError("Error al cargar el análisis de vídeo.");
         setLoading(false);
       });
-  }, [match.id]);
-
-  // Sync wizard step when activeVideo or videoData loads:
-  // If an edition record already exists (clips, montages, cut_bank or finalized halves), go directly to Step 3 (Montaje & Cortes).
-  // Otherwise, start at Step 1.
-  useEffect(() => {
-    if (activeVideo) {
-      if (activeVideo.halves && activeVideo.halves.length >= 2) {
-        setT1Start(activeVideo.halves[0][0]);
-        setT1End(activeVideo.halves[0][1]);
-        setT2Start(activeVideo.halves[1][0]);
-        setT2End(activeVideo.halves[1][1]);
-      }
-
-      const hasClips = Boolean(activeVideo.clips && activeVideo.clips.length > 0);
-      const hasMontages = Boolean(videoData.montages && videoData.montages.length > 0);
-      const hasCutBank = Boolean(videoData.cut_bank && videoData.cut_bank.length > 0);
-      const isFinalized = Boolean(activeVideo.isFinalized);
-
-      if (hasClips || hasMontages || hasCutBank || isFinalized) {
-        setWizardStep(3);
-        if (hasMontages && videoData.montages && videoData.montages.length > 0 && !activeMontageId) {
-          setActiveMontageId(videoData.montages[0].id);
-        }
-      } else {
-        setWizardStep(1);
-      }
-    } else {
-      setWizardStep(1);
-    }
-  }, [activeVideo, videoData.montages, videoData.cut_bank]);
+  }, [match.id, activeType]);
 
   // Auto-name video based on match teams
   useEffect(() => {
@@ -422,8 +450,8 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
     }
   };
 
-  // Local file loading handlers
-  const handleLoadLocalFile = (file: File) => {
+  // Local file loading handlers with IndexedDB persistence per match
+  const handleLoadLocalFile = async (file: File) => {
     if (!file) return;
     const localBlobUrl = URL.createObjectURL(file);
     const videoId = `vid-${Date.now()}`;
@@ -435,6 +463,12 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
       clips: [],
       halves: [[0, 2700], [3600, 6300]]
     };
+
+    try {
+      await saveLocalVideoToIDB(match.id, activeType, file);
+    } catch (err) {
+      console.error("IndexedDB local video save error:", err);
+    }
 
     setVideoData((prev) => ({
       ...prev,
@@ -1275,7 +1309,7 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
 
                 {/* Integrated Jump Selector */}
                 <div className="flex items-center gap-1.5 bg-slate-950/90 border border-white/10 px-3 py-1 rounded-xl">
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Salto Grande:</span>
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Avanzar (↑/↓):</span>
                   {[5, 10, 15, 30].map(s => (
                     <button
                       key={s}
@@ -1625,7 +1659,7 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                 <div className="flex items-center gap-2">
                   {/* Integrated Jump Selector */}
                   <div className="flex items-center gap-1.5 bg-slate-950/90 border border-white/10 px-3 py-1 rounded-xl">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Salto Grande:</span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Avanzar (↑/↓):</span>
                     {[5, 10, 15, 30].map(s => (
                       <button
                         key={s}
