@@ -86,8 +86,11 @@ export async function GET(request: Request) {
           invitation = inv;
         }
 
+        const explicitNext = searchParams.get("next");
         const effectiveRole = invitation?.role || assignedRole;
-        if (effectiveRole === "player") {
+
+        // If explicit next parameter (such as /reset-password) was provided, NEVER overwrite it!
+        if (!explicitNext && effectiveRole === "player") {
           next = "/player";
         }
 
@@ -144,7 +147,7 @@ export async function GET(request: Request) {
           });
 
         } else if (email) {
-          // Fallback: search players table directly by email
+          // Search players table directly by email
           const { data: matchingPlayers } = await adminSupabase
             .from("players")
             .select("id, organization_id, organizations(name)")
@@ -181,6 +184,43 @@ export async function GET(request: Request) {
               orgName: (matchingPlayers[0] as any)?.organizations?.name || "S.D. Almazán",
               preferredChannel: preferredChannel,
             });
+          } else if (effectiveRole === "player") {
+            // New player signing up with a new email without a pre-created invitation
+            const defaultOrgId = "2ef4ac4a-833a-4acf-8738-ac89d52d1a9d";
+            const parts = fullName.trim().split(" ");
+            const firstName = parts[0] || "Jugador";
+            const lastName = parts.slice(1).join(" ") || "";
+
+            const { data: existingPlayer } = await adminSupabase
+              .from("players")
+              .select("id")
+              .eq("user_id", targetUser.id)
+              .maybeSingle();
+
+            if (!existingPlayer) {
+              await adminSupabase
+                .from("players")
+                .insert({
+                  organization_id: defaultOrgId,
+                  user_id: targetUser.id,
+                  email: email.trim().toLowerCase(),
+                  first_name: firstName,
+                  last_name: lastName,
+                  sporting_name: fullName,
+                  physical_status: "green",
+                  availability_status: "available",
+                  notification_pref_whatsapp: preferredChannel === "whatsapp",
+                  notification_pref_email: preferredChannel === "email",
+                });
+            }
+
+            await adminSupabase
+              .from("user_organization_roles")
+              .upsert({
+                user_id: targetUser.id,
+                organization_id: defaultOrgId,
+                role: "player",
+              }, { onConflict: "user_id,organization_id" });
           }
         }
       } catch (err: any) {

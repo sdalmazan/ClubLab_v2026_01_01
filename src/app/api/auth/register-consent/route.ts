@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Fallback: Search players table directly by email if registered without token
+    // 3. Fallback: Search players table directly by email or create new player profile
     if (email) {
       const { data: matchingPlayers } = await adminSupabase
         .from("players")
@@ -146,6 +146,51 @@ export async function POST(request: Request) {
           success: true,
           linked: true,
           count: matchingPlayers.length,
+        });
+      } else {
+        // Auto-create new player row for newly registered player
+        const defaultOrgId = "2ef4ac4a-833a-4acf-8738-ac89d52d1a9d";
+        const { data: authUser } = await adminSupabase.auth.admin.getUserById(userId);
+        const fullName = authUser?.user?.user_metadata?.full_name || email.split("@")[0] || "Jugador";
+        const parts = fullName.trim().split(" ");
+        const firstName = parts[0] || "Jugador";
+        const lastName = parts.slice(1).join(" ") || "";
+
+        const { data: existingPlayer } = await adminSupabase
+          .from("players")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (!existingPlayer) {
+          await adminSupabase
+            .from("players")
+            .insert({
+              organization_id: defaultOrgId,
+              user_id: userId,
+              email: email.trim().toLowerCase(),
+              first_name: firstName,
+              last_name: lastName,
+              sporting_name: fullName,
+              physical_status: "green",
+              availability_status: "available",
+              notification_pref_whatsapp: preferredChannel === "whatsapp",
+              notification_pref_email: preferredChannel === "email",
+            });
+        }
+
+        await adminSupabase
+          .from("user_organization_roles")
+          .upsert({
+            user_id: userId,
+            organization_id: defaultOrgId,
+            role: "player",
+          }, { onConflict: "user_id,organization_id" });
+
+        return NextResponse.json({
+          success: true,
+          linked: true,
+          createdNew: true,
         });
       }
     }

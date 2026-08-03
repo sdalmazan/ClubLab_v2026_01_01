@@ -1,5 +1,24 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect, useCallback } from "react";
 import type { VideoAnnotation, KeyframeData } from "../../lib/clublab/types";
+import { 
+  MousePointer, 
+  Pencil, 
+  MoveRight, 
+  Circle, 
+  Target, 
+  Minus, 
+  Flag, 
+  MessageSquare, 
+  Type, 
+  Tag, 
+  ZoomIn, 
+  Undo, 
+  Redo, 
+  Scissors, 
+  Square, 
+  RotateCcw,
+  X
+} from "lucide-react";
 
 export interface VideoPlayerRef {
   seekTo: (seconds: number, play?: boolean) => void;
@@ -1640,62 +1659,62 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
               </select>
             </div>
 
-            <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1.5 flex-wrap justify-center`}>
+            <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1 flex-wrap justify-center`}>
               {[
                 {
                   key: "pointer",
                   title: "Seleccionar / Mover",
-                  label: "✋"
+                  icon: <MousePointer className="h-4 w-4" />
                 },
                 {
                   key: "pencil",
-                  title: "Lápiz Trazo Libe",
-                  label: "✏️"
+                  title: "Lápiz Trazo Libre",
+                  icon: <Pencil className="h-4 w-4" />
                 },
                 {
                   key: "arrow",
                   title: "Flecha Desmarque",
-                  label: "↗️"
+                  icon: <MoveRight className="h-4 w-4" />
                 },
                 {
                   key: "circle",
                   title: "Zona Círculo",
-                  label: "⭕"
+                  icon: <Circle className="h-4 w-4" />
                 },
                 {
                   key: "spotlight",
                   title: "Foco Jugador",
-                  label: "💡"
+                  icon: <Target className="h-4 w-4" />
                 },
                 {
                   key: "link",
                   title: "Línea Conexión",
-                  label: "📏"
+                  icon: <Minus className="h-4 w-4" />
                 },
                 {
                   key: "offside",
                   title: "Línea Fuera de Juego",
-                  label: "🚩"
+                  icon: <Flag className="h-4 w-4 text-rose-400" />
                 },
                 {
                   key: "text",
                   title: "Anotación Texto",
-                  label: "💬"
+                  icon: <MessageSquare className="h-4 w-4" />
                 },
                 {
                   key: "header",
                   title: "Título / Cabecera",
-                  label: "🏷️"
+                  icon: <Type className="h-4 w-4" />
                 },
                 {
                   key: "sticker",
                   title: "Icono / Sticker",
-                  label: "⚽"
+                  icon: <Tag className="h-4 w-4" />
                 },
                 {
                   key: "magnifier",
                   title: "Lupa Ampliación",
-                  label: "🔍"
+                  icon: <ZoomIn className="h-4 w-4" />
                 },
               ].map((t) => (
                 <button
@@ -1706,32 +1725,32 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                     setActiveTool(t.key as any);
                     if (t.key !== "pointer") setSelectedId(null);
                   }}
-                  className={`p-2 rounded-xl text-xs transition-all flex items-center justify-center cursor-pointer shadow-sm ${
+                  className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm ${
                     activeTool === t.key
-                      ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white border border-indigo-400/50 ring-2 ring-indigo-500/40 scale-105"
-                      : "bg-slate-900/80 border border-white/10 hover:bg-slate-800 text-slate-300 hover:text-white"
+                      ? "bg-indigo-600 text-white border border-indigo-400/50 ring-2 ring-indigo-500/40 shadow-indigo-500/30 scale-105"
+                      : "bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white hover:bg-slate-800"
                   }`}
                 >
-                  {t.label}
+                  {t.icon}
                 </button>
               ))}
             </div>
 
             {activeTool === "sticker" && !isVertical && (
-              <div className="flex items-center gap-1 bg-black/40 border border-white/5 rounded-lg p-1">
+              <div className="flex items-center gap-1 bg-slate-900 border border-white/10 rounded-xl p-1 text-[11px] font-bold text-slate-200">
                 {[
-                  { key: "ball", label: "⚽" },
-                  { key: "cone", label: "📐" },
-                  { key: "card_yellow", label: "🟨" },
-                  { key: "card_red", label: "🟥" },
-                  { key: "shield", label: "🛡️" }
+                  { key: "ball", label: "Balón" },
+                  { key: "cone", label: "Cono" },
+                  { key: "card_yellow", label: "Tarjeta 🟨" },
+                  { key: "card_red", label: "Tarjeta 🟥" },
+                  { key: "shield", label: "Escudo" }
                 ].map((s) => (
                   <button
                     key={s.key}
                     type="button"
                     onClick={() => setStickerType(s.key as any)}
-                    className={`p-1 rounded text-[10px] ${
-                      stickerType === s.key ? "bg-white/10 border border-white/20" : "opacity-60 hover:opacity-100"
+                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                      stickerType === s.key ? "bg-indigo-600 text-white shadow-sm font-black" : "hover:bg-white/5 opacity-70 hover:opacity-100"
                     }`}
                   >
                     {s.label}
@@ -1750,61 +1769,53 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                     onStartCut?.();
                   }
                 }}
-                className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
                   isCutting
-                    ? "bg-rose-600 text-white animate-pulse"
-                    : "bg-rose-950/40 hover:bg-rose-900 border border-rose-500/20 text-rose-300"
+                    ? "bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/30"
+                    : "bg-slate-900 border border-rose-500/30 text-rose-300 hover:bg-rose-950/40"
                 }`}
               >
-                {isCutting ? "⏹️ Parar" : "✂️ Cortar"}
+                {isCutting ? <Square className="h-3 w-3" /> : <Scissors className="h-3 w-3" />}
+                <span>{isCutting ? "Parar" : "Cortar"}</span>
               </button>
               <button
                 type="button"
                 onClick={() => onRetroactiveCut?.(10)}
-                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 border border-white/5 font-bold"
+                className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/10 text-[10px] font-bold transition-all cursor-pointer"
               >
                 −10s
               </button>
               <button
                 type="button"
                 onClick={() => onRetroactiveCut?.(30)}
-                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 border border-white/5 font-bold"
+                className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/10 text-[10px] font-bold transition-all cursor-pointer"
               >
                 −30s
               </button>
-              {onToggleManualForm && (
-                <button
-                  type="button"
-                  onClick={onToggleManualForm}
-                  className="px-2 py-1 rounded-lg bg-indigo-950/40 hover:bg-indigo-900 border border-indigo-500/25 text-indigo-300 font-bold"
-                >
-                  ➕✂️ Manual
-                </button>
-              )}
             </div>
 
             {activeTool !== "pointer" && (
-              <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1 justify-center`}>
+              <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1.5 justify-center px-1 border-x border-white/10`}>
                 {[
-                  { color: "#ef4444", label: "🔴" },
-                  { color: "#eab308", label: "🟡" },
-                  { color: "#3b82f6", label: "🔵" },
-                  { color: "#22c55e", label: "🟢" },
-                  { color: "#ffffff", label: "⚪" },
+                  { color: "#ef4444", title: "Rojo" },
+                  { color: "#eab308", title: "Amarillo" },
+                  { color: "#3b82f6", title: "Azul" },
+                  { color: "#22c55e", title: "Verde" },
+                  { color: "#ffffff", title: "Blanco" },
                 ].map((c) => (
                   <button
                     key={c.color}
                     type="button"
+                    title={c.title}
                     onClick={() => {
                       setDrawColor(c.color);
                       if (selectedId) handleUpdateSelectedProperty("color", c.color);
                     }}
-                    className={`w-4.5 h-4.5 rounded-full flex items-center justify-center transition-all ${
-                      drawColor === c.color ? "ring-2 ring-white scale-110" : "opacity-75 hover:opacity-100"
+                    className={`w-4 h-4 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                      drawColor === c.color ? "ring-2 ring-white scale-110 shadow-md" : "opacity-70 hover:opacity-100"
                     }`}
-                  >
-                    {c.label}
-                  </button>
+                    style={{ backgroundColor: c.color }}
+                  />
                 ))}
               </div>
             )}
@@ -1812,26 +1823,29 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
             <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1.5 justify-center ${!isVertical ? "ml-auto" : "mt-auto"}`}>
               <button
                 type="button"
+                title="Deshacer trazo"
                 onClick={handleUndo}
                 disabled={undoStack.length === 0}
-                className="p-1 rounded bg-white/5 border border-white/5 hover:bg-white/10 disabled:opacity-20 text-slate-300"
+                className="p-1.5 rounded-xl bg-slate-900 border border-white/10 hover:bg-slate-800 disabled:opacity-20 text-slate-300 transition-all cursor-pointer"
               >
-                ↩️
+                <Undo className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
+                title="Rehacer trazo"
                 onClick={handleRedo}
                 disabled={redoStack.length === 0}
-                className="p-1 rounded bg-white/5 border border-white/5 hover:bg-white/10 disabled:opacity-20 text-slate-300"
+                className="p-1.5 rounded-xl bg-slate-900 border border-white/10 hover:bg-slate-800 disabled:opacity-20 text-slate-300 transition-all cursor-pointer"
               >
-                ↪️
+                <Redo className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
+                title="Cerrar Pizarra"
                 onClick={() => setIsBoardActive(false)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/15"
+                className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
               >
-                ✕
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>

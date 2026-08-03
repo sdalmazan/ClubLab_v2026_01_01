@@ -30,6 +30,10 @@ export function PlayerProfileEditModal({
   const [jerseyNumber, setJerseyNumber] = useState<number | "">(10);
   const [injuries, setInjuries] = useState<any[]>([]);
 
+  const [changeEmailNew, setChangeEmailNew] = useState("");
+  const [sendingEmailChange, setSendingEmailChange] = useState(false);
+  const [emailChangeMsg, setEmailChangeMsg] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -339,6 +343,66 @@ export function PlayerProfileEditModal({
                     >
                       <span>+ Registrar Antecedente Lesional</span>
                     </button>
+                  )}
+                </div>
+
+                {/* Single Account Email Change & Old Email Deletion Approval Card */}
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                      <MailCheck className="w-3.5 h-3.5" /> Sustituir o Cambiar Correo Oficial
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-400 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
+                      Verificación en correo antiguo
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-normal">
+                    Para desvincular y eliminar tu correo antiguo, introduce tu nuevo correo. Se enviará un mensaje a tu <strong>correo antiguo</strong> para dar el OK a la eliminación.
+                  </p>
+
+                  <div className="flex gap-2 pt-1">
+                    <input
+                      type="email"
+                      placeholder="nuevo.correo@email.com"
+                      value={changeEmailNew}
+                      onChange={(e) => setChangeEmailNew(e.target.value)}
+                      className="flex-1 p-2 rounded-xl bg-card border border-border/50 text-xs text-foreground focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={sendingEmailChange || !changeEmailNew.includes("@")}
+                      onClick={async () => {
+                        setSendingEmailChange(true);
+                        setEmailChangeMsg(null);
+                        try {
+                          const res = await fetch("/api/player/change-email/request", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ newEmail: changeEmailNew }),
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            setEmailChangeMsg(data.message);
+                            setChangeEmailNew("");
+                          } else {
+                            alert(data.error || "Error al solicitar cambio de correo");
+                          }
+                        } catch (e: any) {
+                          alert("Error de conexión");
+                        } finally {
+                          setSendingEmailChange(false);
+                        }
+                      }}
+                      className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl transition-all disabled:opacity-50 cursor-pointer shrink-0 shadow"
+                    >
+                      {sendingEmailChange ? "Enviando..." : "Enviar OK al correo antiguo"}
+                    </button>
+                  </div>
+
+                  {emailChangeMsg && (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold">
+                      {emailChangeMsg}
+                    </div>
                   )}
                 </div>
 

@@ -39,7 +39,10 @@ import {
   Tag,
   AlignLeft,
   Layout,
-  UploadCloud
+  UploadCloud,
+  PenTool,
+  PauseCircle,
+  Square
 } from "lucide-react";
 
 // List of all available video statistics we support
@@ -1721,37 +1724,38 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                 <div className="flex items-center gap-1.5 bg-slate-950/80 border border-white/10 p-1 rounded-2xl">
                   <button
                     onClick={() => setIsBoardActive(!isBoardActive)}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
                       isBoardActive 
                         ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30 ring-1 ring-indigo-400" 
                         : "text-slate-300 hover:text-white hover:bg-white/5"
                     }`}
                     title="Activar Pizarra Táctica de Dibujo"
                   >
-                    <span>✏️</span>
+                    <PenTool className="h-3.5 w-3.5 text-indigo-400" />
                     <span>{isBoardActive ? "Pizarra Activa" : "Pizarra"}</span>
                   </button>
 
                   <button
                     onClick={() => isCutting ? handleStopCut() : handleStartCut()}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
                       isCutting
                         ? "bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/30"
                         : "text-rose-300 hover:text-rose-200 hover:bg-rose-950/30"
                     }`}
                     title="Crear un corte de vídeo táctico"
                   >
-                    <Scissors className="h-3 w-3" />
-                    <span>{isCutting ? "⏹ Parar" : "✂️ Cortar"}</span>
+                    {isCutting ? <Square className="h-3.5 w-3.5" /> : <Scissors className="h-3.5 w-3.5" />}
+                    <span>{isCutting ? "Parar" : "Cortar"}</span>
                   </button>
 
                   <div className="flex items-center gap-1 pl-1 border-l border-white/10">
                     <button
                       onClick={handleAddFreezeFrame}
-                      className="px-2 py-1.5 text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 rounded-xl text-[10px] font-black uppercase flex items-center gap-1 transition-all cursor-pointer"
+                      className="px-2 py-1.5 text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 rounded-xl text-[10px] font-extrabold uppercase flex items-center gap-1.5 transition-all cursor-pointer"
                       title="Congelar pantalla actual"
                     >
-                      <span>⏸ Congelar</span>
+                      <PauseCircle className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Congelar</span>
                     </button>
                     <select
                       value={freezeSeconds}
