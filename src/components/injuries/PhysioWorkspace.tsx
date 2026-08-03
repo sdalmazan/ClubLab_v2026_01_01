@@ -21,6 +21,8 @@ import {
   History,
   Dumbbell,
   User,
+  UserPlus,
+  Users,
   HelpCircle,
   FilePlus,
   Upload,

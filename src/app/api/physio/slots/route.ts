@@ -179,19 +179,20 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { 
-      slotId, 
-      action, 
-      notes, 
-      preferredDay, 
-      preferredShift, 
-      reason, 
-      date, 
-      startTime, 
-      slotMin, 
-      selectedTimeSlots,
+    const {
+      action,
+      date,
+      startTime,
+      endTime,
+      slotMin,
       appointmentId,
       scheduled_time,
+      end_time,
+      duration_min,
+      notes,
+      preferredDay,
+      selectedTimeSlots,
+      reason,
       status,
       fitness_result,
       playerId,
