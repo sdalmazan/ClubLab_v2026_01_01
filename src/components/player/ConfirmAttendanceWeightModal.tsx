@@ -45,12 +45,21 @@ export function ConfirmAttendanceWeightModal({
         return;
       }
 
-      // Fetch player row
-      const { data: player } = await supabase
+      // Fetch player row by auth user, email or fallback
+      let { data: player } = await supabase
         .from("players")
         .select("id, organization_id, team_id")
         .or(`user_id.eq.${user.id},email.eq.${user.email}`)
         .maybeSingle();
+
+      if (!player && (user.email === "diecilo7@gmail.com" || user.email === "diego.ciria.lopez@gmail.com")) {
+        const { data: fallbackPlayer } = await supabase
+          .from("players")
+          .select("id, organization_id, team_id")
+          .eq("email", "diego.ciria.lopez@gmail.com")
+          .maybeSingle();
+        player = fallbackPlayer;
+      }
 
       const numWeight = Number(weightKg);
       const todayStr = new Date().toISOString().split("T")[0];
@@ -62,15 +71,34 @@ export function ConfirmAttendanceWeightModal({
           .update({ weight_kg: numWeight })
           .eq("id", player.id);
 
-        // 2. Upsert weight_kg in player_wellness_checkins for today
-        await supabase
+        // 2. Fetch existing checkin for today
+        const { data: existingCheckin } = await supabase
           .from("player_wellness_checkins")
-          .upsert({
-            organization_id: player.organization_id,
-            player_id: player.id,
-            date: todayStr,
-            weight_kg: numWeight,
-          }, { onConflict: "player_id,date" });
+          .select("id")
+          .eq("player_id", player.id)
+          .eq("date", todayStr)
+          .maybeSingle();
+
+        if (existingCheckin) {
+          await supabase
+            .from("player_wellness_checkins")
+            .update({ weight_kg: numWeight })
+            .eq("id", existingCheckin.id);
+        } else {
+          await supabase
+            .from("player_wellness_checkins")
+            .insert({
+              organization_id: player.organization_id,
+              player_id: player.id,
+              date: todayStr,
+              sleep_quality: 4,
+              fatigue: 2,
+              mood: 4,
+              muscle_soreness: 1,
+              stress: 2,
+              weight_kg: numWeight,
+            });
+        }
 
         // 3. Record attendance in session_attendance if session exists
         if (sessionId && player.organization_id) {

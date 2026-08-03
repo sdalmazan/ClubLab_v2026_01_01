@@ -275,12 +275,12 @@ export default async function DashboardPage({
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 1. CHECK-IN PRE-ENTRENAMIENTO */}
           <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
-                Check-in Pre-Entrenamiento
+                Check-in Matutino
               </span>
               <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 {completedCheckinsCount} / {totalPlayers} ({checkinPct}%)
@@ -297,22 +297,43 @@ export default async function DashboardPage({
             </div>
           </div>
 
-          {/* 2. CHECK-OUT POST-ENTRENAMIENTO (RPE) */}
+          {/* 2. PRESENCIA & PESO EN BÁSCULA */}
           <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-400">
-                Check-out Post-Entrenamiento (RPE)
+                Presencia & Báscula
               </span>
               <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                {completedWeightsCount} / {totalPlayers} ({totalPlayers > 0 ? Math.round((completedWeightsCount / totalPlayers) * 100) : 0}%)
+              </span>
+            </div>
+            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+              <div className="bg-sky-400 h-full transition-all duration-500" style={{ width: `${totalPlayers > 0 ? Math.round((completedWeightsCount / totalPlayers) * 100) : 0}%` }} />
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-slate-400">Sin registrar:</span>
+              <span className={`font-bold ${totalPlayers - completedWeightsCount === 0 ? "text-emerald-400" : "text-sky-300"}`}>
+                {totalPlayers - completedWeightsCount === 0 ? "Todos pesados" : `${totalPlayers - completedWeightsCount} sin peso`}
+              </span>
+            </div>
+          </div>
+
+          {/* 3. CHECK-OUT POST-ENTRENAMIENTO (RPE) */}
+          <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-400">
+                Check-out (RPE)
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                 {completedCheckoutsCount} / {totalPlayers} ({checkoutPct}%)
               </span>
             </div>
             <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-              <div className="bg-sky-400 h-full transition-all duration-500" style={{ width: `${checkoutPct}%` }} />
+              <div className="bg-purple-400 h-full transition-all duration-500" style={{ width: `${checkoutPct}%` }} />
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400">Pendientes:</span>
-              <span className={`font-bold ${pendingCheckoutCount === 0 ? "text-emerald-400" : "text-sky-400"}`}>
+              <span className={`font-bold ${pendingCheckoutCount === 0 ? "text-emerald-400" : "text-purple-300"}`}>
                 {pendingCheckoutCount === 0 ? "Ninguno (Al día)" : `${pendingCheckoutCount} futbolistas`}
               </span>
             </div>

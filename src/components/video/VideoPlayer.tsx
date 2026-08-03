@@ -1209,7 +1209,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       };
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isBoardActive, readOnly, stepSize]);
+    }, [isBoardActive, readOnly, stepSize, largeStepSize]);
 
     // Parse URL to detect type
     useEffect(() => {
@@ -1565,93 +1565,17 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     };
 
     const renderPlaybackControlsOverlay = () => {
-      if (hideControls || playerType !== "html5" || !url) return null;
+      if (hideControls || !url) return null;
       return (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-2 flex items-center gap-3 text-white text-xs shadow-2xl backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => {
-              if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
-            }}
-            className="bg-white/5 hover:bg-white/10 text-white rounded-lg px-2.5 py-1.5 text-[10px] font-bold"
-          >
-            -5s
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 1);
-            }}
-            className="bg-white/5 hover:bg-white/10 text-white rounded-lg px-2.5 py-1.5 text-[10px] font-bold"
-          >
-            -1s
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (videoRef.current) {
-                if (videoRef.current.paused) {
-                  videoRef.current.play().catch(() => {});
-                } else {
-                  videoRef.current.pause();
-                }
-              }
-            }}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full w-9 h-9 flex items-center justify-center transition-all"
-          >
-            {isPlaying ? (
-              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-              </svg>
-            ) : (
-              <svg className="w-3.5 h-3.5 fill-current translate-x-[1px]" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 1);
-            }}
-            className="bg-white/5 hover:bg-white/10 text-white rounded-lg px-2.5 py-1.5 text-[10px] font-bold"
-          >
-            +1s
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 5);
-            }}
-            className="bg-white/5 hover:bg-white/10 text-white rounded-lg px-2.5 py-1.5 text-[10px] font-bold"
-          >
-            +5s
-          </button>
-
-          <div className="h-3 w-px bg-white/10" />
-
-          <select
-            value={playbackSpeed}
-            onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-            className="bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 cursor-pointer text-white text-[10px]"
-          >
-            {[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((s) => (
-              <option key={s} value={s}>{s === 1.0 ? "Normal" : `${s}x`}</option>
-            ))}
-          </select>
-
-          <div className="h-3 w-px bg-white/10" />
-
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="p-1 hover:bg-white/10 rounded-lg text-slate-350 hover:text-white"
-          >
-            {isFullscreen ? "🗖" : "🗕"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute top-3 right-3 z-20 bg-slate-950/80 hover:bg-slate-900 border border-white/10 text-slate-200 hover:text-white px-2.5 py-1.5 rounded-xl text-[10px] font-bold shadow-lg backdrop-blur-xs flex items-center gap-1.5 cursor-pointer transition-all"
+          title="Pantalla Completa"
+        >
+          <span>{isFullscreen ? "🗖" : "⛶"}</span>
+          <span>{isFullscreen ? "Salir Fullscreen" : "Pantalla Completa"}</span>
+        </button>
       );
     };
 

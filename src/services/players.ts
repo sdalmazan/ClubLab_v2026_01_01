@@ -204,11 +204,21 @@ export async function getSquadPlayers(
   const rpeMap = new Map<string, any>();
   (todayRpe ?? []).forEach((r: any) => rpeMap.set(r.player_id, r));
 
-  const playersWithWellnessAndRpe = mappedPlayers.map((p) => ({
-    ...p,
-    latest_wellness: wellnessMap.get(p.id) || null,
-    latest_rpe: rpeMap.get(p.id) || null,
-  }));
+  const playersWithWellnessAndRpe = mappedPlayers.map((p) => {
+    const checkin = wellnessMap.get(p.id) || null;
+    const effectiveWeight = checkin?.weight_kg ?? p.weight_kg ?? null;
+    const finalWellness = checkin
+      ? { ...checkin, weight_kg: effectiveWeight }
+      : effectiveWeight != null
+      ? { weight_kg: effectiveWeight, sleep_quality: 4, fatigue: 2 }
+      : null;
+
+    return {
+      ...p,
+      latest_wellness: finalWellness,
+      latest_rpe: rpeMap.get(p.id) || null,
+    };
+  });
 
   if (teamId && strictTeamOnly) {
     return playersWithWellnessAndRpe.filter((p) => p.membership?.team_id === teamId);

@@ -28,22 +28,19 @@ export function InteractiveCheckinList({
   return (
     <>
       <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02] gap-2">
-          <span className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
-            <HeartPulse className="size-4 text-emerald-400" />
-            Detalle Check-in por Jugador
-          </span>
-          <div className="flex items-center gap-2 flex-wrap text-[10px] font-bold">
-            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-              📋 Check-in: {completedCheckinsCount}/{totalPlayers}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+          <div>
+            <span className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <HeartPulse className="size-4 text-emerald-400" />
+              Detalle Check-in por Jugador
             </span>
-            <span className="bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2.5 py-1 rounded-full">
-              ⚖️ Peso Báscula: {completedWeightsCount}/{totalPlayers}
-            </span>
-            <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2.5 py-1 rounded-full">
-              🏁 Check-out: {completedCheckoutsCount}/{totalPlayers}
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              Haz clic en cualquier futbolista para ver el informe de salud, pesaje y esfuerzo
             </span>
           </div>
+          <span className="text-[10px] font-bold text-slate-300 bg-white/5 px-2.5 py-1 rounded-full border border-white/10 shrink-0">
+            {completedCheckinsCount} / {totalPlayers} Listos
+          </span>
         </div>
 
         <div className="divide-y divide-white/5 max-h-80 overflow-y-auto">
