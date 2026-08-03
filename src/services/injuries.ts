@@ -28,7 +28,8 @@ export interface PhysioConsultation {
   id: string;
   date: string; // YYYY-MM-DD
   start_time: string; // e.g. "16:00"
-  slot_duration_min: number; // e.g. 15
+  end_time?: string; // e.g. "20:30" (Disponibilidad total de la consulta)
+  slot_duration_min: number; // e.g. 10
   is_open: boolean;
   notes?: string;
 }
@@ -43,7 +44,8 @@ export interface PhysioAppointment {
   selected_time_slots?: string[];
   status: "pending" | "scheduled" | "treated";
   scheduled_time?: string; // e.g. "16:15"
-  end_time?: string; // e.g. "16:45"
+  end_time?: string; // e.g. "16:25"
+  duration_min?: number; // e.g. 10 (duración de sesión por jugador, por defecto 10 min)
   fitness_result?: "apto" | "adaptado" | "no_apto";
   notes?: string;
   created_at?: string;

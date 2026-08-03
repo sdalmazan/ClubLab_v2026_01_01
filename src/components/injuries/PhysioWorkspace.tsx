@@ -79,6 +79,7 @@ export function PhysioWorkspace({
   const [isOpeningConsultation, setIsOpeningConsultation] = useState(false);
   const [newConsDate, setNewConsDate] = useState(new Date().toISOString().split("T")[0]);
   const [newConsStartTime, setNewConsStartTime] = useState("18:00");
+  const [newConsEndTime, setNewConsEndTime] = useState("20:30");
   const [newConsSlotMin, setNewConsSlotMin] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("cl_default_physio_slot_min");
@@ -91,6 +92,7 @@ export function PhysioWorkspace({
   const [isEditingConsultation, setIsEditingConsultation] = useState(false);
   const [editConsDate, setEditConsDate] = useState("");
   const [editConsStartTime, setEditConsStartTime] = useState("");
+  const [editConsEndTime, setEditConsEndTime] = useState("20:30");
   const [editConsSlotMin, setEditConsSlotMin] = useState(10);
 
   // Direct Injury Creation Modal state
@@ -158,6 +160,35 @@ export function PhysioWorkspace({
     } catch (e) {}
   };
 
+  const handleUpdatePlayerDuration = (appId: string, newDurationMin: number) => {
+    const targetApp = appointments.find(a => a.id === appId);
+    if (!targetApp) return;
+
+    const startTime = targetApp.scheduled_time || "18:00";
+    const endTime = addMinutesToTime(startTime, newDurationMin);
+
+    setAppointments(prev =>
+      prev.map(app =>
+        app.id === appId
+          ? { ...app, duration_min: newDurationMin, end_time: endTime }
+          : app
+      )
+    );
+
+    try {
+      fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_appointment",
+          appointmentId: appId,
+          duration_min: newDurationMin,
+          end_time: endTime,
+        }),
+      });
+    } catch (e) {}
+  };
+
   // Reports Modal (bound to a specific injury)
   const [reportingInjury, setReportingInjury] = useState<ActiveInjuryRecord | null>(null);
   const [reportText, setReportText] = useState("");
@@ -211,6 +242,7 @@ export function PhysioWorkspace({
       id: `cons-${Date.now()}`,
       date: newConsDate,
       start_time: newConsStartTime,
+      end_time: newConsEndTime,
       slot_duration_min: newConsSlotMin,
       is_open: true,
     };
@@ -225,6 +257,7 @@ export function PhysioWorkspace({
           action: "open_consultation",
           date: newConsDate,
           startTime: newConsStartTime,
+          endTime: newConsEndTime,
           slotMin: newConsSlotMin,
         }),
       });
@@ -238,6 +271,7 @@ export function PhysioWorkspace({
     if (!consultation) return;
     setEditConsDate(consultation.date || new Date().toISOString().split("T")[0]);
     setEditConsStartTime(consultation.start_time || "18:00");
+    setEditConsEndTime(consultation.end_time || "20:30");
     setEditConsSlotMin(consultation.slot_duration_min || 10);
     setIsEditingConsultation(true);
   };
@@ -249,6 +283,7 @@ export function PhysioWorkspace({
       id: consultation?.id || `cons-${Date.now()}`,
       date: editConsDate,
       start_time: editConsStartTime,
+      end_time: editConsEndTime,
       slot_duration_min: editConsSlotMin,
       is_open: true,
     };
@@ -263,6 +298,7 @@ export function PhysioWorkspace({
           action: "open_consultation",
           date: editConsDate,
           startTime: editConsStartTime,
+          endTime: editConsEndTime,
           slotMin: editConsSlotMin,
         }),
       });
@@ -737,7 +773,7 @@ export function PhysioWorkspace({
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Inicio a las <strong className="text-white">{consultation.start_time}</strong> • Franjas de {consultation.slot_duration_min} min por jugador
+                  Disponibilidad total: <strong className="text-emerald-400 font-mono font-bold">{consultation.start_time} hs a {consultation.end_time || "20:30"} hs</strong> • Duración por defecto por jugador: <strong className="text-white">{consultation.slot_duration_min || 10} min</strong>
                 </p>
               </div>
 
@@ -760,65 +796,67 @@ export function PhysioWorkspace({
                       })
                     );
                   }}
-                  className={buttonVariants({ variant: "secondary", size: "xs" })}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
-                  <Sparkles className="size-3.5 mr-1 text-amber-400" />
-                  Calcular Propuesta de Horas
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenEditConsultation}
-                  className={buttonVariants({ variant: "outline", size: "xs" })}
-                  title="Modificar fecha, hora de inicio o duración de franja"
-                >
-                  <Pencil className="size-3.5 mr-1 text-emerald-400" /> Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteConsultation}
-                  className={buttonVariants({ variant: "destructive", size: "xs" })}
-                  title="Cancelar y eliminar esta consulta abierta"
-                >
-                  <Trash2 className="size-3.5 mr-1" /> Cancelar Consulta
+                  <Calendar className="size-3.5 mr-1 text-sky-400" />
+                  Auto-Asignar Horas
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsBookingModalOpen(true)}
-                  className={buttonVariants({ variant: "outline", size: "xs" })}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
                 >
-                  <Plus className="size-3.5 mr-1" /> Apuntar Jugador
+                  <UserPlus className="size-3.5 mr-1" />
+                  + Añadir Cita
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenEditConsultation}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <Pencil className="size-3.5 mr-1 text-emerald-400" />
+                  Editar Consulta
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConsultation}
+                  className="px-3 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-semibold text-xs transition-all cursor-pointer"
+                >
+                  Cancelar Consulta
                 </button>
               </div>
             </div>
           ) : (
-            <div className="bg-slate-900 rounded-lg border border-dashed border-white/10 p-6 text-center space-y-3 text-white">
-              <Clock className="size-8 text-slate-400 mx-auto" />
+            <div className="bg-slate-900 rounded-lg border border-dashed border-white/20 p-8 text-center space-y-3">
+              <Clock className="size-8 text-slate-500 mx-auto" />
               <div>
-                <p className="text-xs font-semibold">No hay consulta de fisioterapia abierta hoy.</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Abre consulta fijando la hora de inicio para que los futbolistas elijan sus franjas de 15 min.</p>
+                <h4 className="text-sm font-bold text-white">No hay consulta médica abierta hoy</h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+                  Abre la consulta de fisioterapia definiendo la hora de inicio, hora de fin y la duración por franja para que los jugadores puedan solicitar asistencia.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsOpeningConsultation(true)}
                 className={buttonVariants({ size: "sm" })}
               >
-                Abrir Consulta Ahora
+                + Abrir Consulta de Fisioterapia
               </button>
             </div>
           )}
 
-          {/* List of Player Appointments */}
-          <div className="bg-slate-900 rounded-lg border border-white/10 overflow-hidden text-white">
-            <div className="p-4 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
-                Solicitudes y Citas de Fisioterapia ({appointments.length})
+          {/* List of Today's Physio Appointments */}
+          <div className="bg-slate-900 rounded-lg border border-white/10 overflow-hidden shadow-xl">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Users className="size-4 text-emerald-400" />
+                Citas de Fisioterapia para Hoy ({appointments.length})
               </h3>
-              <span className="text-[11px] text-slate-400">El programa propone las horas y el fisio confirma la asignación final</span>
             </div>
 
             {appointments.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400">
-                No hay citas ni solicitudes pendientes de jugadores.
+              <div className="p-8 text-center space-y-2">
+                <p className="text-xs text-slate-400 italic">No hay futbolistas apuntados a la consulta por el momento.</p>
               </div>
             ) : (
               <div className="divide-y divide-white/5">
@@ -857,35 +895,39 @@ export function PhysioWorkspace({
                           ) : app.scheduled_time ? (
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center gap-1">
-                                <Clock className="size-3" /> {app.scheduled_time} {app.end_time ? `- ${app.end_time}` : ""}
+                                <Clock className="size-3" /> {app.scheduled_time} - {app.end_time || addMinutesToTime(app.scheduled_time, app.duration_min || 10)}
                               </span>
 
-                              {/* Editable End Time for Physio Session Extension */}
-                              <div className="flex items-center gap-1 text-[10px] bg-slate-950 px-2 py-0.5 rounded border border-white/10">
-                                <span className="text-slate-400 font-medium">Fin:</span>
-                                <input
-                                  type="time"
-                                  value={app.end_time || addMinutesToTime(app.scheduled_time, 20)}
-                                  onChange={(e) => handleUpdateEndTime(app.id, e.target.value)}
-                                  className="bg-transparent text-white font-mono font-bold focus:outline-none w-16"
-                                  title="Modificar hora final (extensión para lesionados)"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateEndTime(app.id, addMinutesToTime(app.end_time || app.scheduled_time, 15))}
-                                  className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-bold text-[9px] transition-colors cursor-pointer"
-                                  title="Añadir 15 min de sesión"
-                                >
-                                  +15m
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateEndTime(app.id, addMinutesToTime(app.end_time || app.scheduled_time, 30))}
-                                  className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-bold text-[9px] transition-colors cursor-pointer"
-                                  title="Añadir 30 min de sesión"
-                                >
-                                  +30m
-                                </button>
+                              {/* Modificar duración de tratamiento de este jugador (por defecto 10 min) */}
+                              <div className="flex items-center gap-1.5 text-[10px] bg-slate-950 px-2.5 py-1 rounded-xl border border-white/10">
+                                <span className="text-slate-400 font-semibold">Tratamiento:</span>
+                                <span className="text-white font-mono font-extrabold">{app.duration_min || 10} min</span>
+                                <div className="flex items-center gap-1 ml-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdatePlayerDuration(app.id, Math.max(5, (app.duration_min || 10) - 5))}
+                                    className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 font-bold text-[9px] transition-colors cursor-pointer"
+                                    title="Disminuir 5 min"
+                                  >
+                                    -5m
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdatePlayerDuration(app.id, (app.duration_min || 10) + 5)}
+                                    className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-bold text-[9px] transition-colors cursor-pointer"
+                                    title="Aumentar 5 min (ampliar tratamiento)"
+                                  >
+                                    +5m
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdatePlayerDuration(app.id, (app.duration_min || 10) + 15)}
+                                    className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-bold text-[9px] transition-colors cursor-pointer"
+                                    title="Aumentar 15 min (extensión lesionados)"
+                                  >
+                                    +15m
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ) : (
@@ -1074,14 +1116,25 @@ export function PhysioWorkspace({
                 />
               </div>
 
-              <div>
-                <label className="font-semibold text-white block mb-1">Hora de inicio:</label>
-                <input
-                  type="time"
-                  value={newConsStartTime}
-                  onChange={(e) => setNewConsStartTime(e.target.value)}
-                  className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-white block mb-1">Hora de inicio:</label>
+                  <input
+                    type="time"
+                    value={newConsStartTime}
+                    onChange={(e) => setNewConsStartTime(e.target.value)}
+                    className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-white block mb-1">Hora de fin (Consulta total):</label>
+                  <input
+                    type="time"
+                    value={newConsEndTime}
+                    onChange={(e) => setNewConsEndTime(e.target.value)}
+                    className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary font-mono font-bold"
+                  />
+                </div>
               </div>
 
               <div>
@@ -1688,14 +1741,25 @@ export function PhysioWorkspace({
                 />
               </div>
 
-              <div>
-                <label className="font-semibold text-white block mb-1">Hora de inicio:</label>
-                <input
-                  type="time"
-                  value={editConsStartTime}
-                  onChange={(e) => setEditConsStartTime(e.target.value)}
-                  className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-white block mb-1">Hora de inicio:</label>
+                  <input
+                    type="time"
+                    value={editConsStartTime}
+                    onChange={(e) => setEditConsStartTime(e.target.value)}
+                    className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-white block mb-1">Hora de fin (Consulta total):</label>
+                  <input
+                    type="time"
+                    value={editConsEndTime}
+                    onChange={(e) => setEditConsEndTime(e.target.value)}
+                    className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary font-mono font-bold"
+                  />
+                </div>
               </div>
 
               <div>

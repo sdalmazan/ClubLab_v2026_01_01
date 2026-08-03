@@ -564,7 +564,7 @@ export default function PlayerTodayPage() {
               Consulta de Fisioterapia
             </span>
             <h4 className="text-xs font-bold text-foreground capitalize mt-0.5">
-              {physioSlots[0]?.date ? new Date(physioSlots[0].date + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }) : "Convocatoria Hoy"} • Inicio {physioSlots[0]?.startTime || "18:00"} hs
+              {physioSlots[0]?.date ? new Date(physioSlots[0].date + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }) : "Convocatoria Hoy"} • Disponible de {physioSlots[0]?.startTime || "18:00"} hs a {physioSlots[0]?.endTime || "20:30"} hs
             </h4>
             <p className="text-[10px] font-medium mt-0.5">
               {myPhysioAppointment?.status === "scheduled" ? (

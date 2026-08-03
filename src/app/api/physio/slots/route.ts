@@ -243,7 +243,7 @@ export async function POST(request: Request) {
         id: `slot-${consDate}`,
         date: consDate,
         startTime: startTime || "18:00",
-        endTime: "20:00",
+        endTime: endTime || "20:30",
         physioName: "Fisioterapeuta del Club",
         maxCapacity: 10,
         currentBookingsCount: 0,
@@ -309,6 +309,8 @@ export async function POST(request: Request) {
         appList[idx] = {
           ...prevApp,
           scheduled_time: scheduled_time !== undefined ? scheduled_time : prevApp.scheduled_time,
+          end_time: end_time !== undefined ? end_time : prevApp.end_time,
+          duration_min: duration_min !== undefined ? duration_min : (prevApp.duration_min || 10),
           status: status !== undefined ? status : prevApp.status,
           fitness_result: fitness_result !== undefined ? fitness_result : prevApp.fitness_result,
           notes: notes !== undefined ? notes : prevApp.notes,
