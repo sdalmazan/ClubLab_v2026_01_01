@@ -59,53 +59,80 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, isAdmin: Boolean(isAdmin) });
       }
-      case "assign_user_organization_role": {
-        const { userId: targetUserId, organizationId, role } = body;
+      case "assign_user_organization_role":
+      case "update_user_role": {
+        const targetUserId = body.userId || body.targetUserId;
+        const { organizationId, role } = body;
         if (!targetUserId) {
           return NextResponse.json({ error: "Falta el ID del usuario" }, { status: 400 });
         }
 
-        const { data: existingRole } = await supabaseAdmin
-          .from("user_organization_roles")
-          .select("id")
-          .eq("user_id", targetUserId)
-          .maybeSingle();
+        const orgIdToSave = (organizationId && organizationId !== "" && organizationId !== "null" && organizationId !== "undefined")
+          ? organizationId
+          : null;
 
-        if (existingRole) {
-          await supabaseAdmin
-            .from("user_organization_roles")
-            .update({
-              organization_id: organizationId || null,
-              role: role || "player",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("user_id", targetUserId);
-        } else {
-          await supabaseAdmin
+        const roleToSave = role && role !== "Ninguno" ? role : "player";
+        const isAdminFlag = roleToSave === "super_admin" || roleToSave === "club_admin";
+
+        // 1. Update Auth user_metadata
+        const { data: userRecord } = await supabaseAdmin.auth.admin.getUserById(targetUserId);
+        const currentMeta = userRecord?.user?.user_metadata || {};
+
+        await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+          user_metadata: {
+            ...currentMeta,
+            role: roleToSave,
+            organization_id: orgIdToSave,
+            is_admin: isAdminFlag || Boolean(currentMeta.is_admin),
+          },
+        });
+
+        // 2. Clear previous role entries in user_organization_roles
+        await supabaseAdmin
+          .from("user_organization_roles")
+          .delete()
+          .eq("user_id", targetUserId);
+
+        // 3. Insert new role entry in user_organization_roles
+        if (orgIdToSave) {
+          const { error: insertErr } = await supabaseAdmin
             .from("user_organization_roles")
             .insert({
               user_id: targetUserId,
-              organization_id: organizationId || null,
-              role: role || "player",
+              organization_id: orgIdToSave,
+              role: roleToSave,
+              is_admin: isAdminFlag || Boolean(currentMeta.is_admin),
             });
-        }
 
-        if (organizationId) {
-          const { data: pRecord } = await supabaseAdmin
-            .from("players")
-            .select("id")
-            .or(`user_id.eq.${targetUserId}`)
-            .maybeSingle();
-
-          if (pRecord) {
-            await supabaseAdmin
-              .from("players")
-              .update({ organization_id: organizationId })
-              .eq("id", pRecord.id);
+          if (insertErr) {
+            console.error("Error inserting into user_organization_roles:", insertErr);
           }
+        } else {
+          try {
+            await supabaseAdmin
+              .from("user_organization_roles")
+              .insert({
+                user_id: targetUserId,
+                organization_id: null,
+                role: roleToSave,
+                is_admin: isAdminFlag || Boolean(currentMeta.is_admin),
+              });
+          } catch (e) {}
         }
 
-        return NextResponse.json({ success: true, organizationId, role });
+        // 4. Update player record if targetUserId belongs to a player
+        if (orgIdToSave) {
+          const playerQuery = userRecord?.user?.email
+            ? `user_id.eq.${targetUserId},email.eq.${userRecord.user.email}`
+            : `user_id.eq.${targetUserId}`;
+
+          await supabaseAdmin
+            .from("players")
+            .update({ organization_id: orgIdToSave })
+            .or(playerQuery);
+        }
+
+        return NextResponse.json({ success: true, organizationId: orgIdToSave, role: roleToSave });
       }
       case "approve_registration_request": {
         const { invitationId } = body;
@@ -293,16 +320,6 @@ export async function POST(req: NextRequest) {
 
         if (teamErr) throw teamErr;
 
-        return NextResponse.json({ success: true });
-      }
-      case "update_user_role": {
-        const { userId, role, organizationId } = body;
-        const { error } = await supabaseAdmin
-          .from("user_organization_roles")
-          .update({ role })
-          .eq("user_id", userId)
-          .eq("organization_id", organizationId);
-        if (error) throw error;
         return NextResponse.json({ success: true });
       }
       case "delete_user": {

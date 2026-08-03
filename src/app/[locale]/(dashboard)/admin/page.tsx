@@ -48,14 +48,16 @@ export default async function AdminPortalPage() {
 
   const mappedUsers = authUsers.map((au: any) => {
     const roleRecord = roles?.find((r: any) => r.user_id === au.id);
-    const org = organizations?.find((o: any) => o.id === roleRecord?.organization_id);
-    const isAdmin = roleRecord?.role === "super_admin" || roleRecord?.role === "club_admin" || (roleRecord as any)?.is_admin === true || au.user_metadata?.is_admin === true || au.email === "diecilo7@gmail.com";
+    const orgId = roleRecord?.organization_id || au.user_metadata?.organization_id || null;
+    const roleVal = roleRecord?.role || au.user_metadata?.role || "Ninguno";
+    const org = organizations?.find((o: any) => o.id === orgId);
+    const isAdmin = roleVal === "super_admin" || roleVal === "club_admin" || (roleRecord as any)?.is_admin === true || au.user_metadata?.is_admin === true || au.email === "diecilo7@gmail.com";
     return {
       id: au.id,
       email: au.email,
-      role: roleRecord?.role || "Ninguno",
+      role: roleVal,
       is_admin: Boolean(isAdmin),
-      organization_id: roleRecord?.organization_id || null,
+      organization_id: orgId,
       organization_name: org?.name || "Ninguna",
       created_at: au.created_at,
     };
