@@ -424,11 +424,22 @@ export async function POST(request: Request) {
       const appReason = reason || notes || (timeSlotList.length ? `Franjas elegidas: ${timeSlotList.join(", ")}` : "Consulta de Fisioterapia");
       const schedTime = timeSlotList.length === 1 ? timeSlotList[0] : (startTime || undefined);
 
-      const resolvedId = playerRow?.id || playerId || `p-${Date.now()}`;
-      const resolvedName = playerRow
-        ? (playerRow.sporting_name || `${playerRow.first_name || ""} ${playerRow.last_name || ""}`.trim())
-        : (playerName || "Jugador");
-      const resolvedJersey = playerRow?.player_team_memberships?.[0]?.jersey_number ?? (jerseyNumber != null ? Number(jerseyNumber) : null);
+      let resolvedId = playerId || playerRow?.id || `p-${Date.now()}`;
+      let resolvedName = playerName || (playerRow ? (playerRow.sporting_name || `${playerRow.first_name || ""} ${playerRow.last_name || ""}`.trim()) : "Jugador");
+      let resolvedJersey = playerRow?.player_team_memberships?.[0]?.jersey_number ?? (jerseyNumber != null ? Number(jerseyNumber) : null);
+
+      if (resolvedId && (!playerRow || playerRow.id !== resolvedId)) {
+        const { data: targetPlayer } = await supabase
+          .from("players")
+          .select("id, sporting_name, first_name, last_name, player_team_memberships(jersey_number)")
+          .eq("id", resolvedId)
+          .maybeSingle();
+
+        if (targetPlayer) {
+          resolvedName = targetPlayer.sporting_name || `${targetPlayer.first_name || ""} ${targetPlayer.last_name || ""}`.trim();
+          resolvedJersey = (targetPlayer.player_team_memberships as any)?.[0]?.jersey_number ?? resolvedJersey;
+        }
+      }
 
       const newApp = {
         id: `app-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,

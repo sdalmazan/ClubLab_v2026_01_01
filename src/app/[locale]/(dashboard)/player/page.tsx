@@ -880,6 +880,8 @@ export default function PlayerTodayPage() {
                           preferredShift,
                           reason: physioReason,
                           selectedTimeSlots,
+                          playerId: summary?.player?.id,
+                          playerName: summary?.player?.sporting_name || `${summary?.player?.first_name || ""} ${summary?.player?.last_name || ""}`.trim(),
                         }),
                       });
                       const data = await res.json();
