@@ -534,13 +534,15 @@ export function SessionForm({
       let notes = "";
 
       if (activeInjury) {
-        const injStatus = (activeInjury.status || "").toLowerCase();
-        if (injStatus.includes("readap") || injStatus.includes("rehab")) {
-          status = "readaptation";
-          notes = `Readaptación: ${activeInjury.body_part || "Muscular"}`;
-        } else if (injStatus === "active" || injStatus === "injured") {
+        const phase = activeInjury.recovery_phase;
+        if (phase === 3) {
+          status = "partial";
+          notes = `Parcial (Tareas con grupo): ${activeInjury.body_part || "Muscular"}`;
+        } else if (phase === 4) {
+          status = "present";
+        } else {
           status = "injured";
-          notes = `Lesión: ${activeInjury.body_part || "General"}`;
+          notes = `Lesionado (Readaptación al margen): ${activeInjury.body_part || "General"}`;
         }
       }
 
@@ -563,13 +565,15 @@ export function SessionForm({
           let notes = "";
 
           if (activeInjury) {
-            const injStatus = (activeInjury.status || "").toLowerCase();
-            if (injStatus.includes("readap") || injStatus.includes("rehab")) {
-              status = "readaptation";
-              notes = `Readaptación: ${activeInjury.body_part || "Muscular"}`;
-            } else if (injStatus === "active" || injStatus === "injured") {
+            const phase = activeInjury.recovery_phase;
+            if (phase === 3) {
+              status = "partial";
+              notes = `Parcial (Tareas con grupo): ${activeInjury.body_part || "Muscular"}`;
+            } else if (phase === 4) {
+              status = "present";
+            } else {
               status = "injured";
-              notes = `Lesión: ${activeInjury.body_part || "General"}`;
+              notes = `Lesionado (Readaptación al margen): ${activeInjury.body_part || "General"}`;
             }
           }
 

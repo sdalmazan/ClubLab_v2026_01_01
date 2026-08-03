@@ -535,10 +535,13 @@ export function MatchGamePlan({
     });
   };
 
-  // Get physical traffic light indicator color
   const getPlayerStatus = (player: PlayerOption) => {
-    if (player.active_injury?.status === "active") return "red";
-    if (player.active_injury?.status === "readaptation") return "yellow";
+    if (player.active_injury) {
+      const phase = (player.active_injury as any).recovery_phase;
+      if (phase === 3) return "yellow";
+      if (phase === 4) return "green";
+      return "red";
+    }
     return "green";
   };
 

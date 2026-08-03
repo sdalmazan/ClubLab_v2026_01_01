@@ -52,7 +52,6 @@ export interface PhysioAppointment {
   date?: string;
 }
 
-// Exact alignment between Physio (Enfermería) and Fitness Coach (Preparador Físico / Rendimiento)
 export const INJURY_PHASE_LABELS: Record<InjuryPhase, { 
   name: string; 
   desc: string; 
@@ -68,17 +67,17 @@ export const INJURY_PHASE_LABELS: Record<InjuryPhase, {
     attendanceStatus: "injured"
   },
   2: {
-    name: "Fase 2: Readaptación Campo",
-    desc: "Readaptación Física Individual sobre césped (Return to Play)",
-    badge: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-    fitnessState: "Return to Play (RTP / Césped)",
-    attendanceStatus: "readaptation"
+    name: "Fase 2: Readaptación Campo (Individual)",
+    desc: "Readaptación física al margen sin entrar con el grupo (Lesionado en Convocatoria)",
+    badge: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+    fitnessState: "Readaptación al margen (Lesionado)",
+    attendanceStatus: "injured"
   },
   3: {
     name: "Fase 3: Integración Parcial",
-    desc: "Parte de Sesión con grupo (Carga Reducida / Sin contacto)",
+    desc: "Empieza a realizar tareas con el grupo (Parcial en Convocatoria)",
     badge: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    fitnessState: "Carga Reducida / Listo c/ Restricciones",
+    fitnessState: "Tareas con grupo (Parcial)",
     attendanceStatus: "partial"
   },
   4: {
