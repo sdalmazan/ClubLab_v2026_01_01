@@ -1098,24 +1098,45 @@ export function PhysioWorkspace({
 
       {/* ── MODAL: DICTAMEN DE TRATAMIENTO ("TRATADO") ── */}
       {treatingAppointment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
-          <div className="bg-slate-900 border border-white/20 rounded-xl max-w-lg w-full p-6 space-y-5 shadow-2xl text-white max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div>
-                <h3 className="text-base font-extrabold text-white">
-                  Dictamen de Tratamiento: {treatingAppointment.player_name}
-                </h3>
-                <p className="text-xs text-slate-400">Motivo: "{treatingAppointment.reason}"</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xl p-4 animate-fade-in">
+          <div className="bg-slate-900/95 border border-white/15 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl text-white max-h-[92vh] overflow-y-auto backdrop-blur-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
+                  <HeartPulse className="size-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest block">
+                    Dictamen de Tratamiento
+                  </span>
+                  <h3 className="text-base font-extrabold text-white">
+                    {treatingAppointment.player_name}
+                  </h3>
+                  {treatingAppointment.reason && (
+                    <span className="text-[11px] text-slate-400 block mt-0.5 italic">
+                      Motivo: "{treatingAppointment.reason}"
+                    </span>
+                  )}
+                </div>
               </div>
-              <button type="button" onClick={() => setTreatingAppointment(null)} className="text-slate-400 hover:text-white">
+              <button
+                type="button"
+                onClick={() => setTreatingAppointment(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+              >
                 <X className="size-5" />
               </button>
             </div>
 
-            <form onSubmit={handleConfirmTreatment} className="space-y-5 text-xs">
-              <div className="space-y-2">
-                <label className="font-bold text-white block">1. Dictamen de Aptitud del Futbolista:</label>
-                <div className="grid grid-cols-3 gap-2">
+            <form onSubmit={handleConfirmTreatment} className="space-y-6 text-xs">
+              {/* 1. Dictamen de Aptitud (3 Minimalist Glow Cards) */}
+              <div className="space-y-2.5">
+                <label className="font-extrabold text-slate-200 uppercase tracking-wider text-[11px] block">
+                  1. Dictamen de Aptitud del Futbolista:
+                </label>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {/* APTO */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1123,30 +1144,42 @@ export function PhysioWorkspace({
                       setWantsFormalInjury(null);
                     }}
                     className={cn(
-                      "p-3 rounded-lg border text-center transition-all cursor-pointer font-bold flex flex-col items-center gap-1.5",
+                      "p-3.5 rounded-2xl border text-center transition-all cursor-pointer font-bold flex flex-col items-center justify-between gap-2 shadow-sm",
                       fitnessOutcome === "apto"
-                        ? "bg-emerald-500 text-slate-950 border-emerald-400 ring-2 ring-emerald-500/40"
-                        : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-400 ring-2 ring-emerald-500/40 scale-[1.02]"
+                        : "bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]"
                     )}
                   >
-                    <CheckCircle2 className="size-5" />
-                    <span>🟩 APTO</span>
+                    <div className={cn("p-2 rounded-xl", fitnessOutcome === "apto" ? "bg-emerald-500 text-slate-950" : "bg-emerald-500/10 text-emerald-400")}>
+                      <CheckCircle2 className="size-4" />
+                    </div>
+                    <div>
+                      <span className="block font-black text-xs text-white">APTO</span>
+                      <span className="text-[9px] font-normal text-slate-400 block">Disponible 100%</span>
+                    </div>
                   </button>
 
+                  {/* ADAPTADO */}
                   <button
                     type="button"
                     onClick={() => setFitnessOutcome("adaptado")}
                     className={cn(
-                      "p-3 rounded-lg border text-center transition-all cursor-pointer font-bold flex flex-col items-center gap-1.5",
+                      "p-3.5 rounded-2xl border text-center transition-all cursor-pointer font-bold flex flex-col items-center justify-between gap-2 shadow-sm",
                       fitnessOutcome === "adaptado"
-                        ? "bg-amber-500 text-slate-950 border-amber-400 ring-2 ring-amber-500/40"
-                        : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
+                        ? "bg-amber-500/20 text-amber-300 border-amber-400 ring-2 ring-amber-500/40 scale-[1.02]"
+                        : "bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]"
                     )}
                   >
-                    <Activity className="size-5" />
-                    <span>🟧 ADAPTADO</span>
+                    <div className={cn("p-2 rounded-xl", fitnessOutcome === "adaptado" ? "bg-amber-500 text-slate-950" : "bg-amber-500/10 text-amber-400")}>
+                      <Activity className="size-4" />
+                    </div>
+                    <div>
+                      <span className="block font-black text-xs text-white">ADAPTADO</span>
+                      <span className="text-[9px] font-normal text-slate-400 block">Cargas parciales</span>
+                    </div>
                   </button>
 
+                  {/* NO APTO */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1154,74 +1187,83 @@ export function PhysioWorkspace({
                       setWantsFormalInjury(true);
                     }}
                     className={cn(
-                      "p-3 rounded-lg border text-center transition-all cursor-pointer font-bold flex flex-col items-center gap-1.5",
+                      "p-3.5 rounded-2xl border text-center transition-all cursor-pointer font-bold flex flex-col items-center justify-between gap-2 shadow-sm",
                       fitnessOutcome === "no_apto"
-                        ? "bg-destructive text-white border-destructive ring-2 ring-destructive/40"
-                        : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
+                        ? "bg-rose-500/20 text-rose-300 border-rose-400 ring-2 ring-rose-500/40 scale-[1.02]"
+                        : "bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]"
                     )}
                   >
-                    <AlertTriangle className="size-5" />
-                    <span>🔴 NO APTO</span>
+                    <div className={cn("p-2 rounded-xl", fitnessOutcome === "no_apto" ? "bg-rose-500 text-white" : "bg-rose-500/10 text-rose-400")}>
+                      <AlertTriangle className="size-4" />
+                    </div>
+                    <div>
+                      <span className="block font-black text-xs text-white">NO APTO</span>
+                      <span className="text-[9px] font-normal text-slate-400 block">Baja / Reposo</span>
+                    </div>
                   </button>
                 </div>
               </div>
 
+              {/* Sub-pregunta para ADAPTADO */}
               {fitnessOutcome === "adaptado" && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
-                  <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                    <HelpCircle className="size-4" />
-                    ¿Deseas registrar una lesión médica formal para este jugador?
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-3 animate-in fade-in duration-200">
+                  <span className="font-bold text-amber-300 flex items-center gap-2 text-xs">
+                    <HelpCircle className="size-4 shrink-0 text-amber-400" />
+                    ¿Deseas registrar una lesión médica formal para seguimiento RTP?
                   </span>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setWantsFormalInjury(true)}
                       className={cn(
-                        "flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
+                        "py-2.5 px-3 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer",
                         wantsFormalInjury === true
-                          ? "bg-amber-500 text-slate-950 border-amber-400"
+                          ? "bg-amber-500 text-slate-950 border-amber-400 shadow-md"
                           : "bg-white/5 border-white/10 text-slate-300 hover:text-white"
                       )}
                     >
-                      Sí, añadir diagnóstico y fase RTP
+                      Sí, añadir RTP
                     </button>
                     <button
                       type="button"
                       onClick={() => setWantsFormalInjury(false)}
                       className={cn(
-                        "flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all border",
+                        "py-2.5 px-3 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer",
                         wantsFormalInjury === false
-                          ? "bg-slate-700 text-white border-white/20"
+                          ? "bg-slate-800 text-white border-white/20 shadow-md"
                           : "bg-white/5 border-white/10 text-slate-300 hover:text-white"
                       )}
                     >
-                      No, sólo aviso de trabajo adaptado
+                      No, sólo aviso
                     </button>
                   </div>
                 </div>
               )}
 
+              {/* Panel de Lesión y Fases RTP */}
               {(fitnessOutcome === "no_apto" || (fitnessOutcome === "adaptado" && wantsFormalInjury === true)) && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-4">
-                  <h4 className="font-bold text-white flex items-center gap-1.5">
-                    <HeartPulse className="size-4 text-destructive" />
-                    Diagnóstico y Evolución de Lesión (RTP)
-                  </h4>
+                <div className="p-4 rounded-2xl bg-slate-950/80 border border-white/10 space-y-4 shadow-inner animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-2 border-b border-white/10 pb-2.5">
+                    <HeartPulse className="size-4 text-rose-400 shrink-0" />
+                    <h4 className="font-bold text-white uppercase text-[11px] tracking-wider">
+                      Diagnóstico y Evolución de Lesión (RTP)
+                    </h4>
+                  </div>
 
-                  <div>
-                    <label className="font-semibold text-white block mb-1">Diagnóstico / Zona Afectada:</label>
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-300 block text-[11px]">Diagnóstico / Zona Afectada:</label>
                     <input
                       type="text"
                       required
                       value={injuryBodyPart}
                       onChange={(e) => setInjuryBodyPart(e.target.value)}
-                      placeholder="Ej. Sobrecarga en isquiotibiales"
-                      className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="Ej. Sobrecarga en gemelo interno derecho"
+                      className="w-full rounded-xl bg-slate-900 border border-white/15 px-3.5 py-2.5 text-white font-medium text-xs focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-500"
                     />
                   </div>
 
-                  <div>
-                    <label className="font-semibold text-white block mb-1">Fase de Evolución (1 al 4):</label>
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-300 block text-[11px]">Fase de Evolución (1 al 4):</label>
                     <div className="grid grid-cols-2 gap-2">
                       {([1, 2, 3, 4] as InjuryPhase[]).map((pNum) => (
                         <button
@@ -1229,47 +1271,58 @@ export function PhysioWorkspace({
                           type="button"
                           onClick={() => setSelectedPhase(pNum)}
                           className={cn(
-                            "p-2 rounded border text-left text-[11px] font-semibold transition-all cursor-pointer",
+                            "p-2.5 rounded-xl border text-left text-[11px] font-semibold transition-all cursor-pointer flex items-center justify-between gap-1",
                             selectedPhase === pNum
-                              ? "bg-primary text-primary-foreground border-primary font-bold"
-                              : "bg-slate-950 border-white/10 text-slate-400 hover:text-white"
+                              ? "bg-indigo-600 text-white border-indigo-400 font-bold shadow-md scale-[1.01]"
+                              : "bg-slate-900 border-white/10 text-slate-400 hover:text-white"
                           )}
                         >
-                          Fase {pNum}: {INJURY_PHASE_LABELS[pNum].name.split(":")[1]}
+                          <span>Fase {pNum}: {INJURY_PHASE_LABELS[pNum].name.split(":")[1]}</span>
+                          {selectedPhase === pNum && <CheckCircle2 className="size-3.5 shrink-0 text-emerald-400" />}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  <div>
-                    <label className="font-semibold text-white block mb-1">Fecha Prevista de Vuelta (RTP):</label>
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-300 block text-[11px]">Fecha Prevista de Vuelta (RTP):</label>
                     <input
                       type="date"
                       value={returnDate}
                       onChange={(e) => setReturnDate(e.target.value)}
-                      className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-xl bg-slate-900 border border-white/15 px-3.5 py-2.5 text-white font-medium text-xs focus:outline-none focus:border-indigo-500 transition-all"
                     />
                   </div>
                 </div>
               )}
 
-              <div>
-                <label className="font-semibold text-white block mb-1">Observaciones / Tratamiento realizado:</label>
+              {/* Observaciones y Tratamiento Realizado */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-300 block text-[11px]">Observaciones / Tratamiento realizado:</label>
                 <textarea
                   rows={3}
                   value={treatmentNotes}
                   onChange={(e) => setTreatmentNotes(e.target.value)}
-                  placeholder="Tratamiento de descarga, ultrasonidos o sensaciones del futbolista..."
-                  className="w-full rounded-md bg-slate-950 border border-white/10 p-2.5 text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Tratamiento de descarga, terapia manual, ultrasonidos o sensaciones del futbolista..."
+                  className="w-full rounded-2xl bg-slate-950/80 border border-white/15 p-3 text-white text-xs focus:outline-none focus:border-indigo-500 transition-all placeholder:text-slate-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
-                <button type="button" onClick={() => setTreatingAppointment(null)} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              {/* Footer Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setTreatingAppointment(null)}
+                  className="px-4 py-2.5 rounded-xl border border-white/10 text-slate-300 hover:text-white hover:bg-white/5 font-bold text-xs transition-all cursor-pointer"
+                >
                   Cancelar
                 </button>
-                <button type="submit" className={buttonVariants({ size: "sm" })}>
-                  Guardar Dictamen
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>Guardar Dictamen</span>
+                  <ChevronRight className="size-4" />
                 </button>
               </div>
             </form>
