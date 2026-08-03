@@ -1,26 +1,35 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Key, CheckCircle2, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Key, CheckCircle2, AlertTriangle, ArrowLeft, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 export function ResetPasswordForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isFirstLogin = searchParams.get("firstLogin") === "true";
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [targetRole, setTargetRole] = useState<string>("dashboard");
 
   useEffect(() => {
     async function checkSession() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        setError("Tu sesión de recuperación de contraseña ha expirado o es inválida. Por favor, solicita un nuevo enlace.");
+        setError("Tu sesión ha expirado o es inválida. Por favor, inicia sesión de nuevo.");
+      } else {
+        const role = user.user_metadata?.role;
+        if (role === "player") {
+          setTargetRole("player");
+        }
       }
       setCheckingSession(false);
     }
@@ -54,22 +63,28 @@ export function ResetPasswordForm() {
       setError(updateError.message);
       setLoading(false);
     } else {
-      setSuccess("Tu contraseña ha sido restablecida con éxito. Redirigiéndote al portal...");
+      setSuccess("¡Contraseña actualizada con éxito! Redirigiéndote al portal...");
       setNewPassword("");
       setConfirmPassword("");
       
-      // Redirect to dashboard after 2 seconds
+      const destination = targetRole === "player" ? "/player" : "/dashboard";
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push(destination);
         router.refresh();
-      }, 2000);
+      }, 1500);
     }
+  }
+
+  function handleSkip() {
+    const destination = targetRole === "player" ? "/player" : "/dashboard";
+    router.push(destination);
+    router.refresh();
   }
 
   if (checkingSession) {
     return (
       <div className="bg-card rounded-lg border border-border p-8 text-center text-slate-400">
-        Cargando sesión de recuperación...
+        Cargando verificación de cuenta...
       </div>
     );
   }
@@ -77,9 +92,17 @@ export function ResetPasswordForm() {
   return (
     <div className="bg-card rounded-lg border border-border p-8 animate-fade-in">
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-white">Restablecer tu contraseña</h2>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-3">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          <span>{isFirstLogin ? "Primer Inicio de Sesión" : "Seguridad de Cuenta"}</span>
+        </div>
+        <h2 className="text-xl font-bold text-white">
+          {isFirstLogin ? "Personaliza tu contraseña" : "Restablecer tu contraseña"}
+        </h2>
         <p className="text-sm text-slate-400 mt-1">
-          Escribe tu nueva contraseña de acceso
+          {isFirstLogin
+            ? "Has accedido con la contraseña provisional. Te recomendamos definir una contraseña propia y personal."
+            : "Escribe tu nueva contraseña de acceso a continuación."}
         </p>
       </div>
 
@@ -99,7 +122,7 @@ export function ResetPasswordForm() {
             minLength={8}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+            className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
             placeholder="Mínimo 8 caracteres"
           />
         </div>
@@ -119,8 +142,8 @@ export function ResetPasswordForm() {
             minLength={8}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
-            placeholder="Confirmar contraseña"
+            className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+            placeholder="Repite tu nueva contraseña"
           />
         </div>
 
@@ -146,11 +169,21 @@ export function ResetPasswordForm() {
           disabled={loading || !!success}
           className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold text-sm py-2.5 transition-all shadow-lg shadow-emerald-950/50 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
         >
-          {loading ? "Estableciendo..." : "Establecer nueva contraseña"}
+          {loading ? "Guardando..." : "Guardar mi nueva contraseña"}
         </button>
+
+        {isFirstLogin && !success && (
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="w-full rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-medium text-xs py-2.5 transition-colors cursor-pointer"
+          >
+            Omitir por ahora y continuar al portal
+          </button>
+        )}
       </form>
 
-      {!success && (
+      {!success && !isFirstLogin && (
         <div className="mt-6 flex justify-center">
           <Link
             href="/login"

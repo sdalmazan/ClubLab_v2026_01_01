@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { 
   ArrowLeft, 
@@ -61,7 +62,33 @@ export function PlayerProfileWorkspace({
   tasks = [],
   userRole,
 }: PlayerProfileWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "health" | "evaluations">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "health" | "evaluations" | "wellness">("overview");
+  const [historyCheckins, setHistoryCheckins] = useState<any[]>([]);
+  const [historyRpe, setHistoryRpe] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  useEffect(() => {
+    async function loadPlayerWellnessHistory() {
+      if (!player?.id) return;
+      setLoadingHistory(true);
+      try {
+        const supabase = createClient();
+        const [checkinsRes, rpeRes] = await Promise.all([
+          supabase.from("player_wellness_checkins").select("*").eq("player_id", player.id).order("date", { ascending: false }).limit(30),
+          supabase.from("rpe_entries").select("*").eq("player_id", player.id).order("date", { ascending: false }).limit(30),
+        ]);
+
+        if (checkinsRes.data) setHistoryCheckins(checkinsRes.data);
+        if (rpeRes.data) setHistoryRpe(rpeRes.data);
+      } catch (err) {
+        console.error("Error loading player wellness history:", err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    }
+
+    loadPlayerWellnessHistory();
+  }, [player?.id]);
 
   const name = `${player.first_name} ${player.last_name}`;
   const initials = `${player.first_name[0]}${player.last_name[0]}`.toUpperCase();
@@ -231,7 +258,7 @@ export function PlayerProfileWorkspace({
       </div>
 
       {/* ── WORKSPACE TABS NAV ── */}
-      <div className="flex bg-muted/60 border border-border rounded-md p-0.5 gap-0.5 w-fit">
+      <div className="flex bg-muted/60 border border-border rounded-md p-0.5 gap-0.5 w-fit flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
@@ -243,6 +270,18 @@ export function PlayerProfileWorkspace({
           )}
         >
           Ficha & Rendimiento
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("wellness")}
+          className={cn(
+            "rounded px-3 py-1.5 text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5",
+            activeTab === "wellness"
+              ? "bg-primary text-primary-foreground font-semibold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <span>📊 Histórico Check-in & RPE</span>
         </button>
         <button
           type="button"
@@ -426,6 +465,133 @@ export function PlayerProfileWorkspace({
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: WELLNESS HISTORY & STATE EVOLUTION */}
+      {activeTab === "wellness" && (
+        <div className="space-y-6">
+          {/* Latest Available State Banner */}
+          <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="size-4 text-primary" />
+                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                  Último Estado Disponible del Jugador
+                </h3>
+              </div>
+              {historyCheckins[0] && (
+                <span className="text-[11px] text-muted-foreground">
+                  Registrado el {historyCheckins[0].date}
+                </span>
+              )}
+            </div>
+
+            {historyCheckins[0] ? (
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+                <div className="p-3 rounded-lg bg-muted/40 border border-border/40 text-center">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block">Sueño</span>
+                  <span className={`text-base font-bold ${historyCheckins[0].sleep_quality >= 4 ? "text-emerald-400" : "text-amber-400"}`}>
+                    {historyCheckins[0].sleep_quality}/5
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/40 border border-border/40 text-center">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block">Fatiga</span>
+                  <span className={`text-base font-bold ${historyCheckins[0].fatigue >= 4 ? "text-rose-400" : historyCheckins[0].fatigue >= 3 ? "text-amber-400" : "text-emerald-400"}`}>
+                    {historyCheckins[0].fatigue}/5
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/40 border border-border/40 text-center">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block">Ánimo</span>
+                  <span className="text-base font-bold text-foreground">{historyCheckins[0].mood}/5</span>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/40 border border-border/40 text-center">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block">Peso Hoy</span>
+                  <span className="text-base font-bold text-foreground">{historyCheckins[0].weight_kg ? `${historyCheckins[0].weight_kg} kg` : "–"}</span>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/40 border border-border/40 text-center">
+                  <span className="text-[10px] text-muted-foreground uppercase font-medium block">Último RPE</span>
+                  <span className="text-base font-bold text-sky-400">{historyRpe[0] ? `RPE ${historyRpe[0].rpe}` : "–"}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Sin datos de check-in registrados recientemente.</p>
+            )}
+          </div>
+
+          {/* Historical Log Table */}
+          <div className="bg-card rounded-lg border border-border p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                <Clock className="size-4 text-emerald-400" />
+                Histórico Completo de Check-in y Check-out ({historyCheckins.length} registros)
+              </h3>
+            </div>
+
+            {loadingHistory ? (
+              <div className="p-8 text-center text-xs text-muted-foreground animate-pulse">
+                Cargando historial de estado...
+              </div>
+            ) : historyCheckins.length === 0 ? (
+              <div className="p-8 text-center text-xs text-muted-foreground italic">
+                No hay historial de cuestionarios para este futbolista aún.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] border-b border-border/40">
+                    <tr>
+                      <th className="p-2.5">Fecha</th>
+                      <th className="p-2.5">Sueño</th>
+                      <th className="p-2.5">Fatiga</th>
+                      <th className="p-2.5">Ánimo</th>
+                      <th className="p-2.5">Molestia</th>
+                      <th className="p-2.5">Peso</th>
+                      <th className="p-2.5">RPE Post</th>
+                      <th className="p-2.5">Notas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/30">
+                    {historyCheckins.map((c: any) => {
+                      const matchRpe = historyRpe.find((r: any) => r.date === c.date);
+                      return (
+                        <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="p-2.5 font-semibold text-foreground">{c.date}</td>
+                          <td className="p-2.5">{c.sleep_quality}/5</td>
+                          <td className={`p-2.5 font-bold ${c.fatigue >= 4 ? "text-rose-400" : c.fatigue >= 3 ? "text-amber-400" : "text-emerald-400"}`}>
+                            {c.fatigue}/5
+                          </td>
+                          <td className="p-2.5">{c.mood}/5</td>
+                          <td className="p-2.5">
+                            {c.has_discomfort ? (
+                              <span className="text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px]">
+                                ⚠ {c.discomfort_body_part} ({c.discomfort_intensity || "?"}/10)
+                              </span>
+                            ) : (
+                              <span className="text-emerald-400 font-medium">OK</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 font-semibold">{c.weight_kg ? `${c.weight_kg} kg` : "–"}</td>
+                          <td className="p-2.5">
+                            {matchRpe ? (
+                              <span className="text-sky-300 font-bold bg-sky-500/10 px-1.5 py-0.5 rounded text-[10px]">
+                                RPE {matchRpe.rpe}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600">–</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-muted-foreground italic truncate max-w-[150px]">
+                            {c.notes || matchRpe?.notes || "–"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

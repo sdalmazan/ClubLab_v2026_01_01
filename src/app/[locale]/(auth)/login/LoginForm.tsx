@@ -29,6 +29,12 @@ export function LoginForm() {
       return;
     }
 
+    if (password === "ClubLab2026!") {
+      router.push("/reset-password?firstLogin=true");
+      router.refresh();
+      return;
+    }
+
     router.push(redirectTo);
     router.refresh();
   }

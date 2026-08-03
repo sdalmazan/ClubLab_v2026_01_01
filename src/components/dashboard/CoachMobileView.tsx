@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { PlayerDailyCheckDetailModal } from "@/components/dashboard/PlayerDailyCheckDetailModal";
+
 interface CoachMobileViewProps {
   clubName: string;
   userRole: string;
@@ -71,6 +73,7 @@ export function CoachMobileView({
   const [activeTab, setActiveTab] = useState<"today" | "checkin" | "squad" | "medical">("today");
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [attendanceState, setAttendanceState] = useState<Record<string, "present" | "absent" | "injured" | "late">>({});
+  const [selectedDetailPlayer, setSelectedDetailPlayer] = useState<any | null>(null);
 
   // Helper role label
   const roleLabel =
@@ -462,6 +465,79 @@ export function CoachMobileView({
               </p>
             </div>
 
+            {/* Per-player breakdown list */}
+            <div className="space-y-2 pt-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300 block px-1">
+                Respuestas de la Plantilla Hoy (Clic para ver detalle)
+              </span>
+              <div className="divide-y divide-white/5 bg-slate-950/60 rounded-xl border border-white/5 overflow-hidden">
+                {players.map((p: any) => {
+                  const w = p.latest_wellness;
+                  const r = p.latest_rpe;
+                  const hasCheckin = !!w;
+                  const hasCheckout = !!r;
+                  const jersey = p.membership?.jersey_number ?? p.jersey_number ?? null;
+                  const pName = p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Jugador";
+
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => setSelectedDetailPlayer({
+                        id: p.id,
+                        name: pName,
+                        jerseyNumber: jersey,
+                        checkin: w,
+                        checkout: r,
+                      })}
+                      className={`px-3 py-2.5 flex items-center justify-between gap-2 text-xs cursor-pointer hover:bg-white/5 transition-colors ${
+                        hasCheckin ? "" : "bg-amber-500/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {jersey != null && (
+                          <span className="text-[10px] font-black text-slate-500 w-5 shrink-0 text-right">#{jersey}</span>
+                        )}
+                        <span className={`font-semibold truncate ${hasCheckin ? "text-slate-200" : "text-amber-300"}`}>
+                          {pName}
+                        </span>
+                        {!hasCheckin && (
+                          <span className="text-[9px] font-bold uppercase text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+
+                      {hasCheckin ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[10px] ${(w?.fatigue ?? 0) >= 4 ? "text-rose-400 font-bold" : "text-emerald-400"}`}>
+                            Fatiga: {w?.fatigue ?? "–"}/5
+                          </span>
+                          {w?.has_discomfort && (
+                            <span className="text-[9px] font-bold text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                              ⚠ {w.discomfort_body_part}
+                            </span>
+                          )}
+                          {hasCheckout ? (
+                            <span className="text-[9px] font-bold text-sky-300 bg-sky-500/10 px-1.5 py-0.5 rounded">
+                              RPE {r.rpe}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-slate-600">RPE —</span>
+                          )}
+                          <ChevronRight className="size-3.5 text-slate-500" />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 shrink-0 text-[10px] text-slate-500">
+                          <span>Ver Ficha</span>
+                          <ChevronRight className="size-3.5" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <Link
               href="/performance/monitoring"
               className="w-full flex items-center justify-center gap-2 bg-emerald-500 text-slate-950 py-2.5 rounded-xl text-xs font-black shadow-lg hover:bg-emerald-400 transition-all"
@@ -680,6 +756,13 @@ export function CoachMobileView({
           </div>
         </div>
       )}
+
+      {/* Daily Check-in & Check-out Detail Modal */}
+      <PlayerDailyCheckDetailModal
+        isOpen={!!selectedDetailPlayer}
+        onClose={() => setSelectedDetailPlayer(null)}
+        player={selectedDetailPlayer}
+      />
     </div>
   );
 }

@@ -455,10 +455,51 @@ export async function POST(request: Request) {
       } else {
         appList.push(newApp);
       }
+      // Sync booking directly into physio_consultations so both appointments tab and consultation slots show the booking
+      const consIdx = consList.findIndex((c: any) => c.date === targetDate || c.id === slotId);
+      const bookingObj = {
+        id: `b-${resolvedId}`,
+        playerId: resolvedId,
+        player_id: resolvedId,
+        playerName: resolvedName,
+        jerseyNumber: resolvedJersey,
+        notes: appReason,
+        selectedTimeSlots: timeSlotList,
+        createdAt: new Date().toISOString(),
+      };
+
+      if (consIdx >= 0) {
+        const existingBookings = consList[consIdx].bookings || [];
+        const bIdx = existingBookings.findIndex((b: any) => (b.playerId || b.player_id) === resolvedId);
+        if (bIdx >= 0) {
+          existingBookings[bIdx] = bookingObj;
+        } else {
+          existingBookings.push(bookingObj);
+        }
+        consList[consIdx].bookings = existingBookings;
+      } else {
+        consList.push({
+          id: slotId || `slot-${targetDate}`,
+          date: targetDate,
+          startTime: startTime || "18:00",
+          endTime: "20:00",
+          physioName: "Fisioterapeuta del Club",
+          maxCapacity: 12,
+          currentBookingsCount: 1,
+          availablePlaces: 11,
+          isFull: false,
+          isBookedByMe: false,
+          slotMin: 10,
+          isOpen: true,
+          createdAt: new Date().toISOString(),
+          bookings: [bookingObj],
+        });
+      }
 
       const updatedSettings = {
         ...existingSettings,
         physio_appointments: appList,
+        physio_consultations: consList,
       };
 
       await supabase

@@ -339,7 +339,10 @@ export default async function DashboardPage({
               const hasCheckout = !!r;
               const jersey = player.membership?.jersey_number ?? null;
               return (
-                <div key={player.id} className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs ${hasCheckin ? "" : "bg-amber-500/5"}`}>
+                <div
+                  key={player.id}
+                  className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs hover:bg-white/5 transition-colors ${hasCheckin ? "" : "bg-amber-500/5"}`}
+                >
                   <div className="flex items-center gap-2.5 min-w-0">
                     {jersey != null && (
                       <span className="text-[10px] font-black text-slate-500 w-5 shrink-0 text-right">#{jersey}</span>
