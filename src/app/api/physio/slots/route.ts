@@ -83,6 +83,9 @@ export async function GET(request: Request) {
     const formattedSlots = activeOpenCons.map((activeCons: any) => {
       const bookings = activeCons.bookings || [];
       const myBooking = bookings.find((b: any) => b.playerId === player?.id);
+      const slotDuration = activeCons.slotMin || 10;
+      const defaultCapacity = Math.floor(120 / slotDuration); // 12 slots for 10 min
+      const maxCap = activeCons.maxCapacity || defaultCapacity;
 
       return {
         id: activeCons.id || `slot-${activeCons.date || todayStr}`,
@@ -90,13 +93,13 @@ export async function GET(request: Request) {
         startTime: activeCons.startTime || "18:00",
         endTime: "20:00",
         physioName: activeCons.physioName || "Fisioterapeuta del Club",
-        maxCapacity: activeCons.maxCapacity || 10,
+        maxCapacity: maxCap,
         currentBookingsCount: bookings.length,
-        availablePlaces: Math.max(0, (activeCons.maxCapacity || 10) - bookings.length),
-        isFull: bookings.length >= (activeCons.maxCapacity || 10),
+        availablePlaces: Math.max(0, maxCap - bookings.length),
+        isFull: bookings.length >= maxCap,
         isBookedByMe: !!myBooking,
         myBookingNotes: myBooking?.notes || null,
-        slotMin: activeCons.slotMin || 10,
+        slotMin: slotDuration,
       };
     });
 

@@ -35,16 +35,18 @@ export interface PhysioConsultation {
 
 export interface PhysioAppointment {
   id: string;
-  consultation_id: string;
+  consultation_id?: string;
   player_id: string;
   player_name: string;
   jersey_number?: number | null;
   reason: string;
+  selected_time_slots?: string[];
   status: "pending" | "scheduled" | "treated";
   scheduled_time?: string; // e.g. "16:15"
   fitness_result?: "apto" | "adaptado" | "no_apto";
   notes?: string;
-  created_at: string;
+  created_at?: string;
+  date?: string;
 }
 
 // Exact alignment between Physio (Enfermería) and Fitness Coach (Preparador Físico / Rendimiento)

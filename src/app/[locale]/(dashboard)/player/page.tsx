@@ -87,8 +87,9 @@ export default function PlayerTodayPage() {
   const [preferredDay, setPreferredDay] = useState("Viernes");
   const [preferredShift, setPreferredShift] = useState("Mañana");
   const [physioReason, setPhysioReason] = useState("");
-  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>(["08:45", "09:00"]);
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>(["18:10", "18:20"]);
   const [submittingAvail, setSubmittingAvail] = useState(false);
+  const [myPhysioAppointment, setMyPhysioAppointment] = useState<any | null>(null);
 
   useEffect(() => {
     // Load authenticated user name & check role from client Supabase session
@@ -250,16 +251,23 @@ export default function PlayerTodayPage() {
       })
       .catch((err) => console.error("Error checking wellness status:", err));
 
-    // Fetch physio slots
+    // Fetch physio slots & my appointments
     fetch("/api/physio/slots")
       .then((res) => res.json())
       .then((data) => {
         if (data?.slots && Array.isArray(data.slots)) {
           setPhysioSlots(data.slots);
-          const booked = data.slots.find((s: any) => s.isBookedByMe);
-          if (booked) {
+        }
+        if (data?.appointments && Array.isArray(data.appointments)) {
+          const myApp = data.appointments.find(
+            (a: any) => a.player_id === summary.player.id || a.player_name === summary.player.sporting_name
+          );
+          if (myApp) {
+            setMyPhysioAppointment(myApp);
             setPhysioBookedSuccess(true);
-            setSelectedSlotId(booked.id);
+            if (myApp.selected_time_slots) {
+              setSelectedTimeSlots(myApp.selected_time_slots);
+            }
           }
         }
       })
@@ -363,6 +371,28 @@ export default function PlayerTodayPage() {
         clubLogoUrl={clubInfo?.logoUrl}
         clubName={clubInfo?.name}
       />
+
+      {/* Direct Check-in Action Bar (Always openable for testing & completion) */}
+      <div className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <Activity className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div>
+            <span className="text-xs font-bold text-foreground block">
+              {hasCompletedCheckin ? "Check-in de Hoy Realizado" : "Check-in Pre-Entrenamiento"}
+            </span>
+            <span className="text-[10px] text-muted-foreground block">
+              {hasCompletedCheckin ? "Puedes modificar tus datos de sueño y fatiga cuando quieras" : "Registra tu sueño, fatiga y molestia para hoy"}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={() => setCheckinOpen(true)}
+          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-md"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{hasCompletedCheckin ? "Reabrir Check-in" : "Hacer Check-in"}</span>
+        </button>
+      </div>
 
       {/* Quick Button: Add Injury / Medical Antecedent */}
       <div className="flex items-center justify-between p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/20">
@@ -483,45 +513,43 @@ export default function PlayerTodayPage() {
       )}
 
       {/* Physio & Medical Consultation Notification Card */}
-      {physioSlots.length > 0 ? (
-        <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-card to-card p-4 shadow-lg flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-emerald-600 text-white font-bold text-xs shadow-md shrink-0">
-              🩺
-            </div>
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
-                Consulta de Fisioterapia Abierta
-              </span>
-              <h4 className="text-xs font-bold text-foreground capitalize mt-0.5">
-                {physioSlots[0]?.date ? new Date(physioSlots[0].date + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }) : "Convocatoria Hoy"} • {physioSlots[0]?.startTime} hs
-              </h4>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {physioBookedSuccess ? "¡Reserva solicitada con éxito!" : "Reserva tu franja con el fisioterapeuta del club."}
-              </p>
-            </div>
+      <div className="rounded-3xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-card to-card p-4 shadow-lg flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-indigo-600 text-white font-bold text-xs shadow-md shrink-0">
+            🩺
           </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 block">
+              Consulta de Fisioterapia
+            </span>
+            <h4 className="text-xs font-bold text-foreground capitalize mt-0.5">
+              {physioSlots[0]?.date ? new Date(physioSlots[0].date + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }) : "Convocatoria Hoy"} • Inicio {physioSlots[0]?.startTime || "18:00"} hs
+            </h4>
+            <p className="text-[10px] font-medium mt-0.5">
+              {myPhysioAppointment?.status === "scheduled" ? (
+                <span className="text-emerald-400 font-bold">
+                  ✓ Cita confirmada a las {myPhysioAppointment.scheduled_time} hs por el fisioterapeuta
+                </span>
+              ) : myPhysioAppointment?.status === "pending" || physioBookedSuccess ? (
+                <span className="text-amber-400 font-semibold">
+                  ⏳ Solicitud enviada ({myPhysioAppointment?.selected_time_slots?.join(", ") || selectedTimeSlots.join(", ")} hs) — Pendiente de confirmación por el fisio
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Elige las franjas de 10 min en las que puedes asistir antes de entrenar.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
 
-          <button
-            onClick={() => setPhysioModalOpen(true)}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
-          >
-            {physioBookedSuccess ? "Ver Cita" : "Apuntarme"}
-          </button>
-        </div>
-      ) : (
-        <div className="rounded-3xl border border-border/40 bg-accent/20 p-3.5 shadow-sm flex items-center justify-between gap-3 text-muted-foreground">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-accent text-muted-foreground font-bold text-xs shrink-0">
-              🩺
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Fisioterapia</span>
-              <p className="text-xs font-medium text-muted-foreground">Sin convocatorias de fisioterapia abiertas hoy</p>
-            </div>
-          </div>
-        </div>
-      )}
+        <button
+          onClick={() => setPhysioModalOpen(true)}
+          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+        >
+          {myPhysioAppointment ? "Ver mi Cita" : "Apuntarme"}
+        </button>
+      </div>
 
       {/* "What Should I Do Now?" Dynamic Priority Card driven by evalPlayerTemporalState */}
       {temporalEval.actionType === "checkout" ? (
@@ -730,156 +758,116 @@ export default function PlayerTodayPage() {
               </button>
             </div>
 
-            {physioSlots.length > 0 ? (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-foreground space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-400 uppercase text-[10px]">Indica tu Disponibilidad (Franjas de 10 min)</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">18:00h a {todaySession?.start_time?.slice(0, 5) || "19:30"}h</span>
+                </div>
+                <p className="text-muted-foreground text-[11px]">
+                  Selecciona todas las franjas horarias de 10 minutos en las que puedes asistir antes del entrenamiento. El fisioterapeuta confirmará la hora definitiva.
+                </p>
+              </div>
+
+              {myPhysioAppointment && (
+                <div className="p-3 rounded-xl bg-accent/40 border border-border/50 text-xs space-y-1">
+                  <span className="text-[10px] font-bold uppercase text-indigo-400 block">Estado Actual de tu Cita</span>
+                  {myPhysioAppointment.status === "scheduled" ? (
+                    <p className="text-emerald-400 font-bold text-xs flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" /> Hora asignada: {myPhysioAppointment.scheduled_time} hs
+                    </p>
+                  ) : (
+                    <p className="text-amber-400 font-medium text-[11px]">
+                      ⏳ Solicitud pendiente de confirmación por el fisio ({myPhysioAppointment.selected_time_slots?.join(", ") || selectedTimeSlots.join(", ")} hs)
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-3">
-                <label className="text-xs font-semibold text-muted-foreground block">Turnos disponibles para la sesión:</label>
-                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
-                  {physioSlots.map((slot) => (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      disabled={slot.isFull && !slot.isBookedByMe}
-                      onClick={() => setSelectedSlotId(slot.id)}
-                      className={`p-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-between ${
-                        selectedSlotId === slot.id
-                          ? "bg-indigo-600 text-white border-indigo-500 shadow-md"
-                          : slot.isBookedByMe
-                          ? "bg-emerald-600/20 text-emerald-400 border-emerald-500/40"
-                          : slot.isFull
-                          ? "bg-accent/20 text-muted-foreground border-border/20 opacity-50 cursor-not-allowed"
-                          : "bg-accent/40 text-foreground border-border/50 hover:bg-accent"
-                      }`}
-                    >
-                      <span>{slot.startTime}h - {slot.endTime}h ({slot.physioName})</span>
-                      <span className="text-[10px] uppercase tracking-wide">
-                        {slot.isBookedByMe ? "Reservado por ti" : slot.isFull ? "Completo" : `Plazas: ${slot.availablePlaces}`}
-                      </span>
-                    </button>
-                  ))}
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1.5">
+                    Selecciona las franjas que te vienen bien (Multiselección):
+                  </label>
+                  <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1">
+                    {["18:00", "18:10", "18:20", "18:30", "18:40", "18:50", "19:00", "19:10", "19:20"].map((timeSlot) => {
+                      const isSelected = selectedTimeSlots.includes(timeSlot);
+                      return (
+                        <button
+                          key={timeSlot}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedTimeSlots(selectedTimeSlots.filter((t) => t !== timeSlot));
+                            } else {
+                              setSelectedTimeSlots([...selectedTimeSlots, timeSlot]);
+                            }
+                          }}
+                          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1 ${
+                            isSelected
+                              ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-[1.02]"
+                              : "bg-card border-border/50 text-foreground hover:bg-accent"
+                          }`}
+                        >
+                          <span>{timeSlot}h</span>
+                          {isSelected && <Check className="w-3 h-3 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {selectedSlotId && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const res = await fetch("/api/physio/slots", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ slotId: selectedSlotId }),
-                        });
-                        const data = await res.json();
-                        if (data?.error) {
-                          alert(data.error);
-                        } else {
-                          setPhysioBookedSuccess(true);
-                          setPhysioModalOpen(false);
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Motivo o Zona de Molestia</label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Sobrecarga en gemelo o revisión preventiva"
+                    value={physioReason}
+                    onChange={(e) => setPhysioReason(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs text-foreground focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <button
+                  disabled={submittingAvail || selectedTimeSlots.length === 0}
+                  onClick={async () => {
+                    setSubmittingAvail(true);
+                    try {
+                      const res = await fetch("/api/physio/slots", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          action: "request_availability",
+                          date: todaySession?.date || new Date().toISOString().split("T")[0],
+                          preferredDay,
+                          preferredShift,
+                          reason: physioReason,
+                          selectedTimeSlots,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data?.success) {
+                        setPhysioBookedSuccess(true);
+                        if (data.appointment) {
+                          setMyPhysioAppointment(data.appointment);
                         }
-                      } catch (err: any) {
-                        alert(err.message || "Error al realizar la reserva");
+                        setPhysioModalOpen(false);
+                        alert(data.message || `Disponibilidad enviada (${selectedTimeSlots.length} franjas seleccionadas).`);
+                      } else {
+                        alert(data?.error || "Error al enviar disponibilidad");
                       }
-                    }}
-                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer mt-2"
-                  >
-                    Confirmar Reserva con el Fisioterapeuta
-                  </button>
-                )}
+                    } catch (err: any) {
+                      alert("Error de conexión");
+                    } finally {
+                      setSubmittingAvail(false);
+                    }
+                  }}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {submittingAvail ? "Enviando..." : `Enviar Disponibilidad (${selectedTimeSlots.length} franjas)`}
+                </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-foreground space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-indigo-400 uppercase text-[10px]">Indica tu Disponibilidad (Franjas de 10 min)</span>
-                    <span className="text-[10px] font-mono text-muted-foreground">18:00h a {todaySession?.start_time?.slice(0, 5) || "19:30"}h</span>
-                  </div>
-                  <p className="text-muted-foreground text-[11px]">
-                    Selecciona todas las franjas horarias de 10 minutos en las que puedes asistir antes del entrenamiento de las 19:30h. El fisio organizará la propuesta final.
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1.5">
-                      Franjas Disponibles de 10 min (Multiselección):
-                    </label>
-                    <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1">
-                      {["18:00", "18:10", "18:20", "18:30", "18:40", "18:50", "19:00", "19:10", "19:20"].map((timeSlot) => {
-                        const isSelected = selectedTimeSlots.includes(timeSlot);
-                        return (
-                          <button
-                            key={timeSlot}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedTimeSlots(selectedTimeSlots.filter((t) => t !== timeSlot));
-                              } else {
-                                setSelectedTimeSlots([...selectedTimeSlots, timeSlot]);
-                              }
-                            }}
-                            className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1 ${
-                              isSelected
-                                ? "bg-indigo-600 text-white border-indigo-500 shadow-md scale-[1.02]"
-                                : "bg-card border-border/50 text-foreground hover:bg-accent"
-                            }`}
-                          >
-                            <span>{timeSlot}h</span>
-                            {isSelected && <Check className="w-3 h-3 shrink-0" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Motivo o Zona de Molestia</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Sobrecarga en gemelo o revisión preventiva"
-                      value={physioReason}
-                      onChange={(e) => setPhysioReason(e.target.value)}
-                      className="w-full p-2.5 rounded-xl bg-accent/40 border border-border/50 text-xs text-foreground focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <button
-                    disabled={submittingAvail || selectedTimeSlots.length === 0}
-                    onClick={async () => {
-                      setSubmittingAvail(true);
-                      try {
-                        const res = await fetch("/api/physio/slots", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            action: "request_availability",
-                            date: todaySession?.date || new Date().toISOString().split("T")[0],
-                            preferredDay,
-                            preferredShift,
-                            reason: physioReason,
-                            selectedTimeSlots,
-                          }),
-                        });
-                        const data = await res.json();
-                        if (data?.success) {
-                          setPhysioBookedSuccess(true);
-                          setPhysioModalOpen(false);
-                          alert(data.message || `Disponibilidad enviada (${selectedTimeSlots.length} franjas seleccionadas).`);
-                        } else {
-                          alert(data?.error || "Error al enviar disponibilidad");
-                        }
-                      } catch (err: any) {
-                        alert("Error de conexión");
-                      } finally {
-                        setSubmittingAvail(false);
-                      }
-                    }}
-                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-2xl shadow-lg transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {submittingAvail
-                      ? "Enviando..."
-                      : `Enviar Disponibilidad (${selectedTimeSlots.length} franjas elegidas)`}
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       )}

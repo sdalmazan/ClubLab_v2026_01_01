@@ -322,6 +322,8 @@ export function PhysioWorkspace({
     const pName = playerObj.sporting_name || `${playerObj.first_name || ""} ${playerObj.last_name || ""}`.trim();
     const pJersey = playerObj.membership?.jersey_number || null;
 
+
+
     const newApp: PhysioAppointment = {
       id: `app-${Date.now()}`,
       consultation_id: consultation?.id || "cons-1",
@@ -824,6 +826,15 @@ export function PhysioWorkspace({
                         <p className="text-xs text-slate-300 leading-relaxed italic bg-white/5 p-2 rounded border border-white/5">
                           "{app.reason}"
                         </p>
+
+                        {app.selected_time_slots && app.selected_time_slots.length > 0 && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-indigo-300 font-semibold bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20 w-fit">
+                            <span>🎯 Franjas solicitadas por el jugador:</span>
+                            <span className="font-mono font-bold text-white">
+                              {app.selected_time_slots.map((t) => `${t}h`).join(", ")}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -831,12 +842,17 @@ export function PhysioWorkspace({
                           <select
                             value={app.scheduled_time || ""}
                             onChange={(e) => handleAssignTimeSlot(app.id, e.target.value)}
-                            className="text-xs rounded-md bg-slate-950 border border-white/10 px-2 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                            className="text-xs rounded-md bg-slate-950 border border-white/10 px-2 py-1.5 text-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-medium"
                           >
-                            <option value="">-- Hora --</option>
-                            {timeSlots.map(slot => (
-                              <option key={slot} value={slot}>{slot}</option>
-                            ))}
+                            <option value="">-- Asignar Hora --</option>
+                            {timeSlots.map((slot) => {
+                              const isRequested = app.selected_time_slots?.includes(slot);
+                              return (
+                                <option key={slot} value={slot}>
+                                  {slot}h {isRequested ? "★ (Solicitada por jugador)" : ""}
+                                </option>
+                              );
+                            })}
                           </select>
                         )}
 
