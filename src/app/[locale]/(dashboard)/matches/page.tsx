@@ -121,6 +121,28 @@ export default function MatchesPage() {
     setMounted(true);
   }, []);
 
+  const [squadPlayers, setSquadPlayers] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/players")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.players && Array.isArray(data.players)) {
+          setSquadPlayers(data.players);
+        }
+      })
+      .catch((err) => console.error("Error loading squad players in matches:", err));
+  }, []);
+
+  function normalizeSeasonName(name: string): string {
+    if (!name) return "2026/2027";
+    const cleaned = name.trim();
+    if (cleaned === "2026/27" || cleaned === "2026/2027") return "2026/2027";
+    if (cleaned === "2025/26" || cleaned === "2025/2026") return "2025/2026";
+    if (cleaned === "2024/25" || cleaned === "2024/2025") return "2024/2025";
+    return cleaned;
+  }
+
   // Fetch seasons dynamically and determine active season
   useEffect(() => {
     async function loadSeasons() {
@@ -131,10 +153,12 @@ export default function MatchesPage() {
           .order("name", { ascending: false });
 
         if (seasonsList) {
-          const names = seasonsList.map(s => s.name);
-          const uniqueSeasons = Array.from(
-            new Set([...names, "2026/2027", "2025/2026", "2024/2025"])
-          ).sort().reverse();
+          const rawNames = seasonsList.map((s) => normalizeSeasonName(s.name));
+          const defaultSeasons = ["2026/2027", "2025/2026", "2024/2025"];
+          const uniqueSeasons = Array.from(new Set([...rawNames, ...defaultSeasons]))
+            .filter(Boolean)
+            .sort()
+            .reverse();
           setAvailableSeasons(uniqueSeasons);
 
           // Get active season from cookie
@@ -144,9 +168,9 @@ export default function MatchesPage() {
             ?.split("=")[1];
 
           if (cookieValue) {
-            const matchS = seasonsList.find(s => s.id === cookieValue);
+            const matchS = seasonsList.find((s) => s.id === cookieValue);
             if (matchS) {
-              setSeason(matchS.name);
+              setSeason(normalizeSeasonName(matchS.name));
             }
           }
         }
@@ -554,8 +578,13 @@ export default function MatchesPage() {
 
       {/* ── PRE-MATCH BRIEFING HERO CARD (SPRINT 5 MATCHDAY COMMAND CENTER) ── */}
       {(() => {
-        const targetRivalName = search.trim() || "C.D. Sigüenza";
+        const targetRivalName = search.trim() || (selectedRival ? selectedRival : "Rival por confirmar");
         const hasDbMetrics = targetRivalName.toLowerCase().includes("numancia") || targetRivalName.toLowerCase().includes("burgos") || targetRivalName.toLowerCase().includes("arandina");
+
+        const totalSquad = squadPlayers.length;
+        const injuredBajas = squadPlayers.filter((p: any) => p.active_injury?.status === "active").length;
+        const rtpReadapt = squadPlayers.filter((p: any) => p.active_injury?.status === "readaptation" || p.physical_status === "yellow").length;
+        const aptosAvailable = Math.max(0, totalSquad - injuredBajas - rtpReadapt);
 
         return (
           <div className="bg-slate-900 border border-white/10 rounded-2xl p-5 md:p-6 space-y-4 text-white shadow-2xl relative overflow-hidden">
@@ -578,25 +607,25 @@ export default function MatchesPage() {
                     <MapPin className="size-3.5 text-primary" /> Campo Municipal La Arboleda
                   </span>
                   <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
-                    Pretemporada — Amistoso
+                    Oficial / Amistoso
                   </span>
                 </div>
               </div>
 
-              {/* Quick squad availability status pill */}
+              {/* Real squad availability status pill */}
               <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-3 shrink-0">
                 <div className="text-center px-2">
-                  <span className="text-xs font-bold text-emerald-400 block">18</span>
+                  <span className="text-xs font-bold text-emerald-400 block">{aptosAvailable}</span>
                   <span className="text-[9px] text-slate-400 font-medium uppercase">Aptos 🟩</span>
                 </div>
                 <div className="h-6 w-px bg-white/10" />
                 <div className="text-center px-2">
-                  <span className="text-xs font-bold text-amber-400 block">2</span>
+                  <span className="text-xs font-bold text-amber-400 block">{rtpReadapt}</span>
                   <span className="text-[9px] text-slate-400 font-medium uppercase">RTP 🟧</span>
                 </div>
                 <div className="h-6 w-px bg-white/10" />
                 <div className="text-center px-2">
-                  <span className="text-xs font-bold text-destructive block">2</span>
+                  <span className="text-xs font-bold text-destructive block">{injuredBajas}</span>
                   <span className="text-[9px] text-slate-400 font-medium uppercase">Bajas 🔴</span>
                 </div>
               </div>
