@@ -70,11 +70,13 @@ export async function GET(request: Request) {
 
     const merged = (roles || []).map((r) => {
       const authUser = usersData.users.find((u) => u.id === r.user_id);
+      const isAdmin = r.role === "super_admin" || r.role === "club_admin" || (r as any).is_admin === true || authUser?.user_metadata?.is_admin === true || authUser?.email === "diecilo7@gmail.com";
       return {
         id: r.id,
         user_id: r.user_id,
         organization_id: r.organization_id,
         role: r.role,
+        is_admin: Boolean(isAdmin),
         created_at: r.created_at,
         email: authUser?.email || "Sin correo",
         full_name:

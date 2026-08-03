@@ -760,7 +760,7 @@ export function SettingsForm({
                   : 'border-transparent text-slate-400 hover:text-white'
               }`}
             >
-              Planificación y Equipo
+              👥 Gestión de Usuarios y Roles
             </button>
           )}
           {canSeeMethodology && (

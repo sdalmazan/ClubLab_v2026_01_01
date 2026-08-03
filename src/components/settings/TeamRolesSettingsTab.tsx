@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, UserPlus, ShieldCheck, Mail, CheckCircle2, AlertCircle, RefreshCw, UserCheck, Trash2 } from "lucide-react";
+import { Users, UserPlus, ShieldCheck, Mail, CheckCircle2, AlertCircle, RefreshCw, UserCheck, Trash2, Clock } from "lucide-react";
 
 interface StaffMember {
   id: string;
   user_id: string;
   organization_id: string;
   role: string;
+  is_admin?: boolean;
   created_at: string;
   email: string;
   full_name: string;
@@ -31,6 +32,7 @@ const ROLE_OPTIONS = [
 
 export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabProps) {
   const [members, setMembers] = useState<StaffMember[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -39,13 +41,14 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("coach");
+  const [inviteIsAdmin, setInviteIsAdmin] = useState(false);
   const [submittingInvite, setSubmittingInvite] = useState(false);
 
   useEffect(() => {
-    loadMembers();
+    loadData();
   }, [organizationId]);
 
-  async function loadMembers() {
+  async function loadData() {
     try {
       setLoading(true);
       const res = await fetch("/api/organization/roles");
@@ -86,6 +89,41 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
     } catch (err: any) {
       console.error(err);
       setFeedback({ type: "error", message: err.message || "No se pudo cambiar el rol." });
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
+
+  async function handleToggleAdminPermission(userId: string, targetMemberName: string, nextIsAdmin: boolean) {
+    try {
+      setUpdatingUserId(userId);
+      setFeedback(null);
+
+      const res = await fetch("/api/admin/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_user_admin_permission",
+          userId: userId,
+          isAdmin: nextIsAdmin,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Error al actualizar permisos de administrador");
+
+      setMembers((prev) =>
+        prev.map((m) => (m.user_id === userId ? { ...m, is_admin: nextIsAdmin } : m))
+      );
+      setFeedback({
+        type: "success",
+        message: nextIsAdmin
+          ? `Permisos de Administrador concedidos a ${targetMemberName}.`
+          : `Permisos de Administrador revocados para ${targetMemberName}.`,
+      });
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setFeedback({ type: "error", message: err.message || "No se pudo cambiar el permiso de admin." });
     } finally {
       setUpdatingUserId(null);
     }
@@ -133,10 +171,23 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al enviar invitación");
 
-      setFeedback({ type: "success", message: `Invitación enviada a ${inviteEmail}.` });
+      if (inviteIsAdmin && data?.user_id) {
+        await fetch("/api/admin/manage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "toggle_user_admin_permission",
+            userId: data.user_id,
+            isAdmin: true,
+          }),
+        });
+      }
+
+      setFeedback({ type: "success", message: `Invitación enviada correctamente a ${inviteEmail}.` });
       setShowInviteModal(false);
       setInviteEmail("");
-      loadMembers();
+      setInviteIsAdmin(false);
+      loadData();
     } catch (err: any) {
       console.error(err);
       setFeedback({ type: "error", message: err.message || "Error al enviar invitación." });
@@ -152,17 +203,17 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-emerald-400" />
-            Gestión de Personal & Roles del Equipo
+            Gestión de Usuarios, Roles y Permisos de Administración
           </h2>
           <p className="text-xs text-slate-400">
-            Administra los roles del cuerpo técnico y autoriza permisos para entrenadores, preparadores físicos y coordinadores.
+            Administra las funciones del cuerpo técnico y concede o revoca permisos de Administrador del Club a cualquier perfil.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={loadMembers}
+            onClick={loadData}
             disabled={loading}
             className="p-2 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 text-slate-300 hover:text-white transition-colors cursor-pointer"
             title="Recargar personal"
@@ -176,7 +227,7 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400 shadow-md shadow-emerald-950/50 transition-all cursor-pointer"
           >
             <UserPlus className="h-4 w-4" />
-            Invitar Miembro al Equipo
+            Invitar Miembro / Asignar Rol
           </button>
         </div>
       </div>
@@ -199,7 +250,7 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
       {loading ? (
         <div className="flex flex-col items-center justify-center py-12">
           <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-emerald-500" />
-          <p className="text-xs text-slate-500 mt-2">Cargando personal de la organización...</p>
+          <p className="text-xs text-slate-500 mt-2">Cargando cuentas y roles del club...</p>
         </div>
       ) : (
         <div className="bg-slate-900/60 border border-white/10 rounded-2xl overflow-hidden shadow-xl">
@@ -208,72 +259,89 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
               <tr className="border-b border-white/10 bg-slate-950/80 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                 <th className="p-4">Usuario / Miembro</th>
                 <th className="p-4">Correo Electrónico</th>
-                <th className="p-4">Rol en la Organización</th>
-                <th className="p-4 text-right">Estado</th>
+                <th className="p-4">Rol Principal</th>
+                <th className="p-4 text-center">Permisos Admin</th>
+                <th className="p-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {members.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-slate-500 italic">
+                  <td colSpan={5} className="p-6 text-center text-slate-500 italic">
                     No se encontraron miembros registrados en esta organización.
                   </td>
                 </tr>
               ) : (
-                members.map((member) => (
-                  <tr key={member.id} className="hover:bg-white/2 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 text-xs shrink-0">
-                          {member.full_name.charAt(0).toUpperCase()}
+                members.map((member) => {
+                  const isPrimaryAdminRole = member.role === "super_admin" || member.role === "club_admin";
+                  const hasAdminAccess = isPrimaryAdminRole || member.is_admin === true;
+
+                  return (
+                    <tr key={member.id} className="hover:bg-white/2 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 text-xs shrink-0">
+                            {member.full_name ? member.full_name.charAt(0).toUpperCase() : "M"}
+                          </div>
+                          <div>
+                            <span className="font-bold text-white block">{member.full_name}</span>
+                            <span className="text-[9px] font-mono text-slate-500">ID: #{member.user_id.slice(0, 8)}</span>
+                          </div>
                         </div>
-                        <div>
-                          <span className="font-bold text-white block">{member.full_name}</span>
-                          <span className="text-[9px] font-mono text-slate-500">ID: #{member.user_id.slice(0, 8)}</span>
+                      </td>
+
+                      <td className="p-4 text-slate-300 font-medium">{member.email}</td>
+
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={member.role}
+                            disabled={updatingUserId === member.user_id}
+                            onChange={(e) => handleRoleChange(member.user_id, e.target.value)}
+                            className="rounded-xl bg-slate-950 border border-white/10 text-white text-xs font-semibold px-3 py-1.5 focus:border-emerald-500 focus:outline-none cursor-pointer disabled:opacity-50"
+                          >
+                            {ROLE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          {updatingUserId === member.user_id && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-400" />
+                          )}
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="p-4 text-slate-300 font-medium">{member.email}</td>
+                      <td className="p-4 text-center">
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl hover:bg-white/10 transition-all select-none">
+                          <input
+                            type="checkbox"
+                            checked={hasAdminAccess}
+                            disabled={isPrimaryAdminRole || updatingUserId === member.user_id}
+                            onChange={(e) => handleToggleAdminPermission(member.user_id, member.full_name || member.email, e.target.checked)}
+                            className="rounded border-white/20 text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
+                          />
+                          <span className={`text-[10px] font-bold ${hasAdminAccess ? "text-emerald-400" : "text-slate-400"}`}>
+                            {hasAdminAccess ? "✓ Admin" : "No Admin"}
+                          </span>
+                        </label>
+                      </td>
 
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={member.role}
-                          disabled={updatingUserId === member.user_id}
-                          onChange={(e) => handleRoleChange(member.user_id, e.target.value)}
-                          className="rounded-xl bg-slate-950 border border-white/10 text-white text-xs font-semibold px-3 py-1.5 focus:border-emerald-500 focus:outline-none cursor-pointer disabled:opacity-50"
-                        >
-                          {ROLE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                        {updatingUserId === member.user_id && (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-400" />
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-[10px] font-bold">
-                          <UserCheck className="h-3 w-3" /> Activo
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMember(member.user_id, member.email)}
-                          className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-                          title="Eliminar usuario del equipo"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMember(member.user_id, member.email)}
+                            className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                            title="Eliminar usuario del equipo"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -290,7 +358,7 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
                 <Mail className="h-4 w-4 text-emerald-400" />
-                Invitar Miembro del Personal
+                Invitar Miembro al Club & Asignar Permisos
               </h3>
               <button
                 type="button"
@@ -318,7 +386,7 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                  Rol Inicial Asignado *
+                  Rol Principal Asignado *
                 </label>
                 <select
                   value={inviteRole}
@@ -331,6 +399,18 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-300 font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={inviteIsAdmin}
+                    onChange={(e) => setInviteIsAdmin(e.target.checked)}
+                    className="rounded border-white/20 text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
+                  />
+                  <span>☑ Conceder también permisos de Administrador del Club</span>
+                </label>
               </div>
             </div>
 
