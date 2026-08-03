@@ -5,6 +5,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import type { Player, PlayerTeamMembership, PositionKey, PlayerStatus, AvailabilityStatus } from "@/types";
 import { logger } from '@/lib/logger';
 
@@ -99,9 +100,12 @@ export async function getSquadPlayers(
       )
     `)
     .order("last_name", { ascending: true });
-  // Auto-enable includeInvisible if current user is super_admin
+  // Auto-enable includeInvisible ONLY if current user is super_admin and NO simulated role override is active
   if (!includeInvisible) {
     try {
+      const cookieStore = await cookies();
+      const roleOverride = cookieStore.get("cl_role_override")?.value;
+
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: orgRole } = await supabase
@@ -109,7 +113,12 @@ export async function getSquadPlayers(
           .select("role")
           .eq("user_id", user.id)
           .maybeSingle();
-        if (orgRole?.role === "super_admin") {
+
+        const isSuperAdmin = orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com";
+        // If a simulated role is active (e.g. head_coach), evaluate activeRole as that simulated role!
+        const activeRole = isSuperAdmin && roleOverride && roleOverride !== "super_admin" ? roleOverride : orgRole?.role;
+
+        if (activeRole === "super_admin") {
           includeInvisible = true;
         }
       }

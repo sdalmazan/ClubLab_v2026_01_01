@@ -16,17 +16,26 @@ export async function GET(request: Request) {
     const dateParam = searchParams.get("date");
     const todayStr = new Date().toISOString().split("T")[0];
 
+    // Read role override cookie
+    const cookieHeader = request.headers.get("cookie") || "";
+    const matchOverride = cookieHeader.match(/cl_role_override=([^;]+)/);
+    const roleOverride = matchOverride ? decodeURIComponent(matchOverride[1]) : null;
+
+    const { data: orgRole } = await supabase
+      .from("user_organization_roles")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isSuperAdmin = orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com";
+    const activeRole = isSuperAdmin && roleOverride && roleOverride !== "super_admin" ? roleOverride : orgRole?.role;
+    const includeInvisible = activeRole === "super_admin";
+
     // Find organization_id & player
     const { data: player } = await supabase
       .from("players")
       .select("id, organization_id, team_id")
       .or(`user_id.eq.${user.id},email.eq.${user.email}`)
-      .maybeSingle();
-
-    const { data: orgRole } = await supabase
-      .from("user_organization_roles")
-      .select("organization_id")
-      .eq("user_id", user.id)
       .maybeSingle();
 
     const orgId = player?.organization_id || orgRole?.organization_id;
@@ -145,6 +154,13 @@ export async function GET(request: Request) {
     let filteredAppList = appList;
     if (dateParam) {
       filteredAppList = appList.filter((a: any) => a.date === dateParam || a.date === todayStr);
+    }
+
+    if (!includeInvisible) {
+      filteredAppList = filteredAppList.filter((a: any) =>
+        a.player_id !== "3bc4eb8d-f220-4992-94ac-3db8b59a8b3a" &&
+        !a.player_name?.toLowerCase().includes("diego ciria")
+      );
     }
 
     return NextResponse.json({ slots: formattedSlots, appointments: filteredAppList });

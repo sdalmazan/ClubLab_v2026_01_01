@@ -48,10 +48,11 @@ interface VideoPlayerProps {
   onSelectedIdChange?: (id: string | null) => void;
   stepSize?: number;
   largeStepSize?: number;
+  muted?: boolean;
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
-  ({ url, onTimeUpdate, onDurationChange, annotations = [], onAnnotationsChange, readOnly = false, onStartCut, onStopCut, onRetroactiveCut, isCutting = false, cutStart = null, isBoardActive: isBoardActiveProp, onBoardActiveChange, onPlayStateChange, onToggleManualForm, activeTool: activeToolProp, onActiveToolChange, hideControls = false, hideToolbar = false, drawColor: drawColorProp, onDrawColorChange, onSelectedIdChange, stepSize = 1.0, largeStepSize = 5.0 }, ref) => {
+  ({ url, onTimeUpdate, onDurationChange, annotations = [], onAnnotationsChange, readOnly = false, onStartCut, onStopCut, onRetroactiveCut, isCutting = false, cutStart = null, isBoardActive: isBoardActiveProp, onBoardActiveChange, onPlayStateChange, onToggleManualForm, activeTool: activeToolProp, onActiveToolChange, hideControls = false, hideToolbar = false, drawColor: drawColorProp, onDrawColorChange, onSelectedIdChange, stepSize = 1.0, largeStepSize = 5.0, muted = false }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1985,6 +1986,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           key={url}
           ref={videoRef}
           src={url}
+          muted={muted}
           className="w-full h-full object-contain"
           style={{ objectFit: "contain" }}
           controls={false}
