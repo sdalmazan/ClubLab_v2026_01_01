@@ -126,6 +126,37 @@ export function PhysioWorkspace({
   const [returnDate, setReturnDate] = useState("");
   const [injuryBodyPart, setInjuryBodyPart] = useState("");
   const [treatmentNotes, setTreatmentNotes] = useState("");
+  const [treatmentStartTime, setTreatmentStartTime] = useState("");
+  const [treatmentEndTime, setTreatmentEndTime] = useState("");
+
+  const addMinutesToTime = (timeStr: string | undefined, mins: number) => {
+    if (!timeStr) return "18:20";
+    const parts = timeStr.split(":").map(Number);
+    if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return "18:20";
+    const date = new Date();
+    date.setHours(parts[0], parts[1] + mins, 0, 0);
+    const newH = String(date.getHours()).padStart(2, "0");
+    const newM = String(date.getMinutes()).padStart(2, "0");
+    return `${newH}:${newM}`;
+  };
+
+  const handleUpdateEndTime = (appId: string, endTime: string) => {
+    setAppointments(prev =>
+      prev.map(app => (app.id === appId ? { ...app, end_time: endTime } : app))
+    );
+
+    try {
+      fetch("/api/physio/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_appointment",
+          appointmentId: appId,
+          end_time: endTime,
+        }),
+      });
+    } catch (e) {}
+  };
 
   // Reports Modal (bound to a specific injury)
   const [reportingInjury, setReportingInjury] = useState<ActiveInjuryRecord | null>(null);
@@ -379,6 +410,8 @@ export function PhysioWorkspace({
   // Open "Tratado" Modal
   const handleOpenTreatmentModal = (app: PhysioAppointment) => {
     setTreatingAppointment(app);
+    setTreatmentStartTime(app.scheduled_time || "18:00");
+    setTreatmentEndTime(app.end_time || (app.scheduled_time ? addMinutesToTime(app.scheduled_time, 20) : "18:20"));
     const existingInj = injuries.find(i => i.player_id === app.player_id);
     if (existingInj) {
       setSelectedPhase(existingInj.recovery_phase);
@@ -404,7 +437,14 @@ export function PhysioWorkspace({
     setAppointments(prev =>
       prev.map(app =>
         app.id === treatingAppointment.id
-          ? { ...app, status: "treated", fitness_result: fitnessOutcome, notes: treatmentNotes }
+          ? {
+              ...app,
+              status: "treated",
+              fitness_result: fitnessOutcome,
+              notes: treatmentNotes,
+              scheduled_time: treatmentStartTime || app.scheduled_time,
+              end_time: treatmentEndTime || app.end_time,
+            }
           : app
       )
     );
@@ -419,6 +459,8 @@ export function PhysioWorkspace({
           status: "treated",
           fitness_result: fitnessOutcome,
           notes: treatmentNotes,
+          scheduled_time: treatmentStartTime || treatingAppointment.scheduled_time,
+          end_time: treatmentEndTime || treatingAppointment.end_time,
         }),
       });
     } catch (e) {}
@@ -813,9 +855,39 @@ export function PhysioWorkspace({
                               Tratado ({app.fitness_result === "apto" ? "Apto" : app.fitness_result === "adaptado" ? "Adaptado" : "No Apto"})
                             </span>
                           ) : app.scheduled_time ? (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center gap-1">
-                              <Clock className="size-3" /> {app.scheduled_time}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center gap-1">
+                                <Clock className="size-3" /> {app.scheduled_time} {app.end_time ? `- ${app.end_time}` : ""}
+                              </span>
+
+                              {/* Editable End Time for Physio Session Extension */}
+                              <div className="flex items-center gap-1 text-[10px] bg-slate-950 px-2 py-0.5 rounded border border-white/10">
+                                <span className="text-slate-400 font-medium">Fin:</span>
+                                <input
+                                  type="time"
+                                  value={app.end_time || addMinutesToTime(app.scheduled_time, 20)}
+                                  onChange={(e) => handleUpdateEndTime(app.id, e.target.value)}
+                                  className="bg-transparent text-white font-mono font-bold focus:outline-none w-16"
+                                  title="Modificar hora final (extensión para lesionados)"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateEndTime(app.id, addMinutesToTime(app.end_time || app.scheduled_time, 15))}
+                                  className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-bold text-[9px] transition-colors cursor-pointer"
+                                  title="Añadir 15 min de sesión"
+                                >
+                                  +15m
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateEndTime(app.id, addMinutesToTime(app.end_time || app.scheduled_time, 30))}
+                                  className="px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-bold text-[9px] transition-colors cursor-pointer"
+                                  title="Añadir 30 min de sesión"
+                                >
+                                  +30m
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
                               Pendiente Hora
@@ -1130,6 +1202,58 @@ export function PhysioWorkspace({
             </div>
 
             <form onSubmit={handleConfirmTreatment} className="space-y-6 text-xs">
+              {/* Horario de Atención y Extensión para Lesionados */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Clock className="size-3.5" /> Horario de Atención & Extensión de Sesión
+                  </label>
+                  <span className="text-[9px] font-semibold text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                    Ajuste libre para fisio
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block mb-1">Hora Inicio</span>
+                    <input
+                      type="time"
+                      value={treatmentStartTime}
+                      onChange={(e) => setTreatmentStartTime(e.target.value)}
+                      className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block mb-1">Hora Finalización</span>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="time"
+                        value={treatmentEndTime}
+                        onChange={(e) => setTreatmentEndTime(e.target.value)}
+                        className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setTreatmentEndTime(addMinutesToTime(treatmentEndTime || treatmentStartTime, 15))}
+                        className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-[10px] font-bold rounded-xl transition-all shrink-0 cursor-pointer"
+                        title="Añadir 15 min de extensión"
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTreatmentEndTime(addMinutesToTime(treatmentEndTime || treatmentStartTime, 30))}
+                        className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-[10px] font-bold rounded-xl transition-all shrink-0 cursor-pointer"
+                        title="Añadir 30 min de extensión"
+                      >
+                        +30m
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* 1. Dictamen de Aptitud (3 Minimalist Glow Cards) */}
               <div className="space-y-2.5">
                 <label className="font-extrabold text-slate-200 uppercase tracking-wider text-[11px] block">

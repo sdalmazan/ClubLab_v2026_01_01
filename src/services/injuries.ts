@@ -43,6 +43,7 @@ export interface PhysioAppointment {
   selected_time_slots?: string[];
   status: "pending" | "scheduled" | "treated";
   scheduled_time?: string; // e.g. "16:15"
+  end_time?: string; // e.g. "16:45"
   fitness_result?: "apto" | "adaptado" | "no_apto";
   notes?: string;
   created_at?: string;
