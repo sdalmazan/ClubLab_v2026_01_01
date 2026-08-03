@@ -463,6 +463,62 @@ export async function POST(request: Request) {
         .update({ settings: updatedSettings, updated_at: new Date().toISOString() })
         .eq("id", orgId);
 
+      // Notify all physio staff in the organization
+      try {
+        const { data: physioStaff } = await supabase
+          .from("user_organization_roles")
+          .select("user_id")
+          .eq("organization_id", orgId)
+          .in("role", ["physio", "doctor", "club_admin", "super_admin"]);
+
+        if (physioStaff && physioStaff.length > 0) {
+          const notifTitle = `🩺 Solicitud de cita: ${resolvedName}`;
+          const notifBody = `${resolvedName} ha solicitado una cita de fisioterapia para el ${targetDate}. Motivo: ${appReason}. Franjas disponibles: ${timeSlotList.join(", ") || "a confirmar"}.`;
+
+          // In-app notifications for all physio/medical staff
+          const notificationsData = physioStaff.map((sm) => ({
+            organization_id: orgId,
+            user_id: sm.user_id,
+            title: notifTitle,
+            body: notifBody,
+            type: "info",
+            is_read: false,
+            metadata: { appointment: newApp },
+          }));
+
+          await supabase.from("notifications").insert(notificationsData).throwOnError();
+
+          // Email notifications to physio staff
+          try {
+            const { createAdminClient } = await import("@/lib/supabase/admin");
+            const adminSupabase = createAdminClient();
+            const { data: usersList } = await adminSupabase.auth.admin.listUsers();
+
+            if (usersList?.users) {
+              for (const sm of physioStaff) {
+                const authUser = usersList.users.find((u) => u.id === sm.user_id);
+                if (authUser?.email) {
+                  const recipientName = authUser.user_metadata?.full_name || authUser.email.split("@")[0];
+                  sendEmailAlert({
+                    to: authUser.email,
+                    recipientName,
+                    title: notifTitle,
+                    body: `${notifBody}\n\nRevisa la agenda de fisioterapia en ClubLab para asignar el horario definitivo.`,
+                    actionUrl: "/injuries",
+                    actionText: "Ver Solicitud en ClubLab",
+                  }).catch((e: any) => console.error("[Physio notify email error]", e));
+                }
+              }
+            }
+          } catch (emailErr: any) {
+            console.error("[Physio email notify error]", emailErr.message);
+          }
+        }
+      } catch (notifErr: any) {
+        console.error("[Physio notification error]", notifErr.message);
+        // Non-blocking — appointment is saved regardless
+      }
+
       return NextResponse.json({
         success: true,
         message: "Solicitud registrada con éxito. El fisioterapeuta revisará tus horarios.",

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { HeroStatusCard } from "@/components/player/HeroStatusCard";
 import { WhatShouldIDoNowCard } from "@/components/player/WhatShouldIDoNowCard";
-import { WellnessCheckinModal } from "@/components/player/WellnessCheckinModal";
+import { WellnessCheckinModal, type WellnessCheckinValues } from "@/components/player/WellnessCheckinModal";
 import { CheckoutRpeModal } from "@/components/player/CheckoutRpeModal";
 import { ConfidentialInjuryModal } from "@/components/player/ConfidentialInjuryModal";
 import { PlayerInjuryReminderModal } from "@/components/player/PlayerInjuryReminderModal";
@@ -11,7 +11,7 @@ import { PlayerProfileEditModal } from "@/components/player/PlayerProfileEditMod
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
 import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { RecommendationCard } from "@/components/player/RecommendationCard";
-import { getMockPlayerSummary } from "@/services/playerExperienceService";
+import { calculatePlayerProfileCompletion } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
 import { ConfirmAttendanceWeightModal } from "@/components/player/ConfirmAttendanceWeightModal";
 import { evalPlayerTemporalState } from "@/services/playerTemporalStateService";
@@ -24,14 +24,39 @@ export default function PlayerTodayPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [hasCompletedCheckin, setHasCompletedCheckin] = useState(false);
-  const [summary, setSummary] = useState(() => {
-    const base = getMockPlayerSummary();
-    return {
-      ...base,
-      status: "READY" as "GOOD" | "READY" | "RECOVER" | "ATTENTION" | "PENDING",
-      statusMessage: "Estado del jugador actualizado. Revisa el estado de la sesión o tus pautas de entrenamiento.",
-      checkinPending: false,
-    };
+  const [summary, setSummary] = useState({
+    player: {
+      id: "",
+      first_name: "",
+      last_name: "",
+      sporting_name: "",
+      height_cm: null as number | null,
+      weight_kg: null as number | null,
+      dominant_foot: null as string | null,
+      date_of_birth: null as string | null,
+      nationality: null as string | null,
+      avatar_url: null as string | null,
+      physical_status: "green" as const,
+      availability_status: "available" as const,
+    },
+    status: "PENDING" as "GOOD" | "READY" | "RECOVER" | "ATTENTION" | "PENDING",
+    statusMessage: "Completa el check-in para activar tu panel de salud.",
+    checkinPending: true,
+    checkinWindowOpen: true,
+    checkoutPending: false,
+    checkoutWindowOpen: false,
+    activeRecommendation: null as any,
+    completionPercentage: 0,
+    missingFields: [] as Array<{ key: string; label: string; explanation: string }>,
+    metricsSummary: {
+      sleepQuality: 0,
+      fatigue: 0,
+      weeklyLoadChangePercent: 0,
+      hasDiscomfort: false,
+      discomfortLocation: null as string | null,
+      acwrRatio: 0,
+      gpsDistanceKm: 0,
+    },
   });
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -80,7 +105,7 @@ export default function PlayerTodayPage() {
         if (data) setTodaySession(data);
       });
 
-    // Fetch dynamic organization branding
+    // Fetch dynamic organization branding AND real player profile
     supabase.auth.getUser().then(async ({ data: { user } }: any) => {
       if (user) {
         const { data: orgRole } = await supabase
@@ -125,16 +150,53 @@ export default function PlayerTodayPage() {
           return;
         }
 
-        if (user?.user_metadata?.full_name || user?.email) {
-          const rawName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Jugador";
-          const firstName = rawName.trim().split(" ")[0] || "Jugador";
+        // Load real player profile data from the players table
+        const { data: playerRow } = await supabase
+          .from("players")
+          .select("id, first_name, last_name, sporting_name, date_of_birth, height_cm, weight_kg, dominant_foot, nationality, avatar_url, organization_id")
+          .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+          .maybeSingle();
+
+        if (playerRow) {
+          const displayName = playerRow.sporting_name ||
+            `${playerRow.first_name || ""} ${playerRow.last_name || ""}`.trim() ||
+            user?.user_metadata?.full_name ||
+            user?.email?.split("@")[0] || "Jugador";
+          const firstName = playerRow.first_name ||
+            (user?.user_metadata?.full_name || "").split(" ")[0] ||
+            user?.email?.split("@")[0] || "Jugador";
+
+          const { percentage, missingFields } = calculatePlayerProfileCompletion(
+            playerRow,
+            !!localStorage.getItem("cl_player_injury_history_done")
+          );
+
           setSummary((prev: any) => ({
             ...prev,
             player: {
-              ...prev.player,
+              id: playerRow.id,
               first_name: firstName,
-              sporting_name: rawName,
+              last_name: playerRow.last_name || "",
+              sporting_name: displayName,
+              date_of_birth: playerRow.date_of_birth || null,
+              height_cm: playerRow.height_cm || null,
+              weight_kg: playerRow.weight_kg || null,
+              dominant_foot: playerRow.dominant_foot || null,
+              nationality: playerRow.nationality || null,
+              avatar_url: playerRow.avatar_url || null,
+              physical_status: "green" as const,
+              availability_status: "available" as const,
             },
+            completionPercentage: percentage,
+            missingFields,
+          }));
+        } else {
+          // Fallback: use auth metadata only
+          const rawName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Jugador";
+          const firstName = rawName.trim().split(" ")[0] || "Jugador";
+          setSummary((prev: any) => ({
+            ...prev,
+            player: { ...prev.player, first_name: firstName, sporting_name: rawName },
           }));
         }
       }
@@ -152,18 +214,37 @@ export default function PlayerTodayPage() {
       }));
     }
 
-    // Verify DB checkin state directly
+    // Verify DB checkin state directly and load real metrics if done
     fetch("/api/player/wellness")
       .then((res) => res.json())
       .then((data) => {
-        if (data?.completed) {
+        if (data?.completed && data?.checkin) {
+          const c = data.checkin;
+          setHasCompletedCheckin(true);
+          localStorage.setItem(`cl_player_checkin_done_${todayStr}`, "true");
+          setSummary((prev: any) => ({
+            ...prev,
+            checkinPending: false,
+            status: c.fatigue >= 4 || c.muscle_soreness >= 4 ? "ATTENTION" : c.fatigue >= 3 ? "RECOVER" : "GOOD",
+            statusMessage: c.has_discomfort
+              ? `Check-in completado. Molestia reportada en ${c.discomfort_body_part || "zona desconocida"}.`
+              : "Check-in completado. Estás listo para entrenar.",
+            metricsSummary: {
+              ...prev.metricsSummary,
+              sleepQuality: c.sleep_quality ?? 0,
+              fatigue: c.fatigue ?? 0,
+              hasDiscomfort: !!c.has_discomfort,
+              discomfortLocation: c.discomfort_body_part || null,
+            },
+          }));
+        } else if (data?.completed) {
           setHasCompletedCheckin(true);
           localStorage.setItem(`cl_player_checkin_done_${todayStr}`, "true");
           setSummary((prev: any) => ({
             ...prev,
             checkinPending: false,
             status: "GOOD",
-            statusMessage: "Check-in completado. Estás en un estado óptimo para entrenar.",
+            statusMessage: "Check-in completado. Estás listo para entrenar.",
           }));
         }
       })
@@ -229,17 +310,29 @@ export default function PlayerTodayPage() {
     }));
   };
 
-  const handleCheckinSuccess = () => {
+  const handleCheckinSuccess = (values: WellnessCheckinValues) => {
     setCheckinOpen(false);
     setHasCompletedCheckin(true);
     const todayStr = new Date().toISOString().split("T")[0];
     localStorage.setItem(`cl_player_checkin_done_${todayStr}`, "true");
+    // Update metrics with real values from the form
     setSummary((prev: any) => ({
       ...prev,
       checkinPending: false,
-      status: "GOOD",
-      statusMessage: "Check-in completado. Estás en un estado óptimo para entrenar.",
+      status: values.fatigue >= 4 || values.muscleSoreness >= 4 ? "ATTENTION" : values.fatigue >= 3 ? "RECOVER" : "GOOD",
+      statusMessage: values.hasDiscomfort
+        ? `Check-in completado. Molestia reportada en ${values.discomfortPart || "zona desconocida"}. El fisio ha sido notificado.`
+        : "Check-in completado. Estás en un estado óptimo para entrenar.",
+      metricsSummary: {
+        ...prev.metricsSummary,
+        sleepQuality: values.sleepQuality,
+        fatigue: values.fatigue,
+        hasDiscomfort: values.hasDiscomfort,
+        discomfortLocation: values.discomfortPart,
+      },
     }));
+    // Open weight confirmation modal after checkin
+    setConfirmAttendanceOpen(true);
   };
 
   const handleCheckoutSuccess = () => {
@@ -332,7 +425,7 @@ export default function PlayerTodayPage() {
               </div>
             </div>
             <span className="text-xs font-mono font-extrabold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-              {todaySession?.start_time ? todaySession.start_time.slice(0, 5) : "10:00"} hs
+              {todaySession?.start_time ? todaySession.start_time.slice(0, 5) : "19:30"} hs
             </span>
           </div>
 
@@ -343,7 +436,7 @@ export default function PlayerTodayPage() {
             </span>
             <span className="flex items-center gap-1 font-semibold text-foreground">
               <MapPin className="w-3.5 h-3.5 text-emerald-500" />
-              Campo Instalaciones
+              {todaySession?.location || "Instalaciones del club"}
             </span>
             {todaySession?.microcycle_day && (
               <span className="flex items-center gap-1 font-semibold text-emerald-400">
@@ -568,7 +661,7 @@ export default function PlayerTodayPage() {
       {/* Talks & Meetings Manager (Player Portal) */}
       <TalksManagerCard
         viewerRole="player"
-        playerId={summary.player.id || "p-1"}
+        playerId={summary.player.id || ""}
         playerName={summary.player.first_name || "Jugador"}
         title="💬 Mis Charlas con el Entrenador"
         subtitle="Solicita o responde citas individuales con el míster y cuerpo técnico"

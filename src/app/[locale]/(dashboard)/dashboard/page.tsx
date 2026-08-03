@@ -318,6 +318,79 @@ export default async function DashboardPage({
         </div>
       </div>
 
+      {/* ── DETALLE DE CHECK-IN POR JUGADOR ── */}
+      {totalPlayers > 0 && (
+        <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <HeartPulse className="size-4 text-emerald-400" />
+              Detalle Check-in por Jugador
+            </span>
+            <span className="text-[10px] text-slate-500">
+              {completedCheckinsCount} completados · {pendingCheckinCount} pendientes
+            </span>
+          </div>
+          <div className="divide-y divide-white/5 max-h-72 overflow-y-auto">
+            {players.map((player: any) => {
+              const w = player.latest_wellness;
+              const r = player.latest_rpe;
+              const playerName = player.sporting_name || `${player.first_name || ""} ${player.last_name || ""}`.trim() || "Jugador";
+              const hasCheckin = !!w;
+              const hasCheckout = !!r;
+              const jersey = player.membership?.jersey_number ?? null;
+              return (
+                <div key={player.id} className={`px-4 py-2.5 flex items-center justify-between gap-3 text-xs ${hasCheckin ? "" : "bg-amber-500/5"}`}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {jersey != null && (
+                      <span className="text-[10px] font-black text-slate-500 w-5 shrink-0 text-right">#{jersey}</span>
+                    )}
+                    <span className={`font-semibold truncate ${hasCheckin ? "text-slate-200" : "text-amber-300"}`}>
+                      {playerName}
+                    </span>
+                    {!hasCheckin && (
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">Pendiente</span>
+                    )}
+                  </div>
+                  {hasCheckin ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Sleep */}
+                      <span className="hidden sm:flex items-center gap-0.5 text-[10px] text-slate-400" title="Sueño">
+                        <Activity className="size-3 text-indigo-400" />
+                        {w.sleep_quality ?? "–"}/5
+                      </span>
+                      {/* Fatigue */}
+                      <span className={`flex items-center gap-0.5 text-[10px] ${(w.fatigue ?? 0) >= 4 ? "text-rose-400" : (w.fatigue ?? 0) >= 3 ? "text-amber-400" : "text-emerald-400"}`} title="Fatiga">
+                        <HeartPulse className="size-3" />
+                        {w.fatigue ?? "–"}/5
+                      </span>
+                      {/* Discomfort */}
+                      {w.has_discomfort && (
+                        <span className="text-[9px] font-bold text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 truncate max-w-[80px]" title={w.discomfort_body_part || "Molestia"}>
+                          ⚠ {w.discomfort_body_part || "Molestia"}
+                        </span>
+                      )}
+                      {/* Weight */}
+                      {w.weight_kg && (
+                        <span className="hidden sm:block text-[10px] text-slate-400" title="Peso">⚖ {w.weight_kg}kg</span>
+                      )}
+                      {/* Checkout RPE */}
+                      {hasCheckout ? (
+                        <span className="text-[9px] font-bold text-sky-300 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20 shrink-0">RPE {r.rpe}</span>
+                      ) : (
+                        <span className="text-[9px] text-slate-600 shrink-0">RPE —</span>
+                      )}
+                      <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-600 shrink-0">Sin datos hoy</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── TODAY'S FOCUS (DAILY BRIEFING HERO) ── */}
       <div className="bg-card border border-border rounded-lg p-6 space-y-4">
         <div className="flex items-center justify-between">

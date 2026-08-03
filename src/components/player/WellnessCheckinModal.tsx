@@ -3,10 +3,22 @@
 import React, { useState } from "react";
 import { X, Check, HeartPulse, Moon, Smile, Activity, AlertCircle, MessageSquarePlus } from "lucide-react";
 
+export interface WellnessCheckinValues {
+  sleepQuality: number;
+  fatigue: number;
+  mood: number;
+  muscleSoreness: number;
+  stress: number;
+  hasDiscomfort: boolean;
+  discomfortPart: string | null;
+  discomfortIntensity: number | null;
+  comments: string | null;
+}
+
 interface WellnessCheckinModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitSuccess: () => void;
+  onSubmitSuccess: (values: WellnessCheckinValues) => void;
   sessionTitle?: string;
 }
 
@@ -59,7 +71,17 @@ export function WellnessCheckinModal({
       console.error("Error submitting wellness checkin:", err);
     } finally {
       setIsSubmitting(false);
-      onSubmitSuccess();
+      onSubmitSuccess({
+        sleepQuality,
+        fatigue,
+        mood,
+        muscleSoreness,
+        stress,
+        hasDiscomfort,
+        discomfortPart: hasDiscomfort ? (discomfortPart === "Otro" ? customDiscomfortPart || null : discomfortPart) : null,
+        discomfortIntensity: hasDiscomfort ? discomfortIntensity : null,
+        comments: showComments ? comments || null : null,
+      });
     }
   };
 

@@ -17,17 +17,15 @@ async function isUserAdmin(): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) return false;
-    if (user.email === "diecilo7@gmail.com" || user.email === "diego.ciria.lopez@gmail.com") return true;
 
     const adminSupabase = createAdminClient();
     const { data: orgRole } = await adminSupabase
       .from("user_organization_roles")
       .select("role")
       .eq("user_id", user.id)
-      .limit(1)
       .maybeSingle();
 
-    return ["super_admin", "club_admin", "head_coach"].includes(orgRole?.role || "");
+    return ["super_admin", "club_admin"].includes(orgRole?.role || "");
   } catch {
     return false;
   }

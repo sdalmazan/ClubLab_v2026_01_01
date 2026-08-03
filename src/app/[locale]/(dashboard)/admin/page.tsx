@@ -41,7 +41,7 @@ export default async function AdminPortalPage() {
     .order("created_at", { ascending: false });
 
   const filteredPlayers = (rawPlayers ?? []).filter(
-    (p: any) => p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com"
+    (p: any) => p.adjective !== "invisible" && p.is_invisible !== true
   );
 
   const { data: { users: authUsers } } = await supabaseAdmin.auth.admin.listUsers();

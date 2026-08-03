@@ -2,15 +2,33 @@
 
 import { useState, useEffect } from "react";
 import { PhysioWorkspace } from "@/components/injuries/PhysioWorkspace";
+import { createClient } from "@/lib/supabase/client";
 
 export default function InjuriesPage() {
   const [players, setPlayers] = useState<any[]>([]);
+  const [userRole, setUserRole] = useState<string>("physio");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadSquad() {
+    async function loadPageData() {
       try {
         setLoading(true);
+        const supabase = createClient();
+
+        // Load real user role
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: orgRole } = await supabase
+            .from("user_organization_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (orgRole?.role) {
+            setUserRole(orgRole.role);
+          }
+        }
+
+        // Load squad players
         const res = await fetch("/api/players");
         if (res.ok) {
           const data = await res.json();
@@ -23,7 +41,7 @@ export default function InjuriesPage() {
       }
     }
 
-    loadSquad();
+    loadPageData();
   }, []);
 
   if (loading) {
@@ -37,7 +55,7 @@ export default function InjuriesPage() {
   return (
     <PhysioWorkspace
       squadPlayers={players}
-      userRole="physio"
+      userRole={userRole}
     />
   );
 }

@@ -125,7 +125,7 @@ export async function getSquadPlayers(
 
   const mappedPlayers = (data ?? [])
     .filter((p: any) => {
-      if (!includeInvisible && (p.adjective === "invisible" || p.is_invisible === true || p.email === "diego.ciria.lopez@gmail.com")) {
+      if (!includeInvisible && (p.is_invisible === true || p.adjective === "invisible")) {
         return false;
       }
       const mem = Array.isArray(p.membership) ? p.membership[0] : p.membership;

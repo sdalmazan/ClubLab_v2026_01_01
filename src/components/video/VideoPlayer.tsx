@@ -1136,31 +1136,17 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
       }
     }, [playbackSpeed, playerType]);
 
-    // Spacebar Play/Pause & Arrow Keys Step Navigation inside Pizarra
+    // Spacebar Play/Pause & Arrow Keys Step Navigation
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (!isBoardActive || readOnly) return;
-        if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
+        const activeTag = document.activeElement?.tagName;
+        const isEditable = document.activeElement?.getAttribute("contenteditable") === "true";
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT" || isEditable) {
           return;
         }
 
-        // Keyboard Shortcuts
-        if (e.key === "Delete" || e.code === "Delete") {
-          e.preventDefault();
-          handleDeleteSelected();
-        } else if (e.ctrlKey && e.key?.toLowerCase() === "z") {
-          e.preventDefault();
-          handleUndo();
-        } else if (e.ctrlKey && e.key?.toLowerCase() === "y") {
-          e.preventDefault();
-          handleRedo();
-        } else if (e.ctrlKey && e.key?.toLowerCase() === "c") {
-          e.preventDefault();
-          handleCopy();
-        } else if (e.ctrlKey && e.key?.toLowerCase() === "v") {
-          e.preventDefault();
-          handlePaste();
-        } else if (e.code === "Space") {
+        // Global Play/Pause and Seek Shortcuts
+        if (e.code === "Space" || e.key === " ") {
           e.preventDefault();
           const video = videoRef.current;
           if (video) {
@@ -1170,17 +1156,51 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
               video.pause();
             }
           }
-        } else if (e.code === "ArrowLeft") {
+        } else if (e.code === "ArrowLeft" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          const video = videoRef.current;
+          if (video) {
+            const step = stepSize || 1.0;
+            video.currentTime = Math.max(0, video.currentTime - step);
+          }
+        } else if (e.code === "ArrowRight" || e.key === "ArrowRight") {
+          e.preventDefault();
+          const video = videoRef.current;
+          if (video) {
+            const step = stepSize || 1.0;
+            video.currentTime = Math.min(video.duration || 0, video.currentTime + step);
+          }
+        } else if (e.code === "ArrowUp" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const video = videoRef.current;
+          if (video) {
+            video.currentTime = Math.min(video.duration || 0, video.currentTime + 5.0);
+          }
+        } else if (e.code === "ArrowDown" || e.key === "ArrowDown") {
           e.preventDefault();
           const video = videoRef.current;
           if (video) {
             video.currentTime = Math.max(0, video.currentTime - 5.0);
           }
-        } else if (e.code === "ArrowRight") {
-          e.preventDefault();
-          const video = videoRef.current;
-          if (video) {
-            video.currentTime = Math.min(video.duration || 0, video.currentTime + 5.0);
+        }
+
+        // Pizarra-specific shortcuts (Delete, Undo, Redo, Copy, Paste)
+        if (isBoardActive && !readOnly) {
+          if (e.key === "Delete" || e.code === "Delete") {
+            e.preventDefault();
+            handleDeleteSelected();
+          } else if (e.ctrlKey && e.key?.toLowerCase() === "z") {
+            e.preventDefault();
+            handleUndo();
+          } else if (e.ctrlKey && e.key?.toLowerCase() === "y") {
+            e.preventDefault();
+            handleRedo();
+          } else if (e.ctrlKey && e.key?.toLowerCase() === "c") {
+            e.preventDefault();
+            handleCopy();
+          } else if (e.ctrlKey && e.key?.toLowerCase() === "v") {
+            e.preventDefault();
+            handlePaste();
           }
         }
       };

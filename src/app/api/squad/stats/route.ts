@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: playersErr.message }, { status: 500 });
     }
 
-    const visiblePlayers = (players || []).filter((p: any) => p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com");
+    const visiblePlayers = (players || []).filter((p: any) => p.adjective !== "invisible" && p.is_invisible !== true);
 
     if (visiblePlayers.length === 0) {
       return NextResponse.json([]);

@@ -49,6 +49,14 @@ export default async function MatchVideoPage({ params }: Props) {
     .select("*")
     .order("match_date", { ascending: false });
 
+  // 2b. Fetch match sheet events (acta del partido)
+  const { data: matchEvents } = await statsAdmin
+    .from("stat_events")
+    .select("*")
+    .eq("match_id", matchId)
+    .order("minute", { ascending: true })
+    .order("extra_time", { ascending: true });
+
   // 3. Retrieve active team context and players
   const { data: { user } } = await supabase.auth.getUser();
   const { data: orgRole } = await supabase
@@ -116,6 +124,7 @@ export default async function MatchVideoPage({ params }: Props) {
         match={match}
         players={players}
         allMatches={allMatches || []}
+        matchEvents={matchEvents || []}
       />
     </div>
   );

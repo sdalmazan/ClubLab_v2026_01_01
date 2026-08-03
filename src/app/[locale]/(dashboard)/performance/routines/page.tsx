@@ -158,7 +158,7 @@ export default function RoutinesPerformancePage() {
             if (playersData && playersData.length > 0) {
               setSquadPlayers(
                 playersData
-                  .filter((p: any) => p.adjective !== "invisible" && p.is_invisible !== true && p.email !== "diego.ciria.lopez@gmail.com")
+                  .filter((p: any) => p.adjective !== "invisible" && p.is_invisible !== true)
                   .map((p: any) => ({
                     id: p.id,
                     name: p.sporting_name || `${p.first_name} ${p.last_name}`.trim(),

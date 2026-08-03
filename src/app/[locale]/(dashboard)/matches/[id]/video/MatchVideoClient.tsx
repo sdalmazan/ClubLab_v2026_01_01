@@ -9,7 +9,8 @@ import type {
   VideoClip, 
   ClipPlayerStat, 
   VideoAnnotation, 
-  VideoMontage 
+  VideoMontage,
+  VideoMontageItem
 } from "@/lib/clublab/types";
 import { 
   Play, 
@@ -27,7 +28,17 @@ import {
   Eye, 
   Volume2, 
   Download,
-  Info
+  Info,
+  Clock,
+  Layers,
+  Archive,
+  ArrowRight,
+  RefreshCw,
+  FileText,
+  Tag,
+  AlignLeft,
+  Layout,
+  UploadCloud
 } from "lucide-react";
 
 // List of all available video statistics we support
@@ -42,43 +53,66 @@ const STAT_TYPES = [
   { key: "dribbles_successful", label: "Regates Completados", icon: "⚡" }
 ];
 
-const CATEGORIES = ["Gol", "Ocasión de gol", "Jugada relevante", "Penalti", "Expulsión"];
+const CATEGORIES = ["Gol", "Ocasión de gol", "Jugada relevante", "Penalti", "Expulsión", "Ataque", "Defensa", "Balón Parado", "Transición"];
+
+const TACTICAL_CONCEPTS = [
+  "Presión Tras Pérdida",
+  "Salida de Balón",
+  "Bloque Alto",
+  "Bloque Bajo",
+  "Repliegue",
+  "Contraataque",
+  "Centro al Área",
+  "Córner a Favor",
+  "Córner en Contra",
+  "Falta Directa"
+];
 
 interface MatchVideoClientProps {
   match: any;
   players: any[]; // Squad players list
   allMatches: any[]; // List of other matches for rival analysis
+  matchEvents?: any[]; // Events from stat_events (acta del partido)
 }
 
-// Convert seconds to MM:SS string
+// Convert seconds to MM:SS or HH:MM:SS string
 function secondsToMMSS(seconds: number): string {
-  const m = Math.floor(seconds / 60);
+  if (isNaN(seconds) || seconds < 0) return "00:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-// Convert MM:SS to number of seconds
+// Convert MM:SS or HH:MM:SS to number of seconds
 function parseTimeToSeconds(timeStr: string): number {
   if (!timeStr) return 0;
   const parts = timeStr.split(":").map(Number);
   if (parts.length === 2) {
-    return parts[0] * 60 + parts[1];
+    return (parts[0] || 0) * 60 + (parts[1] || 0);
   }
   if (parts.length === 3) {
-    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
   }
   return Number(timeStr) || 0;
 }
 
-export function MatchVideoClient({ match, players, allMatches }: MatchVideoClientProps) {
+export function MatchVideoClient({ match, players, allMatches, matchEvents = [] }: MatchVideoClientProps) {
   const router = useRouter();
   const playerRef = useRef<VideoPlayerRef>(null);
+
+  // Wizard active step: 1 | 2 | 3
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
 
   // Video data state
   const [videoData, setVideoData] = useState<SessionVideoData>({
     general_notes: "",
     videos: [],
-    montages: []
+    montages: [],
+    cut_bank: []
   });
 
   const [activeType, setActiveType] = useState<"own" | "rival">("own");
@@ -88,11 +122,18 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Link Video form
+  // Link Video form & Drag-and-Drop state
   const [newUrl, setNewUrl] = useState("");
   const [newTitle, setNewTitle] = useState("");
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
-  // Clip creation state
+  // Paso 1: Partes semiautomáticas (seconds)
+  const [t1Start, setT1Start] = useState<number>(0);
+  const [t1End, setT1End] = useState<number>(2700); // +45 min
+  const [t2Start, setT2Start] = useState<number>(3600); // +15 min rest
+  const [t2End, setT2End] = useState<number>(6300); // +45 min
+
+  // Clip creation state (Paso 2)
   const [clipTitle, setClipTitle] = useState("");
   const [clipStart, setClipStart] = useState("");
   const [clipEnd, setClipEnd] = useState("");
@@ -100,6 +141,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
   const [clipCategory, setClipCategory] = useState("Jugada relevante");
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [clipStats, setClipStats] = useState<ClipPlayerStat[]>([]);
+  const [selectedTacticalConcepts, setSelectedTacticalConcepts] = useState<string[]>([]);
   
   // Search filter for player tagging
   const [playerSearch, setPlayerSearch] = useState("");
@@ -109,33 +151,29 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
   const [currentTime, setCurrentTime] = useState<number>(0);
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Sidebar Layout & Controls
-  const [activeSidebarTab, setActiveSidebarTab] = useState<"clean" | "manual" | "montage">("manual");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
-  const [stepSize, setStepSize] = useState<number>(1.0);
-  const [selectedAnnId, setSelectedAnnId] = useState<string | null>(null);
-  
-  // Whiteboard Active state
+  // Whiteboard Active state & Controls
   const [isBoardActive, setIsBoardActive] = useState<boolean>(false);
   const [activeTool, setActiveTool] = useState<any>("pointer");
   const [drawColor, setDrawColor] = useState<string>("#ef4444");
+  const [freezeSeconds, setFreezeSeconds] = useState<number>(3);
 
-  // Presentation Playlist States
+  // Presentation Playlist States (Paso 3)
   const [presenting, setPresenting] = useState<boolean>(false);
   const [currentPresentIndex, setCurrentPresentIndex] = useState<number>(0);
   const [presentingUrl, setPresentingUrl] = useState<string>("");
   const [activeMontageId, setActiveMontageId] = useState<string | null>(null);
   const [newMontageTitle, setNewMontageTitle] = useState("");
 
+  // Cover creation form state
+  const [coverTitle, setCoverTitle] = useState("");
+  const [coverSubtitle, setCoverSubtitle] = useState("");
+  const [coverBgColor, setCoverBgColor] = useState("#0f172a");
+  const [coverDuration, setCoverDuration] = useState(4);
+  const [showCoverForm, setShowCoverForm] = useState(false);
+
   // Quick Cut states
   const [isCutting, setIsCutting] = useState<boolean>(false);
   const [cutStart, setCutStart] = useState<number | null>(null);
-
-  // Cleaning and halves states
-  const [localHalves, setLocalHalves] = useState<[number, number][]>([]);
-  const [detectingHalves, setDetectingHalves] = useState(false);
-  const [detectionProgress, setDetectionProgress] = useState(0);
-  const [detectionLog, setDetectionLog] = useState("");
 
   // Filter clips by category tab
   const [filterCategory, setFilterCategory] = useState<string>("Todos");
@@ -149,7 +187,8 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     fetch(`/api/scouting/matches/${match.id}/video`)
       .then((res) => res.json())
       .then((data: SessionVideoData) => {
-        setVideoData(data || { general_notes: "", videos: [], montages: [] });
+        const loadedData = data || { general_notes: "", videos: [], montages: [], cut_bank: [] };
+        setVideoData(loadedData);
         setLoading(false);
       })
       .catch((err) => {
@@ -158,15 +197,17 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
       });
   }, [match.id]);
 
-  // Sync halves on video select
+  // Sync halves when activeVideo changes
   useEffect(() => {
     if (activeVideo) {
-      if (activeVideo.halves && activeVideo.halves.length > 0) {
-        setLocalHalves(activeVideo.halves);
-        setActiveSidebarTab("manual");
+      if (activeVideo.halves && activeVideo.halves.length >= 2) {
+        setT1Start(activeVideo.halves[0][0]);
+        setT1End(activeVideo.halves[0][1]);
+        setT2Start(activeVideo.halves[1][0]);
+        setT2End(activeVideo.halves[1][1]);
+        setWizardStep(2); // If halves already configured, go to Step 2
       } else {
-        setLocalHalves([]);
-        setActiveSidebarTab("clean");
+        setWizardStep(1);
       }
     }
   }, [activeVideo]);
@@ -187,7 +228,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
       .then(res => res.json())
       .then((data: SessionVideoData) => {
         const matchInfo = allMatches.find(m => m.id === selectedRivalMatchId);
-        const name = matchInfo ? `${matchInfo.home_team} vs ${matchInfo.away_team}` : "Rival";
+        const name = matchInfo ? `${matchInfo.home_team} vs ${matchInfo.away_team}` : "Rival font-bold";
         const clips = data.videos?.flatMap(v => v.clips.map(c => ({ 
           ...c, 
           videoUrl: v.url,
@@ -209,7 +250,6 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     if (item && item.type === "clip") {
       const clipEndSec = item.end || 0;
       if (currentTime >= clipEndSec) {
-        // Go to next item
         const nextIndex = currentPresentIndex + 1;
         if (nextIndex < montage.items.length) {
           setCurrentPresentIndex(nextIndex);
@@ -217,6 +257,17 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
           setPresenting(false);
         }
       }
+    } else if (item && item.type === "cover") {
+      // For cover slides, wait for duration then proceed
+      const timer = setTimeout(() => {
+        const nextIndex = currentPresentIndex + 1;
+        if (nextIndex < montage.items.length) {
+          setCurrentPresentIndex(nextIndex);
+        } else {
+          setPresenting(false);
+        }
+      }, (item.duration || 4) * 1000);
+      return () => clearTimeout(timer);
     }
   }, [presenting, activeMontageId, currentPresentIndex, currentTime, videoData.montages]);
 
@@ -228,20 +279,51 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     const item = montage.items[currentPresentIndex];
 
     if (item && item.type === "clip") {
-      // Find the URL (could be local or cross-match)
       const url = item.videoUrl || activeVideo?.url || "";
       setPresentingUrl(url);
 
-      // Seek to start once the URL changes or stays same
       setTimeout(() => {
         if (playerRef.current) {
           playerRef.current.seekTo(item.start || 0, true);
         }
-      }, 500);
+      }, 300);
     }
   }, [presenting, activeMontageId, currentPresentIndex, activeVideo]);
 
-  // Save changes
+  // PASO 1 HANDLERS: Semiautomatic Half Calculations
+  const handleSetT1Start = (seconds: number) => {
+    const s = Math.max(0, seconds);
+    setT1Start(s);
+    setT1End(s + 2700); // +45 min
+    setT2Start(s + 2700 + 900); // +15 min rest
+    setT2End(s + 2700 + 900 + 2700); // +45 min
+  };
+
+  const handleSetT1End = (seconds: number) => {
+    const s = Math.max(t1Start + 60, seconds);
+    setT1End(s);
+    // Chain update subsequent points automatically
+    const newT2Start = s + 900; // +15 min rest
+    setT2Start(newT2Start);
+    setT2End(newT2Start + 2700); // +45 min
+  };
+
+  const handleConfirmHalves = () => {
+    if (!activeVideo) return;
+    const halves: [number, number][] = [
+      [t1Start, t1End],
+      [t2Start, t2End]
+    ];
+    setVideoData((prev) => ({
+      ...prev,
+      videos: prev.videos.map((v) =>
+        v.id === activeVideo.id ? { ...v, halves, isFinalized: true } : v
+      )
+    }));
+    setWizardStep(2);
+  };
+
+  // Save changes to API
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -264,7 +346,27 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     }
   };
 
-  // Video Linking
+  // Local file loading handlers
+  const handleLoadLocalFile = (file: File) => {
+    if (!file) return;
+    const localBlobUrl = URL.createObjectURL(file);
+    const videoId = `vid-${Date.now()}`;
+    const newVideoItem: VideoItem = {
+      id: videoId,
+      type: activeType,
+      url: localBlobUrl,
+      title: file.name,
+      clips: [],
+      halves: [[0, 2700], [3600, 6300]]
+    };
+
+    setVideoData((prev) => ({
+      ...prev,
+      videos: [...prev.videos.filter(v => v.type !== activeType), newVideoItem]
+    }));
+    setWizardStep(1);
+  };
+
   const handleLinkVideo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUrl) return;
@@ -275,15 +377,16 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
       type: activeType,
       url: newUrl,
       title: newTitle || `${match.home_team} vs ${match.away_team}`,
-      clips: []
+      clips: [],
+      halves: [[0, 2700], [3600, 6300]]
     };
 
     setVideoData((prev) => ({
       ...prev,
-      videos: [...prev.videos, newVideoItem]
+      videos: [...prev.videos.filter(v => v.type !== activeType), newVideoItem]
     }));
-
     setNewUrl("");
+    setWizardStep(1);
   };
 
   const handleUnlinkVideo = (videoId: string) => {
@@ -292,28 +395,8 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
         ...prev,
         videos: prev.videos.filter((v) => v.id !== videoId)
       }));
+      setWizardStep(1);
     }
-  };
-
-  const handleLocalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const localBlobUrl = URL.createObjectURL(file);
-    const videoId = `vid-${Date.now()}`;
-    const newVideoItem = {
-      id: videoId,
-      type: activeType,
-      url: localBlobUrl,
-      title: file.name,
-      is_local: true,
-      clips: []
-    };
-
-    setVideoData((prev) => ({
-      ...prev,
-      videos: [...prev.videos, newVideoItem]
-    }));
   };
 
   const handleRelinkLocalFile = (e: React.ChangeEvent<HTMLInputElement>, videoId: string) => {
@@ -352,6 +435,12 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     });
   };
 
+  const handleToggleTacticalConcept = (concept: string) => {
+    setSelectedTacticalConcepts(prev => 
+      prev.includes(concept) ? prev.filter(c => c !== concept) : [...prev, concept]
+    );
+  };
+
   const handleToggleStat = (playerId: string, statType: string, increment: number) => {
     setClipStats((prev) => {
       const existing = prev.find((s) => s.player_id === playerId && s.stat_type === statType);
@@ -370,7 +459,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     });
   };
 
-  // Add manually created clip
+  // Add clip
   const handleAddClip = () => {
     if (!clipTitle) {
       alert("Por favor introduce un título para el recorte.");
@@ -393,6 +482,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
       category: clipCategory,
       tagged_players: selectedPlayers,
       stats: clipStats,
+      tacticalConcepts: selectedTacticalConcepts,
       annotations: []
     };
 
@@ -412,6 +502,95 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     setClipComment("");
     setSelectedPlayers([]);
     setClipStats([]);
+    setSelectedTacticalConcepts([]);
+  };
+
+  // Freeze frame screen helper
+  const handleAddFreezeFrame = () => {
+    if (!activeVideo) return;
+    const activeClip = activeVideo.clips.find(c => currentTime >= c.start && currentTime <= c.end);
+    
+    const freezeAnn: VideoAnnotation = {
+      id: `freeze-${Date.now()}`,
+      type: "text",
+      color: "#f59e0b",
+      points: [{ x: 0.05, y: 0.9 }],
+      startTime: Number(currentTime.toFixed(2)),
+      duration: freezeSeconds,
+      freezeDuration: freezeSeconds,
+      text: `⏸ Frame Congelado (${freezeSeconds}s)`
+    };
+
+    if (activeClip) {
+      setVideoData(prev => ({
+        ...prev,
+        videos: prev.videos.map(v => 
+          v.id === activeVideo.id 
+            ? {
+                ...v,
+                clips: v.clips.map(c => c.id === activeClip.id ? { ...c, annotations: [...(c.annotations || []), freezeAnn] } : c)
+              }
+            : v
+        )
+      }));
+    } else {
+      // Create quick clip containing this freeze
+      const newClip: VideoClip = {
+        id: `clip-${Date.now()}`,
+        title: `Congelado ${secondsToMMSS(currentTime)}`,
+        start: Math.max(0, currentTime - 1),
+        end: currentTime + freezeSeconds + 2,
+        comment: `Congelación de pantalla durante ${freezeSeconds}s`,
+        category: "Jugada relevante",
+        tagged_players: [],
+        stats: [],
+        annotations: [freezeAnn]
+      };
+      setVideoData(prev => ({
+        ...prev,
+        videos: prev.videos.map(v =>
+          v.type === activeType ? { ...v, clips: [...v.clips, newClip].sort((a, b) => a.start - b.start) } : v
+        )
+      }));
+    }
+  };
+
+  // Move clip to Cut Bank (Armario)
+  const handleMoveToCutBank = (clip: VideoClip) => {
+    setVideoData(prev => {
+      const updatedVideos = prev.videos.map(v => 
+        v.type === activeType ? { ...v, clips: v.clips.filter(c => c.id !== clip.id) } : v
+      );
+      const existingBank = prev.cut_bank || [];
+      const bankItem: VideoClip = {
+        ...clip,
+        isSavedInBank: true,
+        videoUrl: activeVideo?.url
+      };
+      return {
+        ...prev,
+        videos: updatedVideos,
+        cut_bank: [...existingBank, bankItem]
+      };
+    });
+  };
+
+  const handleRestoreFromCutBank = (clip: VideoClip) => {
+    setVideoData(prev => {
+      const updatedBank = (prev.cut_bank || []).filter(c => c.id !== clip.id);
+      const restoredClip: VideoClip = {
+        ...clip,
+        isSavedInBank: false
+      };
+      const updatedVideos = prev.videos.map(v => 
+        v.type === activeType ? { ...v, clips: [...v.clips, restoredClip].sort((a, b) => a.start - b.start) } : v
+      );
+      return {
+        ...prev,
+        videos: updatedVideos,
+        cut_bank: updatedBank
+      };
+    });
   };
 
   // Delete clip
@@ -491,49 +670,7 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     }));
   };
 
-  // AI-simulate halves detection
-  const handleDetectHalves = () => {
-    setDetectingHalves(true);
-    setDetectionProgress(10);
-    setDetectionLog("Analizando densidad de metraje de vídeo...");
-
-    const intervals = [
-      { p: 35, log: "Escaneando densidad de jugadores en campo..." },
-      { p: 70, log: "Detectando cortes y tiempos muertos..." },
-      { p: 100, log: "Se han identificado las dos mitades del partido." }
-    ];
-
-    intervals.forEach((step, idx) => {
-      setTimeout(() => {
-        setDetectionProgress(step.p);
-        setDetectionLog(step.log);
-        if (step.p === 100) {
-          setDetectingHalves(false);
-          // Set simulated halves: Part 1 is 0:10 to 45:10, Part 2 is 55:00 to 100:00
-          const duration = videoDuration || 6000;
-          const half1End = Math.min(2700, duration * 0.45);
-          const half2Start = Math.min(3300, duration * 0.55);
-          setLocalHalves([
-            [10, half1End],
-            [half2Start, duration - 10]
-          ]);
-        }
-      }, (idx + 1) * 1200);
-    });
-  };
-
-  const handleSaveHalves = () => {
-    if (!activeVideo) return;
-    setVideoData((prev) => ({
-      ...prev,
-      videos: prev.videos.map((v) =>
-        v.id === activeVideo.id ? { ...v, halves: localHalves, isFinalized: true } : v
-      )
-    }));
-    setActiveSidebarTab("manual");
-  };
-
-  // Montages
+  // Montages & Carátulas
   const handleCreateMontage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMontageTitle) return;
@@ -558,11 +695,11 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     const url = isCrossMatch ? clip.videoUrl : (activeVideo?.url || "");
     const name = isCrossMatch ? (clip as any).matchName : `${match.home_team} vs ${match.away_team}`;
 
-    const newItem = {
+    const newItem: VideoMontageItem = {
       id: `m-item-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-      type: "clip" as const,
+      type: "clip",
       clipId: clip.id,
-      title: `${clip.title} (de ${name})`,
+      title: `${clip.title} (${name})`,
       videoUrl: url,
       start: clip.start,
       end: clip.end
@@ -573,6 +710,47 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
       montages: (prev.montages || []).map((m) =>
         m.id === activeMontageId ? { ...m, items: [...m.items, newItem] } : m
       )
+    }));
+  };
+
+  const handleAddCoverToMontage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeMontageId || !coverTitle) return;
+
+    const newCoverItem: VideoMontageItem = {
+      id: `cover-${Date.now()}`,
+      type: "cover",
+      title: coverTitle,
+      subtitle: coverSubtitle,
+      bgColor: coverBgColor,
+      duration: coverDuration
+    };
+
+    setVideoData((prev) => ({
+      ...prev,
+      montages: (prev.montages || []).map((m) =>
+        m.id === activeMontageId ? { ...m, items: [...m.items, newCoverItem] } : m
+      )
+    }));
+
+    setCoverTitle("");
+    setCoverSubtitle("");
+    setShowCoverForm(false);
+  };
+
+  const handleSortMontage = (montageId: string, sortMode: "chronological" | "category") => {
+    setVideoData(prev => ({
+      ...prev,
+      montages: (prev.montages || []).map(m => {
+        if (m.id !== montageId) return m;
+        const itemsCopy = [...m.items];
+        if (sortMode === "chronological") {
+          itemsCopy.sort((a, b) => (a.start || 0) - (b.start || 0));
+        } else {
+          itemsCopy.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+        }
+        return { ...m, items: itemsCopy };
+      })
     }));
   };
 
@@ -595,6 +773,19 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     }
   };
 
+  // Seek video from match sheet event (Acta)
+  const handleSeekFromMatchEvent = (eventMinute: number) => {
+    if (!playerRef.current) return;
+    let targetSecond = 0;
+    if (eventMinute <= 45) {
+      targetSecond = t1Start + (eventMinute * 60);
+    } else {
+      targetSecond = t2Start + ((eventMinute - 45) * 60);
+    }
+    playerRef.current.seekTo(targetSecond, true);
+    setCurrentTime(targetSecond);
+  };
+
   // Timeline seek trigger
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current || !videoDuration) return;
@@ -602,8 +793,27 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
     const pct = (e.clientX - rect.left) / rect.width;
     const seekTime = pct * videoDuration;
     if (playerRef.current) {
-      playerRef.current.seekTo(seekTime);
+      playerRef.current.seekTo(seekTime, true);
       setCurrentTime(seekTime);
+    }
+  };
+
+  // Drag and drop handlers for local file drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("video/")) {
+      handleLoadLocalFile(file);
     }
   };
 
@@ -624,10 +834,10 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
 
   const activeVideoUrl = presenting ? presentingUrl : (activeVideo?.url || "");
 
+  // If no video is linked yet, show initial linking/drag & drop card
   if (!activeVideo) {
     return (
       <div className="space-y-6">
-        {/* Toggle between Own vs Rival video slots */}
         <div className="flex gap-2 border-b border-white/5 pb-0.5">
           <button
             onClick={() => setActiveType("own")}
@@ -653,65 +863,76 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
           </button>
         </div>
 
-        <div className="bg-card rounded-xl border border-border p-8 shadow-md space-y-6 relative overflow-hidden max-w-4xl mx-auto mt-4">
-          <div className="absolute top-0 right-0 h-40 w-40 bg-indigo-500/10 rounded-full blur-3xl -z-10" />
-          
-          <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center mx-auto text-indigo-400 text-3xl shadow-inner">
+        <div 
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`bg-card rounded-2xl border-2 ${
+            isDraggingFile ? "border-primary bg-primary/10" : "border-dashed border-border"
+          } p-8 shadow-xl space-y-6 relative overflow-hidden max-w-4xl mx-auto mt-4 text-center transition-all`}
+        >
+          <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center mx-auto text-primary text-3xl shadow-inner">
             🎬
           </div>
-          <div className="space-y-2 text-center">
-            <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Vinculación de Vídeo Requerida</h2>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
-              No hay ningún archivo de vídeo vinculado para el análisis de este partido (tipo: <span className="text-primary font-bold">{activeType === "own" ? "Partido Propio" : "Análisis de Rival"}</span>). Selecciona una de las siguientes opciones para empezar.
+          <div className="space-y-2 max-w-md mx-auto">
+            <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Cargar Vídeo de Partido</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Arrastra y suelta tu archivo de vídeo aquí o selecciona una opción. La aplicación guardará únicamente las acciones y ediciones realizadas, manteniendo la privacidad de tus vídeos locales.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 max-w-2xl mx-auto">
-            {/* Option 1: Local File Selection */}
-            <div className="bg-card p-5 rounded-lg border border-border flex flex-col justify-between items-center text-center space-y-4 hover:border-border/50 transition-all">
-              <div className="space-y-1.5 flex flex-col items-center">
-                <span className="text-2xl">💻</span>
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Archivo de Vídeo Local</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 max-w-2xl mx-auto text-left">
+            {/* Local Video Option */}
+            <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/10 flex flex-col justify-between space-y-4 hover:border-primary/50 transition-all">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-white font-bold text-xs uppercase">
+                  <span>💻</span>
+                  <span>Archivo Local (.mp4, .mkv)</span>
+                </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Carga y analiza un archivo de vídeo (.mp4, .mov, etc.) guardado directamente en tu ordenador.
+                  Reproducción en local mediante memoria del navegador sin subir megabytes a la base de datos.
                 </p>
               </div>
-              <div className="w-full">
-                <label className="w-full bg-slate-900 border border-white/10 hover:bg-white/5 text-slate-300 hover:text-white font-bold text-xs uppercase px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-inner">
-                  <span>Seleccionar Archivo Local</span>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleLocalFileChange}
-                    className="hidden"
-                  />
-                </label>
-              </div>
+              <label className="w-full bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg">
+                <UploadCloud className="h-4 w-4" />
+                <span>Seleccionar Vídeo Local</span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleLoadLocalFile(f);
+                  }}
+                  className="hidden"
+                />
+              </label>
             </div>
 
-            {/* Option 2: Web Link / Streaming URL */}
-            <div className="bg-card p-5 rounded-lg border border-border flex flex-col justify-between items-center text-center space-y-4 hover:border-border/50 transition-all">
-              <div className="space-y-1.5 flex flex-col items-center">
-                <span className="text-2xl">🌐</span>
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Vídeo en la Web (Streaming)</h4>
+            {/* Web Video Option */}
+            <div className="bg-slate-900/60 p-5 rounded-2xl border border-white/10 flex flex-col justify-between space-y-4 hover:border-primary/50 transition-all">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-white font-bold text-xs uppercase">
+                  <span>🌐</span>
+                  <span>Enlace Web / Streaming</span>
+                </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Vincula una dirección web, vídeo de YouTube, Vimeo, o enlace MP4 directo.
+                  Vincula una URL de YouTube, Vimeo, Veo o enlace HTTP MP4 directo.
                 </p>
               </div>
-              <form onSubmit={handleLinkVideo} className="w-full space-y-2">
+              <form onSubmit={handleLinkVideo} className="space-y-2">
                 <input
                   type="url"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
                   placeholder="https://www.youtube.com/watch?v=..."
                   required
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-[10px] focus:outline-none focus:border-primary text-white shadow-inner"
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-[10px] focus:outline-none focus:border-primary text-white"
                 />
                 <button
                   type="submit"
-                  className="w-full bg-primary hover:bg-primary/90 text-slate-950 font-black text-xs uppercase py-2.5 rounded-xl transition-all cursor-pointer shadow-lg"
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase py-2.5 rounded-xl transition-all cursor-pointer"
                 >
-                  Vincular Enlace
+                  Vincular URL
                 </button>
               </form>
             </div>
@@ -723,43 +944,201 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
 
   return (
     <div className="space-y-6">
-      {/* Save panel / alerts */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-muted/50 border border-border/50 p-4 rounded-xl shadow-md">
-        <div className="flex items-center gap-2">
-          <Info className="h-4 w-4 text-primary shrink-0" />
-          <p className="text-xs text-slate-400">
-            Vincula un vídeo y define recortes tácticos. Los datos se guardan en el servidor local.
-          </p>
+      {/* HEADER WIZARD BAR (3 PASOS) */}
+      <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-3 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          {/* Step 1 */}
+          <button
+            onClick={() => setWizardStep(1)}
+            className={`flex-1 md:flex-initial px-4 py-2.5 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all ${
+              wizardStep === 1
+                ? "bg-primary text-slate-950 shadow-md"
+                : "bg-slate-950/60 text-slate-400 hover:text-white border border-white/5"
+            }`}
+          >
+            <span className="h-5 w-5 rounded-full bg-slate-950/40 flex items-center justify-center text-[10px] font-mono">1</span>
+            <span>1. Sincronizar Partes</span>
+          </button>
+
+          <ChevronRight className="h-4 w-4 text-slate-600 hidden md:block" />
+
+          {/* Step 2 */}
+          <button
+            onClick={() => setWizardStep(2)}
+            className={`flex-1 md:flex-initial px-4 py-2.5 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all ${
+              wizardStep === 2
+                ? "bg-primary text-slate-950 shadow-md"
+                : "bg-slate-950/60 text-slate-400 hover:text-white border border-white/5"
+            }`}
+          >
+            <span className="h-5 w-5 rounded-full bg-slate-950/40 flex items-center justify-center text-[10px] font-mono">2</span>
+            <span>2. Edición & Acta</span>
+          </button>
+
+          <ChevronRight className="h-4 w-4 text-slate-600 hidden md:block" />
+
+          {/* Step 3 */}
+          <button
+            onClick={() => setWizardStep(3)}
+            className={`flex-1 md:flex-initial px-4 py-2.5 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all ${
+              wizardStep === 3
+                ? "bg-primary text-slate-950 shadow-md"
+                : "bg-slate-950/60 text-slate-400 hover:text-white border border-white/5"
+            }`}
+          >
+            <span className="h-5 w-5 rounded-full bg-slate-950/40 flex items-center justify-center text-[10px] font-mono">3</span>
+            <span>3. Montaje & Armario</span>
+          </button>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-          {error && (
-            <span className="text-[10px] font-bold text-rose-450 mr-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl">
-              {error}
-            </span>
-          )}
+
+        {/* Global Save Button */}
+        <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
           {saveSuccess && (
-            <span className="text-[10px] font-extrabold text-emerald-400 mr-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl flex items-center gap-1">
+            <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl flex items-center gap-1">
               <Check className="h-3 w-3" />
-              <span>Análisis Guardado</span>
+              <span>Acciones Guardadas en BD</span>
             </span>
           )}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full sm:w-auto bg-primary hover:bg-primary-hover disabled:opacity-40 text-slate-950 font-black text-xs uppercase px-5 py-2.5 rounded-2xl flex items-center justify-center gap-1.5 shadow-lg transition-all"
+            className="bg-primary hover:bg-primary-hover disabled:opacity-40 text-slate-950 font-black text-xs uppercase px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
           >
-            <Save className="h-3.5 w-3.5" />
-            <span>{saving ? "Guardando..." : "Guardar Análisis"}</span>
+            <Save className="h-4 w-4" />
+            <span>{saving ? "Guardando Metadatos..." : "Guardar Edición"}</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* LEFT COLUMN: Player & Timeline */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Main Video Box */}
-          <div className="relative bg-muted/50 border border-border rounded-xl overflow-hidden shadow-md flex flex-col justify-center items-center p-2 group min-h-[360px]">
-            {activeVideo ? (
+      {/* STEP 1 VIEW: Semiautomatic Half Definition */}
+      {wizardStep === 1 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-fade-in">
+          {/* Main Player Preview */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="relative bg-slate-950 border border-white/10 rounded-2xl overflow-hidden shadow-xl p-2 min-h-[360px]">
+              <VideoPlayer
+                ref={playerRef}
+                url={activeVideoUrl}
+                onTimeUpdate={(t) => setCurrentTime(t)}
+                onDurationChange={(d) => setVideoDuration(d)}
+                readOnly
+              />
+            </div>
+
+            {/* Semiautomatic Half Control Rail */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <h3 className="text-xs font-black uppercase text-white tracking-wider">Ajuste Semiautómatico de Partes</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSetT1Start(currentTime)}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow transition-all"
+                >
+                  ⏱ Marcar posición actual como Inicio 1ª Parte
+                </button>
+              </div>
+
+              {/* Grid Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* 1st Half Start */}
+                <div className="bg-slate-950 p-3 rounded-xl border border-white/5 space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase">Inicio 1ª Parte</label>
+                  <input
+                    type="text"
+                    value={secondsToMMSS(t1Start)}
+                    onChange={(e) => handleSetT1Start(parseTimeToSeconds(e.target.value))}
+                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white font-mono font-bold text-center"
+                  />
+                </div>
+
+                {/* 1st Half End */}
+                <div className="bg-slate-950 p-3 rounded-xl border border-primary/30 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-bold text-primary uppercase">Final 1ª Parte</label>
+                    <span className="text-[8px] text-primary/70 font-mono">+45m</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={secondsToMMSS(t1End)}
+                    onChange={(e) => handleSetT1End(parseTimeToSeconds(e.target.value))}
+                    className="w-full bg-slate-900 border border-primary/40 rounded-lg px-2.5 py-1 text-xs text-white font-mono font-bold text-center focus:border-primary"
+                  />
+                </div>
+
+                {/* 2nd Half Start */}
+                <div className="bg-slate-950 p-3 rounded-xl border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase">Inicio 2ª Parte</label>
+                    <span className="text-[8px] text-slate-500 font-mono">+15m Descanso</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={secondsToMMSS(t2Start)}
+                    onChange={(e) => setT2Start(parseTimeToSeconds(e.target.value))}
+                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white font-mono font-bold text-center"
+                  />
+                </div>
+
+                {/* 2nd Half End */}
+                <div className="bg-slate-950 p-3 rounded-xl border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase">Final 2ª Parte</label>
+                    <span className="text-[8px] text-slate-500 font-mono">+45m</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={secondsToMMSS(t2End)}
+                    onChange={(e) => setT2End(parseTimeToSeconds(e.target.value))}
+                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white font-mono font-bold text-center"
+                  />
+                </div>
+              </div>
+
+              {/* Explanatory note */}
+              <div className="text-[10px] text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-white/5 flex items-center justify-between">
+                <span>💡 Si modificas el **Final de la 1ª Parte**, el sistema recalcula automáticamente los inicios y finales posteriores (+15m descanso, +45m 2ª parte).</span>
+                <button
+                  type="button"
+                  onClick={handleConfirmHalves}
+                  className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-5 py-2.5 rounded-xl shrink-0 flex items-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                >
+                  <span>Confirmar y Pasar al Paso 2</span>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Info Sidebar */}
+          <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg">
+            <h4 className="text-xs font-black uppercase text-white tracking-wider">Instrucciones del Paso 1</h4>
+            <div className="space-y-3 text-xs text-slate-350 leading-relaxed">
+              <p>
+                1. Busca en el vídeo el momento exacto del pitido inicial del partido.
+              </p>
+              <p>
+                2. Haz clic en <span className="text-primary font-bold">"Marcar posición actual como Inicio 1ª Parte"</span>.
+              </p>
+              <p>
+                3. Comprueba las marcas de la 1ª y 2ª parte. Puedes modificar manualmente cualquiera de los minutos.
+              </p>
+              <p className="text-[11px] text-slate-400 border-t border-white/5 pt-3">
+                Una vez confirmado, el paso 2 mostrará únicamente el metraje de juego activo descontando pausas y calentamientos.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2 VIEW: Clean Timeline + Match Sheet Events + Tactical Editing & Freeze Frame */}
+      {wizardStep === 2 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-fade-in">
+          {/* Main Video Box & Timeline */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="relative bg-slate-950 border border-white/10 rounded-2xl overflow-hidden shadow-xl p-2 min-h-[360px]">
               <VideoPlayer
                 ref={playerRef}
                 url={activeVideoUrl}
@@ -772,14 +1151,11 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
                 drawColor={drawColor}
                 onDrawColorChange={(c) => setDrawColor(c)}
                 annotations={
-                  presenting 
-                    ? (videoData.montages?.find(m => m.id === activeMontageId)?.items[currentPresentIndex] as any)?.annotations || []
-                    : activeVideo.clips.flatMap(c => 
-                        currentTime >= c.start && currentTime <= c.end ? (c.annotations || []) : []
-                      )
+                  activeVideo.clips.flatMap(c => 
+                    currentTime >= c.start && currentTime <= c.end ? (c.annotations || []) : []
+                  )
                 }
                 onAnnotationsChange={(anns) => {
-                  // Find the active clip and update its annotations
                   const activeClip = activeVideo.clips.find(c => currentTime >= c.start && currentTime <= c.end);
                   if (activeClip) {
                     setVideoData(prev => ({
@@ -801,82 +1177,110 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
                 onStopCut={handleStopCut}
                 onRetroactiveCut={handleRetroactiveCut}
               />
-            ) : (
-              /* Link video placeholder */
-              <div className="w-full py-16 px-6 text-center space-y-5">
-                <div className="h-16 w-16 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center mx-auto text-primary text-2xl shadow-inner">
-                  🎬
-                </div>
-                <div className="max-w-md mx-auto space-y-2">
-                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Vinculación de Vídeo de Partido</h3>
-                  <p className="text-xs text-slate-400">
-                    No hay un archivo de vídeo vinculado para este análisis. Introduce una URL pública (como YouTube, Vimeo o enlace de descarga MP4) para empezar.
-                  </p>
-                </div>
-                <form onSubmit={handleLinkVideo} className="max-w-lg mx-auto flex gap-2">
-                  <input
-                    type="url"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    required
-                    className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-xs focus:outline-none focus:border-primary text-white"
-                  />
+
+              {/* Whiteboard and Freeze Frame Bar */}
+              <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+                <button
+                  onClick={() => setIsBoardActive(!isBoardActive)}
+                  className={`px-3.5 py-1.5 rounded-xl border text-[10px] font-black uppercase flex items-center gap-1.5 transition-all shadow-lg cursor-pointer ${
+                    isBoardActive 
+                      ? "bg-indigo-600 border-indigo-500 text-white" 
+                      : "bg-slate-950/85 border-white/10 text-slate-300 hover:bg-slate-900"
+                  }`}
+                >
+                  <span>✏️</span>
+                  <span>{isBoardActive ? "Cerrar Pizarra" : "Dibujar en Pizarra"}</span>
+                </button>
+
+                <div className="flex items-center gap-1 bg-slate-950/85 border border-white/10 rounded-xl p-1 shadow-lg">
                   <button
-                    type="submit"
-                    className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-5 py-2.5 rounded-xl shrink-0 transition-colors"
+                    onClick={handleAddFreezeFrame}
+                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-[10px] font-extrabold uppercase flex items-center gap-1 transition-all cursor-pointer"
+                    title="Congelar fotograma actual durante X segundos"
                   >
-                    Vincular
+                    <span>⏸ Congelar</span>
                   </button>
-                </form>
+                  <select
+                    value={freezeSeconds}
+                    onChange={(e) => setFreezeSeconds(Number(e.target.value))}
+                    className="bg-slate-900 border border-white/10 text-white text-[10px] font-bold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+                  >
+                    <option value={2}>2s</option>
+                    <option value={3}>3s</option>
+                    <option value={5}>5s</option>
+                    <option value={10}>10s</option>
+                  </select>
+                </div>
               </div>
-            )}
+            </div>
 
-            {/* Toggle Whiteboard Button */}
-            {activeVideo && (
-              <button
-                onClick={() => setIsBoardActive(!isBoardActive)}
-                className={`absolute top-4 left-4 z-20 px-3.5 py-1.5 rounded-xl border text-[10px] font-black uppercase flex items-center gap-1.5 transition-all shadow-lg ${
-                  isBoardActive 
-                    ? "bg-indigo-600 border-indigo-500 text-white" 
-                    : "bg-slate-955/85 border-white/10 text-slate-350 hover:bg-slate-900"
-                }`}
-              >
-                <span>✏️</span>
-                <span>{isBoardActive ? "Cerrar Whiteboard" : "Dibujar Pizarra"}</span>
-              </button>
-            )}
-          </div>
+            {/* Timeline Bar with Match Events */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-4 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
+                <span>Línea de Tiempo del Partido (1ª y 2ª Parte)</span>
+                <span className="font-mono text-primary font-bold">{secondsToMMSS(currentTime)} / {secondsToMMSS(videoDuration)}</span>
+              </div>
 
-          {/* Timeline Bar */}
-          {activeVideo && videoDuration > 0 && (
-            <div className="bg-slate-900/30 border border-white/5 rounded-2xl p-4 space-y-2.5">
               <div 
                 ref={timelineRef}
                 onClick={handleTimelineClick}
-                className="relative h-5 bg-slate-950 border border-white/10 rounded-lg cursor-pointer overflow-hidden select-none shadow-inner"
+                className="relative h-7 bg-slate-950 border border-white/10 rounded-xl cursor-pointer overflow-hidden select-none shadow-inner"
               >
-                {/* Clean halves background marks */}
-                {localHalves.map((half, idx) => {
-                  const startPct = (half[0] / videoDuration) * 100;
-                  const widthPct = ((half[1] - half[0]) / videoDuration) * 100;
+                {/* 1st Half track */}
+                <div 
+                  className="absolute top-0 bottom-0 bg-indigo-500/20 border-r border-indigo-500/40"
+                  style={{ left: `${(t1Start / (videoDuration || 1)) * 100}%`, width: `${((t1End - t1Start) / (videoDuration || 1)) * 100}%` }}
+                />
+
+                {/* Rest Gap marker */}
+                <div 
+                  className="absolute top-0 bottom-0 bg-amber-500/20 border-r border-amber-500/40 flex items-center justify-center"
+                  style={{ left: `${(t1End / (videoDuration || 1)) * 100}%`, width: `${((t2Start - t1End) / (videoDuration || 1)) * 100}%` }}
+                >
+                  <span className="text-[8px] font-black uppercase text-amber-400 tracking-wider">Descanso</span>
+                </div>
+
+                {/* 2nd Half track */}
+                <div 
+                  className="absolute top-0 bottom-0 bg-indigo-500/20"
+                  style={{ left: `${(t2Start / (videoDuration || 1)) * 100}%`, width: `${((t2End - t2Start) / (videoDuration || 1)) * 100}%` }}
+                />
+
+                {/* Match Sheet Events overlay on timeline */}
+                {matchEvents.map((ev, idx) => {
+                  let eventSec = 0;
+                  if (ev.minute <= 45) {
+                    eventSec = t1Start + (ev.minute * 60);
+                  } else {
+                    eventSec = t2Start + ((ev.minute - 45) * 60);
+                  }
+                  const leftPct = (eventSec / (videoDuration || 1)) * 100;
+                  const icon = ev.event_type === "goal" ? "⚽" : ev.event_type === "yellow_card" ? "🟨" : ev.event_type === "red_card" ? "🟥" : "🔄";
+
                   return (
                     <div
-                      key={idx}
-                      className="absolute top-0 bottom-0 bg-indigo-500/10 border-x border-indigo-500/20"
-                      style={{ left: `${startPct}%`, width: `${widthPct}%` }}
-                    />
+                      key={ev.id || idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSeekFromMatchEvent(ev.minute);
+                      }}
+                      className="absolute top-0 bottom-0 w-3 -ml-1.5 flex items-center justify-center z-10 hover:scale-125 transition-transform"
+                      style={{ left: `${leftPct}%` }}
+                      title={`Min ${ev.minute}': ${ev.description || ev.player_name || ev.event_type}`}
+                    >
+                      <span className="text-[10px] shadow-lg">{icon}</span>
+                    </div>
                   );
                 })}
 
                 {/* Clips highlights */}
                 {activeVideo.clips.map((clip) => {
-                  const startPct = (clip.start / videoDuration) * 100;
-                  const widthPct = ((clip.end - clip.start) / videoDuration) * 100;
+                  const startPct = (clip.start / (videoDuration || 1)) * 100;
+                  const widthPct = ((clip.end - clip.start) / (videoDuration || 1)) * 100;
                   return (
                     <div
                       key={clip.id}
-                      className="absolute top-0 bottom-0 bg-emerald-500/20 border-x border-emerald-500/30"
+                      className="absolute top-0 bottom-0 bg-emerald-500/30 border-x border-emerald-500/50"
                       style={{ left: `${startPct}%`, width: `${widthPct}%` }}
                       title={clip.title}
                     />
@@ -885,635 +1289,578 @@ export function MatchVideoClient({ match, players, allMatches }: MatchVideoClien
 
                 {/* Playhead bar */}
                 <div 
-                  className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none"
-                  style={{ left: `${(currentTime / videoDuration) * 100}%` }}
+                  className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-20"
+                  style={{ left: `${(currentTime / (videoDuration || 1)) * 100}%` }}
                 />
               </div>
 
-              {/* Controls and navigation */}
-              <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                <span>{secondsToMMSS(currentTime)}</span>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => playerRef.current?.stepBackward(30)}
-                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 font-bold"
-                  >
-                    -1s
-                  </button>
-                  <button 
-                    onClick={() => playerRef.current?.togglePlay()}
-                    className="px-3 py-0.5 bg-primary/20 hover:bg-primary/30 border border-primary/30 rounded font-black text-primary uppercase"
-                  >
-                    Play/Pause
-                  </button>
-                  <button 
-                    onClick={() => playerRef.current?.stepForward(30)}
-                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 font-bold"
-                  >
-                    +1s
-                  </button>
+              {/* Keyboard shortcuts reminder rail */}
+              <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <span>⌨️ <strong className="text-white">Espacio</strong>: Play/Pausa</span>
+                  <span><strong className="text-white">Flecha Izq/Der</strong>: Avanzar/Retroceder 1s</span>
+                  <span><strong className="text-white">Flecha Arriba/Abajo</strong>: Salto 5s</span>
                 </div>
-                <span>{secondsToMMSS(videoDuration)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-      {/* RIGHT COLUMN: Sidebar Suite */}
-      <div className="space-y-6">
-        {/* Active video metadata card */}
-        {activeVideo && (
-          <div className="flex flex-col gap-2">
-            <div className="bg-card rounded-xl border border-border p-4 shadow-md flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">📹</span>
-                <div>
-                  <h4 className="text-xs font-black text-white truncate max-w-[160px]">{activeVideo.title}</h4>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase">{activeVideo.clips.length} clips grabados</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {activeVideo.url.startsWith("blob:") && (
-                  <label className="h-8 w-8 hover:bg-indigo-550/10 border border-transparent hover:border-indigo-500/20 text-slate-550 hover:text-indigo-400 rounded-xl flex items-center justify-center transition-all cursor-pointer" title="Re-vincular archivo local">
-                    <Download className="h-4 w-4 rotate-180" />
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={(e) => handleRelinkLocalFile(e, activeVideo.id)}
-                      className="hidden"
-                    />
-                  </label>
-                )}
                 <button
-                  onClick={() => handleUnlinkVideo(activeVideo.id)}
-                  className="h-8 w-8 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 text-slate-550 hover:text-rose-400 rounded-xl flex items-center justify-center transition-all cursor-pointer"
-                  title="Desvincular vídeo"
+                  type="button"
+                  onClick={() => setWizardStep(3)}
+                  className="text-primary hover:underline font-bold uppercase text-[10px] flex items-center gap-1"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <span>Ir al Paso 3: Montaje Final</span>
+                  <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
             </div>
-            {activeVideo.url.startsWith("blob:") && (
-              <div className="rounded-xl bg-indigo-500/5 border border-indigo-500/10 px-3 py-2 text-[10px] text-indigo-300 leading-normal flex items-start gap-2">
-                <span>💡</span>
-                <span>Vídeo local vinculado temporalmente. Si recargas la página y no reproduce, usa el botón de flecha arriba para re-vincular el archivo.</span>
+
+            {/* Match Sheet Events List (Acta del Partido) */}
+            {matchEvents.length > 0 && (
+              <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-4 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-indigo-400" />
+                    <h4 className="text-xs font-black uppercase text-white tracking-wider">Sucesos del Acta del Partido</h4>
+                  </div>
+                  <span className="text-[10px] text-slate-400">{matchEvents.length} sucesos registrados</span>
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {matchEvents.map((ev, idx) => {
+                    const icon = ev.event_type === "goal" ? "⚽" : ev.event_type === "yellow_card" ? "🟨" : ev.event_type === "red_card" ? "🟥" : "🔄";
+                    return (
+                      <button
+                        key={ev.id || idx}
+                        onClick={() => handleSeekFromMatchEvent(ev.minute)}
+                        className="bg-slate-950 hover:bg-slate-800 border border-white/10 hover:border-primary/50 text-left p-2.5 rounded-xl shrink-0 min-w-[140px] space-y-1 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold text-white">
+                          <span>{icon} Min {ev.minute}'</span>
+                          <span className="text-primary text-[9px] font-mono">Ir ⏱</span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 truncate max-w-[130px]">
+                          {ev.player_name || ev.description || ev.event_type}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
-        )}
 
-          {/* Navigation Tab rail */}
-          <div className="flex bg-slate-900/60 border border-white/5 p-1.5 rounded-2xl gap-1">
-            {activeVideo && !activeVideo.isFinalized && (
-              <button
-                onClick={() => setActiveSidebarTab("clean")}
-                className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                  activeSidebarTab === "clean" ? "bg-primary text-slate-950 shadow" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <Wand2 className="h-3.5 w-3.5" />
-                <span>Limpieza</span>
-              </button>
-            )}
-            <button
-              onClick={() => setActiveSidebarTab("manual")}
-              className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                activeSidebarTab === "manual" ? "bg-primary text-slate-950 shadow" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Scissors className="h-3.5 w-3.5" />
-              <span>Cortes</span>
-            </button>
-            <button
-              onClick={() => setActiveSidebarTab("montage")}
-              className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                activeSidebarTab === "montage" ? "bg-primary text-slate-950 shadow" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Film className="h-3.5 w-3.5" />
-              <span>Montaje</span>
-            </button>
-          </div>
+          {/* Right Sidebar: Clip Form & Clips List */}
+          <div className="space-y-4">
+            {/* New Clip Form */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg">
+              <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
+                <Scissors className="h-4 w-4 text-primary" />
+                <span>Crear Corte de Vídeo</span>
+              </h3>
 
-          {/* TAB CONTENT: Limpieza */}
-          {activeSidebarTab === "clean" && activeVideo && (
-            <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
-              <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Limpieza de Vídeo</h3>
-              
-              <div className="space-y-3.5">
-                <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3 text-xs text-slate-400">
-                  <p>
-                    Usa esta sección para aislar las mitades jugadas del partido del resto de metraje (calentamiento, descanso, etc.).
-                  </p>
-                  <button
-                    onClick={handleDetectHalves}
-                    disabled={detectingHalves}
-                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow disabled:opacity-40 transition-colors"
-                  >
-                    <Wand2 className="h-3.5 w-3.5" />
-                    <span>{detectingHalves ? "Escaneando..." : "Detectar Mitades IA"}</span>
-                  </button>
-                  {detectingHalves && (
-                    <div className="w-full bg-slate-950 h-1 rounded-full overflow-hidden mt-2">
-                      <div className="h-full bg-primary" style={{ width: `${detectionProgress}%` }} />
-                    </div>
-                  )}
-                  {detectionLog && <span className="text-[9px] text-indigo-400 font-semibold">{detectionLog}</span>}
-                </div>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Título del recorte"
+                  value={clipTitle}
+                  onChange={(e) => setClipTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary text-white"
+                />
 
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-350">
-                    <span>Primera Mitad (Minutos):</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      placeholder="00:00"
-                      value={localHalves[0] ? secondsToMMSS(localHalves[0][0]) : ""}
-                      onChange={(e) => {
-                        const sec = parseTimeToSeconds(e.target.value);
-                        setLocalHalves(prev => {
-                          const next = [...prev];
-                          if (!next[0]) next[0] = [0, 0];
-                          next[0][0] = sec;
-                          return next as any;
-                        });
-                      }}
-                      className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center font-mono"
-                    />
-                    <input
-                      type="text"
-                      placeholder="45:00"
-                      value={localHalves[0] ? secondsToMMSS(localHalves[0][1]) : ""}
-                      onChange={(e) => {
-                        const sec = parseTimeToSeconds(e.target.value);
-                        setLocalHalves(prev => {
-                          const next = [...prev];
-                          if (!next[0]) next[0] = [0, 0];
-                          next[0][1] = sec;
-                          return next as any;
-                        });
-                      }}
-                      className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center font-mono"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-350 pt-2">
-                    <span>Segunda Mitad (Minutos):</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      placeholder="45:00"
-                      value={localHalves[1] ? secondsToMMSS(localHalves[1][0]) : ""}
-                      onChange={(e) => {
-                        const sec = parseTimeToSeconds(e.target.value);
-                        setLocalHalves(prev => {
-                          const next = [...prev];
-                          if (!next[1]) next[1] = [0, 0];
-                          next[1][0] = sec;
-                          return next as any;
-                        });
-                      }}
-                      className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center font-mono"
-                    />
-                    <input
-                      type="text"
-                      placeholder="90:00"
-                      value={localHalves[1] ? secondsToMMSS(localHalves[1][1]) : ""}
-                      onChange={(e) => {
-                        const sec = parseTimeToSeconds(e.target.value);
-                        setLocalHalves(prev => {
-                          const next = [...prev];
-                          if (!next[1]) next[1] = [0, 0];
-                          next[1][1] = sec;
-                          return next as any;
-                        });
-                      }}
-                      className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white text-center font-mono"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleSaveHalves}
-                  className="w-full py-2 bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase rounded-xl transition-colors shadow"
-                >
-                  Confirmar Ajustes y Finalizar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB CONTENT: Cortes (Clips List) */}
-          {activeSidebarTab === "manual" && activeVideo && (
-            <div className="space-y-4">
-              {/* Add Clip Form */}
-              <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
-                <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Nuevo Corte Manual</h3>
-
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Título del recorte"
-                    value={clipTitle}
-                    onChange={(e) => setClipTitle(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary text-white"
-                  />
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Inicio (MM:SS)</label>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          placeholder="00:00"
-                          value={clipStart}
-                          onChange={(e) => setClipStart(e.target.value)}
-                          className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-primary text-white font-mono text-center"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleCaptureTime("start")}
-                          className="bg-indigo-950 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-400 rounded-xl px-2.5 text-xs font-bold"
-                          title="Capturar segundo actual"
-                        >
-                          ⏱
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Fin (MM:SS)</label>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          placeholder="00:00"
-                          value={clipEnd}
-                          onChange={(e) => setClipEnd(e.target.value)}
-                          className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-primary text-white font-mono text-center"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleCaptureTime("end")}
-                          className="bg-indigo-950 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-400 rounded-xl px-2.5 text-xs font-bold"
-                          title="Capturar segundo actual"
-                        >
-                          ⏱
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tagged players in clip */}
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-bold text-slate-550 uppercase tracking-wider">Etiquetar Jugadores</label>
-                    <div className="relative flex items-center">
-                      <Search className="absolute left-2.5 h-3 w-3 text-slate-500" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Inicio (MM:SS)</label>
+                    <div className="flex gap-1.5">
                       <input
                         type="text"
-                        placeholder="Buscar jugador..."
-                        value={playerSearch}
-                        onChange={(e) => setPlayerSearch(e.target.value)}
-                        className="w-full bg-slate-950 border border-white/5 rounded-xl pl-8 pr-3 py-1.5 text-[10px] focus:outline-none focus:border-indigo-500 text-white"
+                        placeholder="00:00"
+                        value={clipStart}
+                        onChange={(e) => setClipStart(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-2 py-1.5 text-xs text-white font-mono text-center"
                       />
-                    </div>
-                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto pt-1.5 border border-white/5 rounded-xl p-2 bg-slate-950/20">
-                      {players
-                        .filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(playerSearch.toLowerCase()))
-                        .map((p) => {
-                          const isSelected = selectedPlayers.includes(p.id);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => handleTogglePlayer(p.id)}
-                              className={`px-2 py-1 rounded-lg text-[9px] font-bold border transition-colors ${
-                                isSelected 
-                                  ? "bg-primary border-primary text-slate-950" 
-                                  : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
-                              }`}
-                            >
-                              {p.first_name} {p.last_name.substring(0, 1)}.
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </div>
-
-                  {/* Stats tagger on selected players */}
-                  {selectedPlayers.length > 0 && (
-                    <div className="space-y-2 border-t border-white/5 pt-2.5">
-                      <label className="text-[8px] font-bold text-slate-550 uppercase tracking-wider block">Registrar Estadísticas Rápidas</label>
-                      <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                        {players
-                          .filter(p => selectedPlayers.includes(p.id))
-                          .map((p) => (
-                            <div key={p.id} className="flex flex-col gap-1 p-2 bg-white/2 rounded-xl border border-white/5 text-[9px]">
-                              <span className="font-bold text-white leading-none">{p.first_name} {p.last_name}</span>
-                              <div className="grid grid-cols-2 gap-1.5 pt-1">
-                                {STAT_TYPES.map((st) => {
-                                  const statVal = clipStats.find(s => s.player_id === p.id && s.stat_type === st.key)?.value || 0;
-                                  return (
-                                    <div key={st.key} className="flex items-center justify-between gap-1 p-1 bg-slate-950/40 border border-white/5 rounded">
-                                      <span className="truncate text-slate-400" title={st.label}>{st.icon} {st.label}</span>
-                                      <div className="flex items-center gap-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleStat(p.id, st.key, -1)}
-                                          className="w-4 h-4 bg-slate-800 hover:bg-slate-700 text-white rounded flex items-center justify-center font-bold text-[8px]"
-                                        >
-                                          -
-                                        </button>
-                                        <span className="font-bold text-white font-mono w-3 text-center">{statVal}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleStat(p.id, st.key, 1)}
-                                          className="w-4 h-4 bg-indigo-650 hover:bg-indigo-500 text-white rounded flex items-center justify-center font-bold text-[8px]"
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <input
-                    type="text"
-                    placeholder="Comentarios adicionales"
-                    value={clipComment}
-                    onChange={(e) => setClipComment(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary text-white"
-                  />
-
-                  <div className="flex gap-2">
-                    <select
-                      value={clipCategory}
-                      onChange={(e) => setClipCategory(e.target.value)}
-                      className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none text-white cursor-pointer"
-                    >
-                      {CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={handleAddClip}
-                      className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-5 py-2 rounded-xl transition-colors shrink-0"
-                    >
-                      Añadir Corte
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* List of Clips */}
-              <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Cortes de Partido</h3>
-                  <select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    className="bg-slate-900 border border-white/5 rounded-lg px-2 py-0.5 text-[9px] text-slate-350 focus:outline-none cursor-pointer"
-                  >
-                    <option value="Todos">Todos los cortes</option>
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                  {filteredClips.length === 0 ? (
-                    <div className="text-center py-8 text-slate-550 italic text-[10px]">
-                      No hay cortes registrados en esta categoría.
-                    </div>
-                  ) : (
-                    filteredClips.map((clip) => (
-                      <div
-                        key={clip.id}
-                        onClick={() => playerRef.current?.seekTo(clip.start, true)}
-                        className="group flex items-center justify-between p-3 bg-white/2 hover:bg-white/4 border border-white/5 rounded-2xl cursor-pointer transition-all"
+                      <button
+                        type="button"
+                        onClick={() => handleCaptureTime("start")}
+                        className="bg-indigo-950 border border-indigo-500/30 text-indigo-400 rounded-xl px-2 text-xs font-bold"
+                        title="Capturar segundo actual"
                       >
-                        <div className="flex flex-col gap-0.5 min-w-0 flex-1 mr-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className="bg-slate-950 border border-white/10 text-primary font-mono text-[9px] px-1.5 py-0.5 rounded">
-                              {secondsToMMSS(clip.start)} - {secondsToMMSS(clip.end)}
-                            </span>
-                            <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                              {clip.category || "Jugada"}
-                            </span>
-                          </div>
-                          <span className="text-xs font-bold text-white truncate pt-1">{clip.title}</span>
-                          {clip.comment && <span className="text-[9px] text-slate-500 truncate leading-relaxed">{clip.comment}</span>}
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddClipToMontage(clip);
-                            }}
-                            className="h-7 px-2 border border-white/5 hover:border-indigo-500/30 hover:bg-indigo-550/10 text-slate-400 hover:text-indigo-400 rounded-lg flex items-center justify-center gap-1 transition-all"
-                            title="Añadir a montaje activo"
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span className="text-[9px] font-bold">Montar</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClip(clip.id);
-                            }}
-                            className="h-7 w-7 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 text-slate-500 hover:text-rose-450 rounded-lg flex items-center justify-center transition-all"
-                            title="Borrar clip"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB CONTENT: Montajes */}
-          {activeSidebarTab === "montage" && (
-            <div className="space-y-4">
-              {/* Create Montage form */}
-              <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
-                <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Crear Montaje de Videoanálisis</h3>
-                
-                <form onSubmit={handleCreateMontage} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Título del montaje (ej: ABP Rival)"
-                    value={newMontageTitle}
-                    onChange={(e) => setNewMontageTitle(e.target.value)}
-                    required
-                    className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary text-white"
-                  />
-                  <button
-                    type="submit"
-                    className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-4 py-2 rounded-xl transition-colors shrink-0 flex items-center gap-1"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Crear</span>
-                  </button>
-                </form>
-              </div>
-
-              {/* Rival analysis: fetch clips from OTHER matches */}
-              {activeMontageId && (
-                <div className="bg-indigo-950/20 rounded-xl border border-indigo-500/20 p-5 shadow-md space-y-4">
-                  <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-2">
-                    <Sparkles className="h-4 w-4 text-indigo-400" />
-                    <h3 className="text-xs font-black uppercase text-indigo-300 tracking-wider">
-                      Cortes de Otros Partidos (Rival Analysis)
-                    </h3>
+                        ⏱
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="space-y-3 text-xs text-slate-350">
-                    <p className="text-[10px] text-slate-455">
-                      Combina cortes de múltiples partidos para analizar el patrón de juego de un rival.
-                    </p>
-                    
-                    <select
-                      value={selectedRivalMatchId}
-                      onChange={(e) => setSelectedRivalMatchId(e.target.value)}
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer"
-                    >
-                      <option value="">-- Seleccionar otro partido --</option>
-                      {allMatches
-                        .filter(m => m.id !== match.id)
-                        .map(m => (
-                          <option key={m.id} value={m.id}>
-                            J.{m.matchday} • {m.home_team} vs {m.away_team}
-                          </option>
-                        ))}
-                    </select>
-
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1 pt-1">
-                      {selectedRivalMatchId && rivalMatchClips.length === 0 && (
-                        <span className="text-[9px] text-slate-550 italic block text-center py-4">
-                          No hay vídeo ni cortes guardados para este partido.
-                        </span>
-                      )}
-                      {rivalMatchClips.map((clip) => (
-                        <div
-                          key={clip.id}
-                          className="flex items-center justify-between p-2 bg-slate-950/40 border border-white/5 rounded-xl text-[9px]"
-                        >
-                          <div className="min-w-0 flex-1 pr-2 flex flex-col">
-                            <span className="font-bold text-white truncate">{clip.title}</span>
-                            <span className="text-[8px] text-slate-500">{clip.matchName}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAddClipToMontage(clip, true)}
-                            className="bg-indigo-650 hover:bg-indigo-500 text-white font-bold px-2 py-1 rounded text-[8px] flex items-center gap-1 transition-colors"
-                          >
-                            <Plus className="h-2 w-2" />
-                            <span>Añadir</span>
-                          </button>
-                        </div>
-                      ))}
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Fin (MM:SS)</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="00:00"
+                        value={clipEnd}
+                        onChange={(e) => setClipEnd(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-2 py-1.5 text-xs text-white font-mono text-center"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCaptureTime("end")}
+                        className="bg-indigo-950 border border-indigo-500/30 text-indigo-400 rounded-xl px-2 text-xs font-bold"
+                        title="Capturar segundo actual"
+                      >
+                        ⏱
+                      </button>
                     </div>
                   </div>
                 </div>
-              )}
 
-              {/* List of Montages */}
-              {videoData.montages && videoData.montages.length > 0 && (
-                <div className="bg-card rounded-xl border border-border p-5 shadow-md space-y-4">
-                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Montajes Registrados</h3>
-
-                  <div className="space-y-3.5">
-                    {videoData.montages.map((mon) => {
-                      const isActive = mon.id === activeMontageId;
+                {/* Tactical concepts tags */}
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">Conceptos Tácticos</label>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-2 bg-slate-950 rounded-xl border border-white/5">
+                    {TACTICAL_CONCEPTS.map(c => {
+                      const isSel = selectedTacticalConcepts.includes(c);
                       return (
-                        <div
-                          key={mon.id}
-                          className={`p-3.5 rounded-2xl border transition-all ${
-                            isActive 
-                              ? "bg-primary/5 border-primary" 
-                              : "bg-white/2 border-white/5"
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => handleToggleTacticalConcept(c)}
+                          className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                            isSel ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-900 border-white/10 text-slate-400 hover:text-white"
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <button
-                              onClick={() => {
-                                setActiveMontageId(mon.id);
-                                setPresenting(false);
-                              }}
-                              className="font-bold text-xs text-white hover:text-primary transition-colors text-left flex-1"
-                            >
-                              {mon.title}
-                            </button>
-                            <div className="flex items-center gap-1 shrink-0">
-                              {mon.items.length > 0 && (
-                                <button
-                                  onClick={() => {
-                                    setActiveMontageId(mon.id);
-                                    setCurrentPresentIndex(0);
-                                    setPresenting(true);
-                                  }}
-                                  className={`h-7 px-2.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1.5 transition-all ${
-                                    isActive && presenting
-                                      ? "bg-rose-600 text-white animate-pulse"
-                                      : "bg-indigo-950 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-900"
-                                  }`}
-                                >
-                                  {isActive && presenting ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                                  <span>{isActive && presenting ? "Parar" : "Play"}</span>
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDeleteMontage(mon.id)}
-                                className="h-7 w-7 hover:bg-rose-500/10 text-slate-500 hover:text-rose-450 rounded-lg flex items-center justify-center transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Montage playlist items */}
-                          <div className="mt-2.5 space-y-1.5 max-h-48 overflow-y-auto pl-2 border-l border-white/10">
-                            {mon.items.map((item, idx) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center justify-between p-1.5 bg-[#0f1424]/40 rounded border border-white/[0.03] text-[9.5px]"
-                              >
-                                <span className="truncate text-slate-300 flex-1 mr-2 font-bold">
-                                  {idx + 1}. {item.title || "Clip sin título"}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveMontageItem(mon.id, item.id)}
-                                  className="text-slate-500 hover:text-rose-455 transition-colors"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                          {c}
+                        </button>
                       );
                     })}
                   </div>
                 </div>
+
+                {/* Player Tagging */}
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">Etiquetar Jugadores</label>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-2 bg-slate-950 rounded-xl border border-white/5">
+                    {players.map(p => {
+                      const isSel = selectedPlayers.includes(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleTogglePlayer(p.id)}
+                          className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-colors ${
+                            isSel ? "bg-primary border-primary text-slate-950" : "bg-slate-900 border-white/10 text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          {p.first_name} {p.last_name.substring(0, 1)}.
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <select
+                    value={clipCategory}
+                    onChange={(e) => setClipCategory(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                  >
+                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={handleAddClip}
+                    className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-4 py-2 rounded-xl shrink-0 cursor-pointer"
+                  >
+                    Guardar Corte
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* List of active Clips */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg">
+              <h3 className="text-xs font-black uppercase text-white tracking-wider flex items-center justify-between">
+                <span>Cortes Guardados ({filteredClips.length})</span>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="bg-slate-950 border border-white/10 rounded px-2 py-0.5 text-[9px] text-slate-300"
+                >
+                  <option value="Todos">Todos</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </h3>
+
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {filteredClips.length === 0 ? (
+                  <div className="text-center py-6 text-slate-500 italic text-xs">No hay cortes registrados.</div>
+                ) : (
+                  filteredClips.map((clip) => (
+                    <div
+                      key={clip.id}
+                      onClick={() => playerRef.current?.seekTo(clip.start, true)}
+                      className="p-3 bg-slate-950 border border-white/5 hover:border-primary/40 rounded-xl cursor-pointer transition-all space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white truncate max-w-[140px]">{clip.title}</span>
+                        <span className="bg-slate-900 border border-white/10 text-primary font-mono text-[9px] px-1.5 py-0.5 rounded">
+                          {secondsToMMSS(clip.start)} - {secondsToMMSS(clip.end)}
+                        </span>
+                      </div>
+
+                      {clip.tacticalConcepts && clip.tacticalConcepts.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {clip.tacticalConcepts.map(tc => (
+                            <span key={tc} className="bg-indigo-500/20 text-indigo-300 text-[8px] px-1.5 py-0.5 rounded font-semibold">
+                              {tc}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveToCutBank(clip);
+                          }}
+                          className="text-[9px] font-bold text-amber-400 hover:underline flex items-center gap-1"
+                          title="Mover al Banco de Cortes para otras ocasiones"
+                        >
+                          <Archive className="h-3 w-3" />
+                          <span>Guardar en Armario</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClip(clip.id);
+                          }}
+                          className="text-rose-450 hover:text-rose-400 p-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3 VIEW: Final Montage Builder, Cover Slides & Cut Bank */}
+      {wizardStep === 3 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-fade-in">
+          {/* Left Column: Presentation Player / Montage Builder */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="relative bg-slate-950 border border-white/10 rounded-2xl overflow-hidden shadow-xl p-2 min-h-[360px]">
+              {presenting && activeMontageId ? (
+                (() => {
+                  const montage = videoData.montages?.find(m => m.id === activeMontageId);
+                  const currentItem = montage?.items[currentPresentIndex];
+                  if (currentItem?.type === "cover") {
+                    return (
+                      <div 
+                        className="w-full h-80 flex flex-col items-center justify-center text-center p-8 rounded-xl transition-all"
+                        style={{ backgroundColor: currentItem.bgColor || "#0f172a" }}
+                      >
+                        <Film className="h-10 w-10 text-primary mb-3 animate-bounce" />
+                        <h1 className="text-2xl font-black text-white uppercase tracking-wider mb-2">{currentItem.title}</h1>
+                        {currentItem.subtitle && (
+                          <h3 className="text-sm font-semibold text-slate-300">{currentItem.subtitle}</h3>
+                        )}
+                        <span className="text-[10px] text-slate-400 font-mono mt-4">Diapositiva ({currentPresentIndex + 1}/{montage?.items.length})</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <VideoPlayer
+                      ref={playerRef}
+                      url={activeVideoUrl}
+                      onTimeUpdate={(t) => setCurrentTime(t)}
+                      onDurationChange={(d) => setVideoDuration(d)}
+                      readOnly
+                    />
+                  );
+                })()
+              ) : (
+                <VideoPlayer
+                  ref={playerRef}
+                  url={activeVideoUrl}
+                  onTimeUpdate={(t) => setCurrentTime(t)}
+                  onDurationChange={(d) => setVideoDuration(d)}
+                  readOnly
+                />
               )}
             </div>
-          )}
+
+            {/* Active Montage Playlist Editor */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg">
+              <div className="flex flex-col sm:flex-row items-center justify-between border-b border-white/10 pb-3 gap-3">
+                <div className="flex items-center gap-2">
+                  <Film className="h-4 w-4 text-primary" />
+                  <h3 className="text-xs font-black uppercase text-white tracking-wider">Montaje Final Seleccionado</h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {activeMontageId && (
+                    <>
+                      <button
+                        onClick={() => setShowCoverForm(!showCoverForm)}
+                        className="bg-indigo-950 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-300 font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all"
+                      >
+                        <Layout className="h-3 w-3" />
+                        <span>+ Carátula</span>
+                      </button>
+                      <button
+                        onClick={() => handleSortMontage(activeMontageId, "chronological")}
+                        className="bg-slate-950 hover:bg-slate-800 border border-white/10 text-slate-300 font-bold text-[10px] uppercase px-2.5 py-1.5 rounded-xl transition-all"
+                      >
+                        Ordenar por Minuto
+                      </button>
+                      <button
+                        onClick={() => handleSortMontage(activeMontageId, "category")}
+                        className="bg-slate-950 hover:bg-slate-800 border border-white/10 text-slate-300 font-bold text-[10px] uppercase px-2.5 py-1.5 rounded-xl transition-all"
+                      >
+                        Ordenar por Concepto
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Cover Slide Creation Modal / Inline Form */}
+              {showCoverForm && activeMontageId && (
+                <form onSubmit={handleAddCoverToMontage} className="bg-slate-950 p-4 rounded-xl border border-indigo-500/30 space-y-3">
+                  <h4 className="text-xs font-bold text-indigo-300 uppercase">Añadir Carátula de Presentación</h4>
+                  <input
+                    type="text"
+                    placeholder="Título principal (ej: Análisis Táctico vs Numancia)"
+                    value={coverTitle}
+                    onChange={(e) => setCoverTitle(e.target.value)}
+                    required
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Subtítulo opcional (ej: Bloque defensivo 1ª Parte)"
+                    value={coverSubtitle}
+                    onChange={(e) => setCoverSubtitle(e.target.value)}
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                  />
+                  <div className="flex gap-3 items-center">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase">Color Fondo:</label>
+                      <input
+                        type="color"
+                        value={coverBgColor}
+                        onChange={(e) => setCoverBgColor(e.target.value)}
+                        className="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase">Duración:</label>
+                      <select
+                        value={coverDuration}
+                        onChange={(e) => setCoverDuration(Number(e.target.value))}
+                        className="bg-slate-900 border border-white/10 text-white text-xs rounded px-2 py-1"
+                      >
+                        <option value={3}>3s</option>
+                        <option value={4}>4s</option>
+                        <option value={5}>5s</option>
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase px-4 py-1.5 rounded-xl ml-auto cursor-pointer"
+                    >
+                      Añadir Carátula
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Playlist Items */}
+              {activeMontageId ? (
+                (() => {
+                  const montage = videoData.montages?.find(m => m.id === activeMontageId);
+                  if (!montage || montage.items.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-slate-500 italic text-xs">
+                        Este montaje está vacío. Haz clic en "Añadir a montaje" en los cortes de la derecha o crea una carátula.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {montage.items.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-3 bg-slate-950 border border-white/5 rounded-xl text-xs"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="font-mono text-primary font-bold text-[10px]">{idx + 1}.</span>
+                            {item.type === "cover" ? (
+                              <span className="bg-indigo-500/20 text-indigo-300 font-bold text-[10px] px-2 py-0.5 rounded">
+                                🖼 Carátula: {item.title} ({item.duration}s)
+                              </span>
+                            ) : (
+                              <span className="font-bold text-white truncate">{item.title}</span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMontageItem(activeMontageId, item.id)}
+                            className="text-slate-500 hover:text-rose-450 p-1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="text-center py-6 text-slate-500 text-xs">
+                  Crea o selecciona un montaje en el menú lateral derecho para editar su secuencia.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Cut Bank (Armario) & Montages List */}
+          <div className="space-y-4">
+            {/* Cut Bank (Armario de Cortes Reutilizables) */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                  <Archive className="h-4 w-4 text-amber-400" />
+                  <h3 className="text-xs font-black uppercase text-white tracking-wider">Banco de Cortes (Armario)</h3>
+                </div>
+                <span className="text-[10px] text-slate-400 font-bold">{(videoData.cut_bank || []).length} cortes guardados</span>
+              </div>
+
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                Cortes almacenados para otras ocasiones o rivales. Puedes etiquetarlos con conceptos tácticos o jugadores.
+              </p>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {(videoData.cut_bank || []).length === 0 ? (
+                  <div className="text-center py-6 text-slate-500 italic text-xs">El armario de cortes está vacío.</div>
+                ) : (
+                  (videoData.cut_bank || []).map((clip) => (
+                    <div
+                      key={clip.id}
+                      className="p-3 bg-slate-950 border border-amber-500/20 rounded-xl space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white truncate max-w-[150px]">{clip.title}</span>
+                        <span className="bg-amber-500/10 text-amber-300 font-mono text-[9px] px-1.5 py-0.5 rounded">
+                          {secondsToMMSS(clip.start)} - {secondsToMMSS(clip.end)}
+                        </span>
+                      </div>
+
+                      {clip.tacticalConcepts && clip.tacticalConcepts.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {clip.tacticalConcepts.map(tc => (
+                            <span key={tc} className="bg-indigo-500/20 text-indigo-300 text-[8px] px-1.5 py-0.5 rounded">
+                              {tc}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreFromCutBank(clip)}
+                          className="text-[9px] font-bold text-primary hover:underline flex items-center gap-1"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          <span>Restaurar al Partido</span>
+                        </button>
+                        {activeMontageId && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddClipToMontage(clip)}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-0.5 rounded text-[9px]"
+                          >
+                            + Montaje
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Registered Montages */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg">
+              <h3 className="text-xs font-black uppercase text-white tracking-wider">Crear Nuevo Montaje</h3>
+
+              <form onSubmit={handleCreateMontage} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nombre del montaje (ej: Informe Defensa)"
+                  value={newMontageTitle}
+                  onChange={(e) => setNewMontageTitle(e.target.value)}
+                  required
+                  className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white"
+                />
+                <button
+                  type="submit"
+                  className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-3 py-1.5 rounded-xl shrink-0 cursor-pointer"
+                >
+                  Crear
+                </button>
+              </form>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {(videoData.montages || []).map((m) => {
+                  const isActive = m.id === activeMontageId;
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => setActiveMontageId(m.id)}
+                      className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                        isActive ? "bg-primary/10 border-primary text-white" : "bg-slate-950 border-white/5 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <span className="font-bold text-xs truncate">{m.title}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMontageId(m.id);
+                            setCurrentPresentIndex(0);
+                            setPresenting(true);
+                          }}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white p-1 rounded"
+                          title="Reproducir Montaje"
+                        >
+                          <Play className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMontage(m.id);
+                          }}
+                          className="text-rose-450 hover:text-rose-400 p-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

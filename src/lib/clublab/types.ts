@@ -217,6 +217,8 @@ export interface VideoClip {
   stats: ClipPlayerStat[];
   annotations?: VideoAnnotation[]; // Anotaciones tácticas de vídeo
   videoUrl?: string;
+  tacticalConcepts?: string[];
+  isSavedInBank?: boolean;
 }
 
 export interface VideoItem {
@@ -255,6 +257,7 @@ export interface SessionVideoData {
   general_notes: string;
   videos: VideoItem[];
   montages?: VideoMontage[];
+  cut_bank?: VideoClip[];
 }
 
 export type PositionKey =
