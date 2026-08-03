@@ -36,6 +36,29 @@ export async function POST(req: NextRequest) {
         if (error) throw error;
         return NextResponse.json({ success: true });
       }
+      case "toggle_user_admin_permission": {
+        const { userId: targetUserId, isAdmin } = body;
+        if (!targetUserId) {
+          return NextResponse.json({ error: "Falta el ID del usuario" }, { status: 400 });
+        }
+
+        // 1. Update user metadata in Supabase Auth
+        await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+          user_metadata: { is_admin: Boolean(isAdmin) },
+        });
+
+        // 2. Try to update user_organization_roles table
+        try {
+          await supabaseAdmin
+            .from("user_organization_roles")
+            .update({ is_admin: Boolean(isAdmin) })
+            .eq("user_id", targetUserId);
+        } catch (e) {
+          // Column optional in custom schemas
+        }
+
+        return NextResponse.json({ success: true, isAdmin: Boolean(isAdmin) });
+      }
       case "approve_registration_request": {
         const { invitationId } = body;
         const { data: inv } = await supabaseAdmin

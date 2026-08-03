@@ -15,15 +15,14 @@ export default async function AdminPortalPage() {
     redirect("/login");
   }
 
-  // Verify Super Admin role or email matching
-  const { data: orgRole } = await supabase
+  // Verify Admin role or additive is_admin flag
+  const { data: orgRoles } = await supabase
     .from("user_organization_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
+    .select("role, is_admin")
+    .eq("user_id", user.id);
 
-  const isSuperAdmin = orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com";
+  const hasAdminRole = orgRoles?.some((r: any) => r.role === "super_admin" || r.role === "club_admin" || r.is_admin === true);
+  const isSuperAdmin = hasAdminRole || user.email === "diecilo7@gmail.com" || user.user_metadata?.is_admin === true;
 
   if (!isSuperAdmin) {
     notFound();
@@ -50,10 +49,12 @@ export default async function AdminPortalPage() {
   const mappedUsers = authUsers.map((au: any) => {
     const roleRecord = roles?.find((r: any) => r.user_id === au.id);
     const org = organizations?.find((o: any) => o.id === roleRecord?.organization_id);
+    const isAdmin = roleRecord?.role === "super_admin" || roleRecord?.role === "club_admin" || (roleRecord as any)?.is_admin === true || au.user_metadata?.is_admin === true || au.email === "diecilo7@gmail.com";
     return {
       id: au.id,
       email: au.email,
       role: roleRecord?.role || "Ninguno",
+      is_admin: Boolean(isAdmin),
       organization_id: roleRecord?.organization_id || null,
       organization_name: org?.name || "Ninguna",
       created_at: au.created_at,

@@ -48,6 +48,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("coach");
   const [inviteOrgId, setInviteOrgId] = useState("");
+  const [inviteIsAdmin, setInviteIsAdmin] = useState(false);
 
   // Create Organization Form states
   const [newOrgName, setNewOrgName] = useState("");
@@ -592,56 +593,86 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                       <tr className="border-b border-white/5 bg-white/1 text-[10px] text-slate-500 font-bold uppercase">
                         <th className="p-4">Usuario (Correo)</th>
                         <th className="p-4">Organización</th>
-                        <th className="p-4">Rol Asignado</th>
+                        <th className="p-4">Rol Principal</th>
+                        <th className="p-4 text-center">Permisos Admin</th>
                         <th className="p-4 text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {filteredUsers.map((user, idx) => (
-                        <tr key={idx} className="hover:bg-white/1">
-                          <td className="p-4 font-bold text-white">
-                            {user.email}
-                            <span className="block font-mono text-[9px] text-slate-600 mt-0.5">UID: {user.id}</span>
-                          </td>
-                          <td className="p-4 text-slate-300 font-semibold">{user.organization_name || "Ninguna"}</td>
-                          <td className="p-4">
-                            <select
-                              value={user.role}
-                              onChange={(e) => handleAdminAction({
-                                action: "update_user_role",
-                                userId: user.id,
-                                organizationId: user.organization_id,
-                                role: e.target.value
-                              })}
-                              className="rounded bg-slate-900 border border-white/10 text-white text-[11px] font-semibold px-2 py-1 focus:outline-none cursor-pointer"
-                            >
-                              <option value="super_admin">Super Administrador</option>
-                              <option value="club_admin">Admin de Club</option>
-                              <option value="academy_director">Director Academia</option>
-                              <option value="academy_coordinator">Coordinador Academia</option>
-                              <option value="head_coach">Primer Entrenador</option>
-                              <option value="coach">Entrenador</option>
-                              <option value="physical_coach">Prep. Físico</option>
-                              <option value="physio">Fisioterapeuta</option>
-                              <option value="sporting_director">Director Dep.</option>
-                              <option value="player">Jugador</option>
-                            </select>
-                          </td>
-                          <td className="p-4 text-right">
-                            <button
-                              onClick={() => {
-                                if (confirm(`¿Estás seguro de eliminar permanentemente la cuenta de "${user.email}"?`)) {
-                                  handleAdminAction({ action: "delete_user", userId: user.id });
-                                }
-                              }}
-                              className="text-rose-400 hover:text-rose-350 p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-                              title="Eliminar cuenta"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredUsers.map((user, idx) => {
+                        const isPrimaryAdminRole = user.role === "super_admin" || user.role === "club_admin";
+                        const hasAdminAccess = isPrimaryAdminRole || user.is_admin === true;
+
+                        return (
+                          <tr key={idx} className="hover:bg-white/1">
+                            <td className="p-4 font-bold text-white">
+                              {user.email}
+                              <span className="block font-mono text-[9px] text-slate-600 mt-0.5">UID: {user.id}</span>
+                            </td>
+                            <td className="p-4 text-slate-300 font-semibold">{user.organization_name || "Ninguna"}</td>
+                            <td className="p-4">
+                              <select
+                                value={user.role}
+                                onChange={(e) => handleAdminAction({
+                                  action: "update_user_role",
+                                  userId: user.id,
+                                  organizationId: user.organization_id,
+                                  role: e.target.value
+                                })}
+                                className="rounded bg-slate-900 border border-white/10 text-white text-[11px] font-semibold px-2 py-1 focus:outline-none cursor-pointer"
+                              >
+                                <option value="super_admin">Super Administrador</option>
+                                <option value="club_admin">Admin de Club</option>
+                                <option value="academy_director">Director Academia</option>
+                                <option value="academy_coordinator">Coordinador Academia</option>
+                                <option value="head_coach">Primer Entrenador</option>
+                                <option value="coach">Entrenador</option>
+                                <option value="physical_coach">Prep. Físico</option>
+                                <option value="physio">Fisioterapeuta</option>
+                                <option value="sporting_director">Director Dep.</option>
+                                <option value="player">Jugador</option>
+                              </select>
+                            </td>
+                            <td className="p-4 text-center">
+                              <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl hover:bg-white/10 transition-all select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={hasAdminAccess}
+                                  disabled={isPrimaryAdminRole}
+                                  onChange={async (e) => {
+                                    const nextState = e.target.checked;
+                                    await handleAdminAction({
+                                      action: "toggle_user_admin_permission",
+                                      userId: user.id,
+                                      isAdmin: nextState,
+                                    });
+                                    setUsers((prev) =>
+                                      prev.map((u) => (u.id === user.id ? { ...u, is_admin: nextState } : u))
+                                    );
+                                  }}
+                                  className="rounded border-white/20 text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
+                                />
+                                <span className={`text-[10px] font-bold ${hasAdminAccess ? "text-emerald-400" : "text-slate-400"}`}>
+                                  {hasAdminAccess ? "✓ Admin" : "No Admin"}
+                                </span>
+                              </label>
+                            </td>
+                            <td className="p-4 text-right">
+                              <button
+                                onClick={() => {
+                                  if (confirm(`¿Estás seguro de eliminar permanentemente la cuenta de "${user.email}"?`)) {
+                                    handleAdminAction({ action: "delete_user", userId: user.id });
+                                  }
+                                }}
+                                className="text-rose-400 hover:text-rose-350 p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                                title="Eliminar cuenta"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
