@@ -59,6 +59,54 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, isAdmin: Boolean(isAdmin) });
       }
+      case "assign_user_organization_role": {
+        const { userId: targetUserId, organizationId, role } = body;
+        if (!targetUserId) {
+          return NextResponse.json({ error: "Falta el ID del usuario" }, { status: 400 });
+        }
+
+        const { data: existingRole } = await supabaseAdmin
+          .from("user_organization_roles")
+          .select("id")
+          .eq("user_id", targetUserId)
+          .maybeSingle();
+
+        if (existingRole) {
+          await supabaseAdmin
+            .from("user_organization_roles")
+            .update({
+              organization_id: organizationId || null,
+              role: role || "player",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", targetUserId);
+        } else {
+          await supabaseAdmin
+            .from("user_organization_roles")
+            .insert({
+              user_id: targetUserId,
+              organization_id: organizationId || null,
+              role: role || "player",
+            });
+        }
+
+        if (organizationId) {
+          const { data: pRecord } = await supabaseAdmin
+            .from("players")
+            .select("id")
+            .or(`user_id.eq.${targetUserId}`)
+            .maybeSingle();
+
+          if (pRecord) {
+            await supabaseAdmin
+              .from("players")
+              .update({ organization_id: organizationId })
+              .eq("id", pRecord.id);
+          }
+        }
+
+        return NextResponse.json({ success: true, organizationId, role });
+      }
       case "approve_registration_request": {
         const { invitationId } = body;
         const { data: inv } = await supabaseAdmin

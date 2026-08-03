@@ -268,6 +268,19 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
         {/* TAB 1: METRICS & TELEMETRY */}
         {activeTab === "telemetry" && (
           <div className="space-y-6">
+            {/* Clean Telemetry Notice Banner */}
+            <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 p-4 text-xs text-sky-200 flex items-start gap-3 shadow-md">
+              <ShieldCheck className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-bold text-white block">
+                  🛡️ Filtro de Telemetría Real Activo (Tráfico Limpio de Usuarios)
+                </span>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Se ha excluido todo el tráfico, eventos y páginas vistas generadas por <strong className="text-white">diecilo7@gmail.com</strong> y <strong className="text-white">diego.ciria.lopez@gmail.com</strong>. Las métricas a continuación reflejan exclusivamente el uso real de los clubes, cuerpos técnicos y futbolistas.
+                </p>
+              </div>
+            </div>
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card rounded-lg p-5 flex flex-col gap-1.5 border border-border">
@@ -609,17 +622,52 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                               {user.email}
                               <span className="block font-mono text-[9px] text-slate-600 mt-0.5">UID: {user.id}</span>
                             </td>
-                            <td className="p-4 text-slate-300 font-semibold">{user.organization_name || "Ninguna"}</td>
+                            <td className="p-4">
+                              <select
+                                value={user.organization_id || ""}
+                                onChange={async (e) => {
+                                  const targetOrgId = e.target.value || null;
+                                  const selectedOrg = organizations.find((o) => o.id === targetOrgId);
+                                  await handleAdminAction({
+                                    action: "assign_user_organization_role",
+                                    userId: user.id,
+                                    organizationId: targetOrgId,
+                                    role: user.role,
+                                  });
+                                  setUsers((prev) =>
+                                    prev.map((u) =>
+                                      u.id === user.id
+                                        ? { ...u, organization_id: targetOrgId, organization_name: selectedOrg?.name || "Ninguna" }
+                                        : u
+                                    )
+                                  );
+                                }}
+                                className="rounded-xl bg-slate-900 border border-white/10 text-white text-[11px] font-semibold px-2.5 py-1.5 focus:outline-none cursor-pointer w-full max-w-[170px]"
+                              >
+                                <option value="">-- Sin Organización --</option>
+                                {organizations.map((org) => (
+                                  <option key={org.id} value={org.id}>
+                                    {org.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
                             <td className="p-4">
                               <select
                                 value={user.role}
-                                onChange={(e) => handleAdminAction({
-                                  action: "update_user_role",
-                                  userId: user.id,
-                                  organizationId: user.organization_id,
-                                  role: e.target.value
-                                })}
-                                className="rounded bg-slate-900 border border-white/10 text-white text-[11px] font-semibold px-2 py-1 focus:outline-none cursor-pointer"
+                                onChange={async (e) => {
+                                  const newRole = e.target.value;
+                                  await handleAdminAction({
+                                    action: "assign_user_organization_role",
+                                    userId: user.id,
+                                    organizationId: user.organization_id,
+                                    role: newRole,
+                                  });
+                                  setUsers((prev) =>
+                                    prev.map((u) => (u.id === user.id ? { ...u, role: newRole } : u))
+                                  );
+                                }}
+                                className="rounded-xl bg-slate-900 border border-white/10 text-white text-[11px] font-semibold px-2.5 py-1.5 focus:outline-none cursor-pointer"
                               >
                                 <option value="super_admin">Super Administrador</option>
                                 <option value="club_admin">Admin de Club</option>
@@ -627,9 +675,12 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                                 <option value="academy_coordinator">Coordinador Academia</option>
                                 <option value="head_coach">Primer Entrenador</option>
                                 <option value="coach">Entrenador</option>
+                                <option value="assistant_coach">Segundo Entrenador</option>
                                 <option value="physical_coach">Prep. Físico</option>
                                 <option value="physio">Fisioterapeuta</option>
                                 <option value="sporting_director">Director Dep.</option>
+                                <option value="youth_director">Director Cantera</option>
+                                <option value="analyst">Analista</option>
                                 <option value="player">Jugador</option>
                               </select>
                             </td>

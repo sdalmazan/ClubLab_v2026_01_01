@@ -84,16 +84,27 @@ export default async function AdminPortalPage() {
   let currentOnlineCount = 0;
   let tablesExist = true;
 
+  // Exclude test / superadmin accounts from telemetry metrics
+  const excludedEmails = ["diecilo7@gmail.com", "diego.ciria.lopez@gmail.com"];
+  const excludedUserIds = new Set(
+    authUsers
+      .filter((au: any) => au.email && excludedEmails.includes(au.email.toLowerCase().trim()))
+      .map((au: any) => au.id)
+  );
+
   try {
     const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-    // Compute online user count in last 5 minutes
+    // Compute online user count in last 5 minutes (excluding test/superadmin accounts)
     const { data: recentViews } = await supabaseAdmin
       .from("platform_page_views")
       .select("user_id")
       .gte("viewed_at", fiveMinsAgo);
 
-    const uniqueOnlineUsers = new Set(recentViews?.map((v: any) => v.user_id).filter(Boolean) || []);
+    const realViews = (recentViews ?? []).filter(
+      (v: any) => v.user_id && !excludedUserIds.has(v.user_id)
+    );
+    const uniqueOnlineUsers = new Set(realViews.map((v: any) => v.user_id));
     currentOnlineCount = uniqueOnlineUsers.size;
 
     // Check if we need to log a new 5-minute online users snapshot
@@ -109,15 +120,16 @@ export default async function AdminPortalPage() {
       await supabaseAdmin.from("platform_online_users").insert({ online_count: currentOnlineCount });
     }
 
-    // Retrieve Top Viewed Paths
+    // Retrieve Top Viewed Paths (excluding superadmin views)
     const { data: pageViews } = await supabaseAdmin
       .from("platform_page_views")
-      .select("path")
-      .limit(1000);
+      .select("user_id, path")
+      .limit(3000);
 
     if (pageViews) {
+      const realPageViews = pageViews.filter((v: any) => !v.user_id || !excludedUserIds.has(v.user_id));
       const pageCounts: Record<string, number> = {};
-      pageViews.forEach((v: any) => {
+      realPageViews.forEach((v: any) => {
         pageCounts[v.path] = (pageCounts[v.path] || 0) + 1;
       });
       topPages = Object.entries(pageCounts)
@@ -126,15 +138,16 @@ export default async function AdminPortalPage() {
         .slice(0, 10);
     }
 
-    // Retrieve Top Used Features
+    // Retrieve Top Used Features (excluding superadmin clicks)
     const { data: featureUsage } = await supabaseAdmin
       .from("platform_feature_usage")
-      .select("feature_name")
-      .limit(1000);
+      .select("user_id, feature_name")
+      .limit(3000);
 
     if (featureUsage) {
+      const realFeatures = featureUsage.filter((f: any) => !f.user_id || !excludedUserIds.has(f.user_id));
       const featCounts: Record<string, number> = {};
-      featureUsage.forEach((f: any) => {
+      realFeatures.forEach((f: any) => {
         featCounts[f.feature_name] = (featCounts[f.feature_name] || 0) + 1;
       });
       topFeatures = Object.entries(featCounts)
