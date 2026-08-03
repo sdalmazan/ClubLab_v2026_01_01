@@ -7,6 +7,8 @@ import { PlayerDailyCheckDetailModal } from "@/components/dashboard/PlayerDailyC
 interface InteractiveCheckinListProps {
   players: any[];
   completedCheckinsCount: number;
+  completedWeightsCount?: number;
+  completedCheckoutsCount?: number;
   pendingCheckinCount: number;
   totalPlayers: number;
 }
@@ -14,6 +16,8 @@ interface InteractiveCheckinListProps {
 export function InteractiveCheckinList({
   players = [],
   completedCheckinsCount,
+  completedWeightsCount = 0,
+  completedCheckoutsCount = 0,
   pendingCheckinCount,
   totalPlayers,
 }: InteractiveCheckinListProps) {
@@ -24,14 +28,22 @@ export function InteractiveCheckinList({
   return (
     <>
       <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02] gap-2">
           <span className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
             <HeartPulse className="size-4 text-emerald-400" />
-            Detalle Check-in por Jugador (Haz clic en una fila para ver el desglose)
+            Detalle Check-in por Jugador
           </span>
-          <span className="text-[10px] font-bold text-slate-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
-            {completedCheckinsCount} completados · {pendingCheckinCount} pendientes
-          </span>
+          <div className="flex items-center gap-2 flex-wrap text-[10px] font-bold">
+            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+              📋 Check-in: {completedCheckinsCount}/{totalPlayers}
+            </span>
+            <span className="bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2.5 py-1 rounded-full">
+              ⚖️ Peso Báscula: {completedWeightsCount}/{totalPlayers}
+            </span>
+            <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2.5 py-1 rounded-full">
+              🏁 Check-out: {completedCheckoutsCount}/{totalPlayers}
+            </span>
+          </div>
         </div>
 
         <div className="divide-y divide-white/5 max-h-80 overflow-y-auto">
@@ -41,6 +53,7 @@ export function InteractiveCheckinList({
             const playerName = player.sporting_name || `${player.first_name || ""} ${player.last_name || ""}`.trim() || "Jugador";
             const hasCheckin = !!w;
             const hasCheckout = !!r;
+            const hasWeight = w?.weight_kg != null;
             const jersey = player.membership?.jersey_number ?? player.jersey_number ?? null;
 
             return (
@@ -73,15 +86,17 @@ export function InteractiveCheckinList({
                   )}
                 </div>
 
-                {hasCheckin ? (
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    {/* Sleep */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Sleep */}
+                  {hasCheckin && (
                     <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-300 font-medium" title="Calidad de Sueño">
                       <Activity className="size-3.5 text-indigo-400" />
                       {w.sleep_quality ?? "–"}/5
                     </span>
+                  )}
 
-                    {/* Fatigue */}
+                  {/* Fatigue */}
+                  {hasCheckin && (
                     <span
                       className={`flex items-center gap-1 text-[11px] font-bold ${
                         (w.fatigue ?? 0) >= 4
@@ -95,45 +110,42 @@ export function InteractiveCheckinList({
                       <HeartPulse className="size-3.5" />
                       {w.fatigue ?? "–"}/5
                     </span>
+                  )}
 
-                    {/* Discomfort */}
-                    {w.has_discomfort && (
-                      <span
-                        className="text-[9px] font-bold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30 truncate max-w-[110px]"
-                        title={w.discomfort_body_part || "Molestia"}
-                      >
-                        ⚠ {w.discomfort_body_part || "Molestia"}
-                      </span>
-                    )}
+                  {/* Discomfort */}
+                  {hasCheckin && w.has_discomfort && (
+                    <span
+                      className="text-[9px] font-bold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30 truncate max-w-[110px]"
+                      title={w.discomfort_body_part || "Molestia"}
+                    >
+                      ⚠ {w.discomfort_body_part || "Molestia"}
+                    </span>
+                  )}
 
-                    {/* Weight */}
-                    {w.weight_kg ? (
-                      <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20" title="Peso registrado">
-                        ⚖️ {w.weight_kg} kg
-                      </span>
-                    ) : (
-                      <span className="hidden sm:inline-flex items-center gap-1 text-[9px] font-medium text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded" title="Peso sin registrar">
-                        Sin peso
-                      </span>
-                    )}
+                  {/* WEIGHT BADGE (GREEN IF RECORDED, RED IF MISSING) */}
+                  {hasWeight ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30" title={`Peso registrado: ${w.weight_kg} kg`}>
+                      <Scale className="size-3 text-emerald-400" />
+                      <span>{w.weight_kg} kg</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20" title="Sin peso registrado en báscula">
+                      <Scale className="size-3 text-rose-400" />
+                      <span>Sin peso</span>
+                    </span>
+                  )}
 
-                    {/* Checkout RPE */}
-                    {hasCheckout ? (
-                      <span className="text-[9px] font-bold text-sky-300 bg-sky-500/20 px-2 py-0.5 rounded border border-sky-500/30 shrink-0">
-                        RPE {r.rpe}
-                      </span>
-                    ) : (
-                      <span className="text-[9px] text-slate-500 shrink-0 font-medium">RPE —</span>
-                    )}
+                  {/* Checkout RPE */}
+                  {hasCheckout ? (
+                    <span className="text-[9px] font-bold text-sky-300 bg-sky-500/20 px-2 py-0.5 rounded border border-sky-500/30 shrink-0">
+                      RPE {r.rpe}
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-slate-500 shrink-0 font-medium">RPE —</span>
+                  )}
 
-                    <ChevronRight className="size-4 text-slate-400 shrink-0" />
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 shrink-0 text-[10px] text-slate-400 hover:text-white transition-colors">
-                    <span>Ver Ficha</span>
-                    <ChevronRight className="size-4" />
-                  </div>
-                )}
+                  <ChevronRight className="size-4 text-slate-400 shrink-0" />
+                </div>
               </div>
             );
           })}

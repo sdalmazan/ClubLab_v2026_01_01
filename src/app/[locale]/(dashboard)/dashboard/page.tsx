@@ -216,6 +216,7 @@ export default async function DashboardPage({
   const pendingCheckinCount = totalPlayers - completedCheckinsCount;
 
   const completedCheckoutsCount = players.filter((p: any) => !!p.latest_rpe).length;
+  const completedWeightsCount = players.filter((p: any) => p.latest_wellness?.weight_kg != null).length;
   const checkoutPct = totalPlayers > 0 ? Math.round((completedCheckoutsCount / totalPlayers) * 100) : 0;
   const pendingCheckoutCount = totalPlayers - completedCheckoutsCount;
 
@@ -323,6 +324,8 @@ export default async function DashboardPage({
       <InteractiveCheckinList
         players={players}
         completedCheckinsCount={completedCheckinsCount}
+        completedWeightsCount={completedWeightsCount}
+        completedCheckoutsCount={completedCheckoutsCount}
         pendingCheckinCount={pendingCheckinCount}
         totalPlayers={totalPlayers}
       />

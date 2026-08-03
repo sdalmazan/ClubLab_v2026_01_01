@@ -166,27 +166,27 @@ export function PlayerDailyCheckDetailModal({
                 <div className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
                   c.weight_kg
                     ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                    : "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                    : "bg-rose-500/10 border-rose-500/30 text-rose-300"
                 }`}>
                   <div className="flex items-center gap-2.5">
-                    <Scale className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <Scale className={`w-4 h-4 shrink-0 ${c.weight_kg ? "text-emerald-400" : "text-rose-400"}`} />
                     <div>
                       <span className="font-bold block text-foreground">
-                        {c.weight_kg ? `Peso Registrado hoy: ${c.weight_kg} kg` : "Peso en Vestuario Pendiente"}
+                        {c.weight_kg ? `Peso Registrado hoy: ${c.weight_kg} kg` : "Peso en Báscula Pendiente"}
                       </span>
                       <span className="text-[10px] text-muted-foreground block">
                         {c.weight_kg
                           ? "✓ Asistencia y peso confirmados en báscula de vestuario."
-                          : "El jugador ha completado el check-in pero falta introducir el peso al llegar."}
+                          : "El jugador ha realizado el check-in pero NO ha introducido aún su peso en vestuario."}
                       </span>
                     </div>
                   </div>
                   <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold uppercase shrink-0 border ${
                     c.weight_kg
                       ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                      : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                      : "bg-rose-500/20 text-rose-300 border-rose-500/40"
                   }`}>
-                    {c.weight_kg ? `⚖️ ${c.weight_kg} kg` : "Sin Peso"}
+                    {c.weight_kg ? `⚖️ ${c.weight_kg} kg` : "⚖️ Sin Peso"}
                   </span>
                 </div>
 

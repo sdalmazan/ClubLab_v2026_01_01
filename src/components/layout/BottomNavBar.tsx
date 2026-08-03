@@ -335,7 +335,7 @@ export function BottomNavBar({ user }: BottomNavBarProps) {
   const pathname = usePathname();
 
   // Do not render staff BottomNavBar when on player portal routes
-  if (pathname?.startsWith("/player")) {
+  if (pathname?.includes("/player")) {
     return null;
   }
   const t = useTranslations("nav");
