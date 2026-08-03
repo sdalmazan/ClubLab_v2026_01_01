@@ -68,6 +68,13 @@ export default async function AdminPortalPage() {
     };
   }) || [];
 
+  // Load pending self-registration approval requests
+  const { data: pendingInvitations } = await supabaseAdmin
+    .from("player_invitations")
+    .select("*")
+    .eq("status", "pending_approval")
+    .order("created_at", { ascending: false });
+
   // JIT Telemetry aggregation and active online users calculation
   let topPages: any[] = [];
   let topFeatures: any[] = [];
@@ -165,7 +172,8 @@ export default async function AdminPortalPage() {
     topPages,
     topFeatures,
     currentOnlineCount,
-    tablesExist
+    tablesExist,
+    pendingInvitations: pendingInvitations || [],
   };
 
   return (

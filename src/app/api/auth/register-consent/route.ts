@@ -148,7 +148,7 @@ export async function POST(request: Request) {
           count: matchingPlayers.length,
         });
       } else {
-        // Auto-create new player row for newly registered player
+        // Auto-create new player row for newly registered player with pending_approval status
         const defaultOrgId = "2ef4ac4a-833a-4acf-8738-ac89d52d1a9d";
         const { data: authUser } = await adminSupabase.auth.admin.getUserById(userId);
         const fullName = authUser?.user?.user_metadata?.full_name || email.split("@")[0] || "Jugador";
@@ -187,10 +187,47 @@ export async function POST(request: Request) {
             role: "player",
           }, { onConflict: "user_id,organization_id" });
 
+        // Record pending_approval invitation record
+        const uninvitedToken = `uninvited-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        await adminSupabase
+          .from("player_invitations")
+          .insert({
+            organization_id: defaultOrgId,
+            email: email.trim().toLowerCase(),
+            token: uninvitedToken,
+            role: "player",
+            status: "pending_approval",
+            metadata: {
+              userId: userId,
+              fullName: fullName,
+              registeredAt: new Date().toISOString(),
+              preferredChannel: preferredChannel,
+            },
+          });
+
+        // Notify Club Administrator via Email Alert
+        try {
+          const { sendEmailAlert } = await import("@/lib/email/mailer");
+          await sendEmailAlert({
+            to: "diecilo7@gmail.com",
+            recipientName: "Administrador del Club",
+            title: `🔔 Nueva Solicitud de Registro: ${fullName}`,
+            body: `El usuario ${fullName} (${email}) se ha registrado en la plataforma sin invitación previa.\n\n` +
+              `Rol solicitado: Futbolista / Jugador\n` +
+              `Fecha: ${new Date().toLocaleDateString("es-ES")}\n\n` +
+              `Como Administrador del Club, debes revisar y APROBAR o RECHAZAR su incorporación para autorizar su acceso definitivo.`,
+            actionUrl: "/admin",
+            actionText: "Aprobar o Rechazar en el Panel Admin",
+          });
+        } catch (mailErr) {
+          console.error("⚠️ Error sending admin approval alert email:", mailErr);
+        }
+
         return NextResponse.json({
           success: true,
           linked: true,
           createdNew: true,
+          pendingApproval: true,
         });
       }
     }

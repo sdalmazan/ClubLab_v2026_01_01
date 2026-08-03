@@ -221,6 +221,40 @@ export async function GET(request: Request) {
                 organization_id: defaultOrgId,
                 role: "player",
               }, { onConflict: "user_id,organization_id" });
+
+            // Record pending_approval request
+            const uninvitedToken = `uninvited-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+            await adminSupabase
+              .from("player_invitations")
+              .insert({
+                organization_id: defaultOrgId,
+                email: email.trim().toLowerCase(),
+                token: uninvitedToken,
+                role: "player",
+                status: "pending_approval",
+                metadata: {
+                  userId: targetUser.id,
+                  fullName: fullName,
+                  registeredAt: new Date().toISOString(),
+                  preferredChannel: preferredChannel,
+                },
+              });
+
+            // Notify Administrator
+            try {
+              const { sendEmailAlert } = await import("@/lib/email/mailer");
+              await sendEmailAlert({
+                to: "diecilo7@gmail.com",
+                recipientName: "Administrador del Club",
+                title: `🔔 Solicitud de Registro Pendiente: ${fullName}`,
+                body: `El usuario ${fullName} (${email}) ha verificado su correo tras un registro sin invitación.\n\n` +
+                  `Como Administrador del Club, debes autorizar su acceso desde el Panel de Administración de ClubLab.`,
+                actionUrl: "/admin",
+                actionText: "Revisar y Aprobar en Panel Admin",
+              });
+            } catch (mailErr) {
+              console.error("⚠️ Error sending admin approval email:", mailErr);
+            }
           }
         }
       } catch (err: any) {

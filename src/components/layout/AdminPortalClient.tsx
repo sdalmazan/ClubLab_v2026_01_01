@@ -30,11 +30,12 @@ interface AdminPortalClientProps {
     topFeatures: any[];
     currentOnlineCount: number;
     tablesExist: boolean;
+    pendingInvitations?: any[];
   };
 }
 
 export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
-  const [activeTab, setActiveTab] = useState<"telemetry" | "organizations" | "users" | "players" | "requests">("telemetry");
+  const [activeTab, setActiveTab] = useState<"telemetry" | "organizations" | "users" | "players" | "requests" | "approvals">("telemetry");
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -60,6 +61,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
   const [players, setPlayers] = useState(initialData.players);
   const [dailyStats, setDailyStats] = useState(initialData.dailyStats);
   const [currentOnlineCount, setCurrentOnlineCount] = useState(initialData.currentOnlineCount);
+  const [pendingInvitations, setPendingInvitations] = useState(initialData.pendingInvitations || []);
 
   // Extract pending position requests
   const pendingRequests = React.useMemo(() => {
@@ -238,6 +240,7 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
       <div className="flex gap-2 border-b border-white/5 pb-0.5 overflow-x-auto">
         {[
           { id: "telemetry", label: "Métricas y Telemetría", icon: Activity },
+          { id: "approvals", label: `Aprobaciones Registros (${pendingInvitations.length})`, icon: ShieldCheck },
           { id: "organizations", label: "Organizaciones", icon: Building },
           { id: "users", label: "Cuentas y Personal", icon: Users },
           { id: "players", label: "Jugadores Registrados", icon: UserCheck },
@@ -862,6 +865,93 @@ export function AdminPortalClient({ initialData }: AdminPortalClientProps) {
                             title="Rechazar cambio"
                           >
                             Rechazar
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: PENDING REGISTRATION APPROVALS */}
+        {activeTab === "approvals" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  Solicitudes de Registro Pendientes de Aprobación ({pendingInvitations.length})
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Futbolistas o usuarios que se han registrado sin invitación previa. Requieren tu aprobación explícita como Administrador del Club.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-card rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-white/5 bg-white/1 text-[10px] text-slate-500 font-bold uppercase">
+                    <th className="p-4">Solicitante</th>
+                    <th className="p-4">Correo Electrónico</th>
+                    <th className="p-4">Rol Solicitado</th>
+                    <th className="p-4">Fecha</th>
+                    <th className="p-4 text-right">Acción de Aprobación</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {pendingInvitations.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-slate-400 italic">
+                        No hay solicitudes de registro pendientes de aprobación. Todos los usuarios están al día.
+                      </td>
+                    </tr>
+                  ) : (
+                    pendingInvitations.map((inv: any) => (
+                      <tr key={inv.id} className="hover:bg-white/5 transition-colors">
+                        <td className="p-4 font-bold text-white">
+                          {inv.metadata?.fullName || inv.email.split("@")[0]}
+                        </td>
+                        <td className="p-4 text-slate-300 font-mono">{inv.email}</td>
+                        <td className="p-4">
+                          <span className="inline-flex items-center text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border bg-amber-500/10 border-amber-500/20 text-amber-400 uppercase">
+                            {inv.role === "player" ? "Futbolista / Jugador" : inv.role}
+                          </span>
+                        </td>
+                        <td className="p-4 text-slate-400 font-mono text-[11px]">
+                          {inv.created_at ? new Date(inv.created_at).toLocaleDateString("es-ES") : "Hoy"}
+                        </td>
+                        <td className="p-4 text-right space-x-2">
+                          <button
+                            onClick={async () => {
+                              if (confirm(`¿Aprobar el acceso definitivo de "${inv.metadata?.fullName || inv.email}" a S.D. Almazán?`)) {
+                                await handleAdminAction({
+                                  action: "approve_registration_request",
+                                  invitationId: inv.id,
+                                });
+                                setPendingInvitations((prev) => prev.filter((i) => i.id !== inv.id));
+                              }
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shadow"
+                          >
+                            ✓ Aprobar Acceso
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`¿Rechazar la solicitud de "${inv.metadata?.fullName || inv.email}"?`)) {
+                                await handleAdminAction({
+                                  action: "reject_registration_request",
+                                  invitationId: inv.id,
+                                });
+                                setPendingInvitations((prev) => prev.filter((i) => i.id !== inv.id));
+                              }
+                            }}
+                            className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                          >
+                            ✕ Rechazar
                           </button>
                         </td>
                       </tr>

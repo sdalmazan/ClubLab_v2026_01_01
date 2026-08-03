@@ -36,6 +36,69 @@ export async function POST(req: NextRequest) {
         if (error) throw error;
         return NextResponse.json({ success: true });
       }
+      case "approve_registration_request": {
+        const { invitationId } = body;
+        const { data: inv } = await supabaseAdmin
+          .from("player_invitations")
+          .select("*")
+          .eq("id", invitationId)
+          .single();
+
+        if (inv) {
+          await supabaseAdmin
+            .from("player_invitations")
+            .update({ status: "accepted", accepted_at: new Date().toISOString() })
+            .eq("id", invitationId);
+
+          const userId = inv.metadata?.userId;
+          if (userId) {
+            await supabaseAdmin
+              .from("players")
+              .update({ availability_status: "available", physical_status: "green" })
+              .eq("user_id", userId);
+          }
+
+          try {
+            const { sendEmailAlert } = await import("@/lib/email/mailer");
+            await sendEmailAlert({
+              to: inv.email,
+              recipientName: inv.metadata?.fullName || "Futbolista",
+              title: "¡Tu Solicitud de Registro ha sido APROBADA!",
+              body: `Hola, el Administrador del Club ha revisado y APROBADO tu solicitud de incorporación en ClubLab.\n\n` +
+                `Ya tienes acceso completo al portal del futbolista de S.D. Almazán. Puedes iniciar sesión normalmente con tu correo y contraseña.`,
+              actionUrl: "/login",
+              actionText: "Iniciar Sesión en ClubLab",
+            });
+          } catch (e) {}
+        }
+        return NextResponse.json({ success: true });
+      }
+      case "reject_registration_request": {
+        const { invitationId } = body;
+        const { data: inv } = await supabaseAdmin
+          .from("player_invitations")
+          .select("*")
+          .eq("id", invitationId)
+          .single();
+
+        if (inv) {
+          await supabaseAdmin
+            .from("player_invitations")
+            .update({ status: "rejected" })
+            .eq("id", invitationId);
+
+          try {
+            const { sendEmailAlert } = await import("@/lib/email/mailer");
+            await sendEmailAlert({
+              to: inv.email,
+              recipientName: inv.metadata?.fullName || "Usuario",
+              title: "Estado de tu Solicitud de Registro",
+              body: `Hola, el Administrador del Club ha revisado tu solicitud de registro y ha determinado no autorizar la vinculación a esta plantilla.`,
+            });
+          } catch (e) {}
+        }
+        return NextResponse.json({ success: true });
+      }
       case "create_org": {
         const { name, slug, adminEmail, adminName } = body;
 
