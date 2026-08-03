@@ -164,7 +164,7 @@ export function SettingsForm({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'team' | 'methodology' | 'video_pack' | 'performance'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'planning' | 'roles' | 'methodology' | 'video_pack' | 'performance'>('profile');
   const [inactiveDaysThreshold, setInactiveDaysThreshold] = useState(21);
   const [overuseWeeklyThreshold, setOveruseWeeklyThreshold] = useState(4);
 
@@ -751,17 +751,30 @@ export function SettingsForm({
             </button>
           )}
           {canSeeTeamSettings && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('team')}
-              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'team'
-                  ? 'border-[var(--corp)] corp-text'
-                  : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              👥 Gestión de Usuarios y Roles
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab('planning')}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'planning'
+                    ? 'border-[var(--corp)] corp-text'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                Planificación y Equipo
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('roles')}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'roles'
+                    ? 'border-[var(--corp)] corp-text'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                Usuarios y Roles
+              </button>
+            </>
           )}
           {canSeeMethodology && (
             <button
@@ -1093,8 +1106,8 @@ export function SettingsForm({
           </div>
         )}
 
-        {/* Tab 3: Planificación y Equipo */}
-        {activeTab === 'team' && canSeeTeamSettings && organizationId && (
+        {/* Tab: Planificación y Equipo */}
+        {activeTab === 'planning' && canSeeTeamSettings && organizationId && (
           <div className="bg-card rounded-lg border border-border p-6 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
               <div className="flex items-center gap-3">
@@ -1350,13 +1363,13 @@ export function SettingsForm({
                 </button>
               </div>
             </form>
+          </div>
+        )}
 
-            {/* Team Staff Roles Management */}
-            {organizationId && (
-              <div className="pt-4 border-t border-white/5">
-                <TeamRolesSettingsTab organizationId={organizationId} />
-              </div>
-            )}
+        {/* Tab: Usuarios y Roles */}
+        {activeTab === 'roles' && canSeeTeamSettings && organizationId && (
+          <div className="bg-card rounded-lg border border-border p-6 space-y-6">
+            <TeamRolesSettingsTab organizationId={organizationId} />
           </div>
         )}
 
