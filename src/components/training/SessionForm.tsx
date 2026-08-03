@@ -534,7 +534,7 @@ export function SessionForm({
       let notes = "";
 
       if (activeInjury) {
-        const phase = activeInjury.recovery_phase;
+        const phase = (activeInjury as any).recovery_phase;
         if (phase === 3) {
           status = "partial";
           notes = `Parcial (Tareas con grupo): ${activeInjury.body_part || "Muscular"}`;
@@ -565,7 +565,7 @@ export function SessionForm({
           let notes = "";
 
           if (activeInjury) {
-            const phase = activeInjury.recovery_phase;
+            const phase = (activeInjury as any).recovery_phase;
             if (phase === 3) {
               status = "partial";
               notes = `Parcial (Tareas con grupo): ${activeInjury.body_part || "Muscular"}`;
