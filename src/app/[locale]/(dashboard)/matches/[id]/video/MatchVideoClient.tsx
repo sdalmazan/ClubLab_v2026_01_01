@@ -197,7 +197,9 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
       });
   }, [match.id]);
 
-  // Sync halves when activeVideo changes
+  // Sync wizard step when activeVideo or videoData loads:
+  // If an edition record already exists (clips, montages, cut_bank or finalized halves), go directly to Step 3 (Montaje & Cortes).
+  // Otherwise, start at Step 1.
   useEffect(() => {
     if (activeVideo) {
       if (activeVideo.halves && activeVideo.halves.length >= 2) {
@@ -205,12 +207,25 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
         setT1End(activeVideo.halves[0][1]);
         setT2Start(activeVideo.halves[1][0]);
         setT2End(activeVideo.halves[1][1]);
-        setWizardStep(2); // If halves already configured, go to Step 2
+      }
+
+      const hasClips = Boolean(activeVideo.clips && activeVideo.clips.length > 0);
+      const hasMontages = Boolean(videoData.montages && videoData.montages.length > 0);
+      const hasCutBank = Boolean(videoData.cut_bank && videoData.cut_bank.length > 0);
+      const isFinalized = Boolean(activeVideo.isFinalized);
+
+      if (hasClips || hasMontages || hasCutBank || isFinalized) {
+        setWizardStep(3);
+        if (hasMontages && videoData.montages && videoData.montages.length > 0 && !activeMontageId) {
+          setActiveMontageId(videoData.montages[0].id);
+        }
       } else {
         setWizardStep(1);
       }
+    } else {
+      setWizardStep(1);
     }
-  }, [activeVideo]);
+  }, [activeVideo, videoData.montages, videoData.cut_bank]);
 
   // Auto-name video based on match teams
   useEffect(() => {

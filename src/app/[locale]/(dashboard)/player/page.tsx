@@ -429,7 +429,7 @@ export default function PlayerTodayPage() {
             {summary.completionPercentage}% completado
           </span>
         </div>
-        <ProfileCompletionBar percentage={summary.completionPercentage} />
+        <ProfileCompletionBar percentage={summary.completionPercentage} missingFields={summary.missingFields} />
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={() => setAddInjuryOpen(true)}
