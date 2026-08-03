@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Check, User, Dumbbell, Activity, Calendar, Globe, ShieldCheck, Hash } from "lucide-react";
+import { X, Check, User, Dumbbell, Activity, Calendar, Globe, ShieldCheck, Hash, MailCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface PlayerProfileEditModalProps {
