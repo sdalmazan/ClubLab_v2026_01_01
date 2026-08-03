@@ -99,6 +99,22 @@ export async function getSquadPlayers(
       )
     `)
     .order("last_name", { ascending: true });
+  // Auto-enable includeInvisible if current user is super_admin
+  if (!includeInvisible) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: orgRole } = await supabase
+          .from("user_organization_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (orgRole?.role === "super_admin") {
+          includeInvisible = true;
+        }
+      }
+    } catch (e) {}
+  }
 
   if (!includeInvisible) {
     query = query.or("is_invisible.eq.false,is_invisible.is.null");

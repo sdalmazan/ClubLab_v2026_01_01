@@ -47,10 +47,11 @@ interface VideoPlayerProps {
   onDrawColorChange?: (color: string) => void;
   onSelectedIdChange?: (id: string | null) => void;
   stepSize?: number;
+  largeStepSize?: number;
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
-  ({ url, onTimeUpdate, onDurationChange, annotations = [], onAnnotationsChange, readOnly = false, onStartCut, onStopCut, onRetroactiveCut, isCutting = false, cutStart = null, isBoardActive: isBoardActiveProp, onBoardActiveChange, onPlayStateChange, onToggleManualForm, activeTool: activeToolProp, onActiveToolChange, hideControls = false, hideToolbar = false, drawColor: drawColorProp, onDrawColorChange, onSelectedIdChange, stepSize = 1.0 }, ref) => {
+  ({ url, onTimeUpdate, onDurationChange, annotations = [], onAnnotationsChange, readOnly = false, onStartCut, onStopCut, onRetroactiveCut, isCutting = false, cutStart = null, isBoardActive: isBoardActiveProp, onBoardActiveChange, onPlayStateChange, onToggleManualForm, activeTool: activeToolProp, onActiveToolChange, hideControls = false, hideToolbar = false, drawColor: drawColorProp, onDrawColorChange, onSelectedIdChange, stepSize = 1.0, largeStepSize = 5.0 }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1174,13 +1175,15 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
           e.preventDefault();
           const video = videoRef.current;
           if (video) {
-            video.currentTime = Math.min(video.duration || 0, video.currentTime + 5.0);
+            const step = largeStepSize || 5.0;
+            video.currentTime = Math.min(video.duration || 0, video.currentTime + step);
           }
         } else if (e.code === "ArrowDown" || e.key === "ArrowDown") {
           e.preventDefault();
           const video = videoRef.current;
           if (video) {
-            video.currentTime = Math.max(0, video.currentTime - 5.0);
+            const step = largeStepSize || 5.0;
+            video.currentTime = Math.max(0, video.currentTime - step);
           }
         }
 

@@ -370,6 +370,7 @@ export default function PlayerTodayPage() {
         message={summary.statusMessage}
         clubLogoUrl={clubInfo?.logoUrl}
         clubName={clubInfo?.name}
+        onOpenSettings={() => setEditProfileOpen(true)}
       />
 
       {/* Direct Check-in Action Bar (Always openable for testing & completion) */}

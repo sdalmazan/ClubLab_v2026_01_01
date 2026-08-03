@@ -15,27 +15,29 @@ export default function InjuriesPage() {
         setLoading(true);
         const supabase = createClient();
 
-        // Load real user role
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        // Fetch auth user and players in parallel to eliminate page transition lag
+        const [userRes, playersRes] = await Promise.all([
+          supabase.auth.getUser(),
+          fetch("/api/players")
+        ]);
+
+        if (userRes.data?.user) {
           const { data: orgRole } = await supabase
             .from("user_organization_roles")
             .select("role")
-            .eq("user_id", user.id)
+            .eq("user_id", userRes.data.user.id)
             .maybeSingle();
           if (orgRole?.role) {
             setUserRole(orgRole.role);
           }
         }
 
-        // Load squad players
-        const res = await fetch("/api/players");
-        if (res.ok) {
-          const data = await res.json();
+        if (playersRes.ok) {
+          const data = await playersRes.json();
           setPlayers(data.players || []);
         }
       } catch (err) {
-        console.error(err);
+        console.error("Error loading injuries page:", err);
       } finally {
         setLoading(false);
       }

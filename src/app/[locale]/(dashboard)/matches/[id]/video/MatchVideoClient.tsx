@@ -149,6 +149,8 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
   // Video duration for timeline markers
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
+  const [largeStepSize, setLargeStepSize] = useState<number>(10); // 5s, 10s, 15s, 30s
+  const [step1SubStep, setStep1SubStep] = useState<"t1_start" | "t1_end" | "t2_start" | "t2_end">("t1_start");
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // Whiteboard Active state & Controls
@@ -305,7 +307,7 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
     }
   }, [presenting, activeMontageId, currentPresentIndex, activeVideo]);
 
-  // PASO 1 HANDLERS: Semiautomatic Half Calculations
+  // PASO 1 HANDLERS: Semiautomatic Half Calculations with Step-by-Step Guided Auto-Jumps
   const handleSetT1Start = (seconds: number) => {
     const s = Math.max(0, seconds);
     setT1Start(s);
@@ -317,10 +319,69 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
   const handleSetT1End = (seconds: number) => {
     const s = Math.max(t1Start + 60, seconds);
     setT1End(s);
-    // Chain update subsequent points automatically
     const newT2Start = s + 900; // +15 min rest
     setT2Start(newT2Start);
     setT2End(newT2Start + 2700); // +45 min
+  };
+
+  const handleMarkT1Start = (seconds?: number) => {
+    const s = Math.max(0, seconds !== undefined ? seconds : currentTime);
+    setT1Start(s);
+    const newT1End = s + 2700; // +45 min
+    const newT2Start = newT1End + 900; // +15 min rest
+    const newT2End = newT2Start + 2700; // +45 min
+    setT1End(newT1End);
+    setT2Start(newT2Start);
+    setT2End(newT2End);
+
+    // Auto-jump to estimated end of 1st half for confirmation!
+    setStep1SubStep("t1_end");
+    setTimeout(() => {
+      if (playerRef.current) {
+        playerRef.current.seekTo(newT1End, true);
+        setCurrentTime(newT1End);
+      }
+    }, 150);
+  };
+
+  const handleConfirmT1End = (seconds?: number) => {
+    const finalT1End = seconds !== undefined ? seconds : (currentTime > t1Start ? currentTime : t1End);
+    setT1End(finalT1End);
+    const newT2Start = finalT1End + 900; // +15 min rest
+    const newT2End = newT2Start + 2700; // +45 min
+    setT2Start(newT2Start);
+    setT2End(newT2End);
+
+    // Auto-jump to estimated start of 2nd half!
+    setStep1SubStep("t2_start");
+    setTimeout(() => {
+      if (playerRef.current) {
+        playerRef.current.seekTo(newT2Start, true);
+        setCurrentTime(newT2Start);
+      }
+    }, 150);
+  };
+
+  const handleConfirmT2Start = (seconds?: number) => {
+    const finalT2Start = seconds !== undefined ? seconds : (currentTime > t1End ? currentTime : t2Start);
+    setT2Start(finalT2Start);
+    const newT2End = finalT2Start + 2700; // +45 min
+    setT2End(newT2End);
+
+    // Auto-jump to estimated end of 2nd half!
+    setStep1SubStep("t2_end");
+    setTimeout(() => {
+      if (playerRef.current) {
+        playerRef.current.seekTo(newT2End, true);
+        setCurrentTime(newT2End);
+      }
+    }, 150);
+  };
+
+  const handleConfirmT2End = (seconds?: number) => {
+    const finalT2End = seconds !== undefined ? seconds : (currentTime > t2Start ? currentTime : t2End);
+    setT2End(finalT2End);
+    handleConfirmHalves();
   };
 
   const handleConfirmHalves = () => {
@@ -1028,16 +1089,208 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
       {/* STEP 1 VIEW: Semiautomatic Half Definition */}
       {wizardStep === 1 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-fade-in">
-          {/* Main Player Preview */}
+          {/* Main Player Preview & Controls */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Guided Calibrator Banner */}
+            <div className="bg-indigo-950/60 border border-indigo-500/40 rounded-2xl p-4.5 space-y-3 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="h-7 w-7 rounded-full bg-indigo-600 text-white font-mono text-xs font-bold flex items-center justify-center shrink-0 shadow">
+                    {step1SubStep === "t1_start" ? "1A" : step1SubStep === "t1_end" ? "1B" : step1SubStep === "t2_start" ? "1C" : "1D"}
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-white tracking-wider flex items-center gap-2">
+                      {step1SubStep === "t1_start" && "Fase 1A: Pitido Inicial (1ª Parte)"}
+                      {step1SubStep === "t1_end" && "Fase 1B: Calibración Final 1ª Parte (Minuto 45)"}
+                      {step1SubStep === "t2_start" && "Fase 1C: Calibración Inicio 2ª Parte (+15 min Descanso)"}
+                      {step1SubStep === "t2_end" && "Fase 1D: Calibración Pitido Final (+45 min)"}
+                    </h4>
+                    <p className="text-[11px] text-slate-300 leading-relaxed mt-0.5">
+                      {step1SubStep === "t1_start" && "Busca el momento del pitido inicial de la 1ª parte y haz clic en 'Marcar Inicio 1ª Parte'. El reproductor saltará automáticamente al minuto 45 estimado."}
+                      {step1SubStep === "t1_end" && "📍 El vídeo ha saltado al final estimado de la 1ª Parte. Muévete libremente si hubo tiempo de descuento y pulsa 'Confirmar Final 1ª Parte'."}
+                      {step1SubStep === "t2_start" && "📍 El vídeo ha saltado al Inicio estimado de la 2ª Parte tras el descanso. Ajusta si duró más o menos y pulsa 'Confirmar Inicio 2ª Parte'."}
+                      {step1SubStep === "t2_end" && "📍 El vídeo ha saltado al Final estimado del Partido. Revisa el pitido final y confirma para guardar las partes e ir al Paso 2."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Primary Action Button according to current sub-step */}
+                <div className="shrink-0 w-full sm:w-auto">
+                  {step1SubStep === "t1_start" && (
+                    <button
+                      type="button"
+                      onClick={() => handleMarkT1Start(currentTime)}
+                      className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-4 py-2.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Marcar Inicio 1ª Parte</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
+                  {step1SubStep === "t1_end" && (
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmT1End()}
+                      className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase px-4 py-2.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Confirmar Final 1ª Parte</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
+                  {step1SubStep === "t2_start" && (
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmT2Start()}
+                      className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase px-4 py-2.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Confirmar Inicio 2ª Parte</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
+                  {step1SubStep === "t2_end" && (
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmT2End()}
+                      className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase px-4 py-2.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Confirmar Partes y Pasar al Paso 2</span>
+                      <Check className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Main Player Preview */}
             <div className="relative bg-slate-950 border border-white/10 rounded-2xl overflow-hidden shadow-xl p-2 min-h-[360px]">
               <VideoPlayer
                 ref={playerRef}
                 url={activeVideoUrl}
                 onTimeUpdate={(t) => setCurrentTime(t)}
                 onDurationChange={(d) => setVideoDuration(d)}
+                largeStepSize={largeStepSize}
                 readOnly
               />
+            </div>
+
+            {/* Interactive Timeline Bar & Integrated Jump Controls for Step 1 */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-4 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between text-xs text-slate-350 font-semibold">
+                <span>Línea Temporal Completa del Vídeo (Navegación con Ratón)</span>
+                <span className="font-mono text-primary font-bold">{secondsToMMSS(currentTime)} / {secondsToMMSS(videoDuration)}</span>
+              </div>
+
+              <div 
+                ref={timelineRef}
+                onClick={handleTimelineClick}
+                className="relative h-6 bg-slate-950 border border-white/10 rounded-xl cursor-pointer overflow-hidden select-none shadow-inner"
+              >
+                {/* 1st Half region highlight */}
+                <div 
+                  className="absolute top-0 bottom-0 bg-indigo-500/25 border-x border-indigo-500/40"
+                  style={{ left: `${(t1Start / (videoDuration || 1)) * 100}%`, width: `${((t1End - t1Start) / (videoDuration || 1)) * 100}%` }}
+                  title="1ª Parte"
+                />
+
+                {/* Rest Gap marker */}
+                <div 
+                  className="absolute top-0 bottom-0 bg-amber-500/20 border-r border-amber-500/40 flex items-center justify-center"
+                  style={{ left: `${(t1End / (videoDuration || 1)) * 100}%`, width: `${((t2Start - t1End) / (videoDuration || 1)) * 100}%` }}
+                  title="Descanso"
+                >
+                  <span className="text-[8px] font-black uppercase text-amber-400">Descanso</span>
+                </div>
+
+                {/* 2nd Half region highlight */}
+                <div 
+                  className="absolute top-0 bottom-0 bg-indigo-500/25 border-x border-indigo-500/40"
+                  style={{ left: `${(t2Start / (videoDuration || 1)) * 100}%`, width: `${((t2End - t2Start) / (videoDuration || 1)) * 100}%` }}
+                  title="2ª Parte"
+                />
+
+                {/* Playhead bar */}
+                <div 
+                  className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-20"
+                  style={{ left: `${(currentTime / (videoDuration || 1)) * 100}%` }}
+                />
+              </div>
+
+              {/* Integrated Control Rail with Streamlined -10s, -1s, Play, +1s, +10s Buttons & Inline Salto Selector */}
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1">
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.max(0, currentTime - largeStepSize);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-extrabold cursor-pointer"
+                    title={`Retroceder ${largeStepSize}s (Flecha Abajo)`}
+                  >
+                    -{largeStepSize}s
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.max(0, currentTime - 1.0);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer"
+                    title="Retroceder 1s (Flecha Izquierda)"
+                  >
+                    -1s
+                  </button>
+                  <button 
+                    onClick={() => playerRef.current?.togglePlay()}
+                    className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-slate-950 rounded-xl font-black text-[10px] uppercase transition-all cursor-pointer shadow"
+                  >
+                    Play/Pausa
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.min(videoDuration || 0, currentTime + 1.0);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer"
+                    title="Avanzar 1s (Flecha Derecha)"
+                  >
+                    +1s
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.min(videoDuration || 0, currentTime + largeStepSize);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-extrabold cursor-pointer"
+                    title={`Avanzar ${largeStepSize}s (Flecha Arriba)`}
+                  >
+                    +{largeStepSize}s
+                  </button>
+                </div>
+
+                {/* Integrated Jump Selector */}
+                <div className="flex items-center gap-1.5 bg-slate-950/90 border border-white/10 px-3 py-1 rounded-xl">
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Salto Grande:</span>
+                  {[5, 10, 15, 30].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setLargeStepSize(s)}
+                      className={`px-2 py-0.5 rounded-lg text-[9px] font-extrabold transition-all cursor-pointer ${
+                        largeStepSize === s
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-slate-900 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {s}s
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Semiautomatic Half Control Rail */}
@@ -1045,14 +1298,14 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-primary" />
-                  <h3 className="text-xs font-black uppercase text-white tracking-wider">Ajuste Semiautómatico de Partes</h3>
+                  <h3 className="text-xs font-black uppercase text-white tracking-wider">Marcas de Tiempo de las Partes</h3>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleSetT1Start(currentTime)}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow transition-all"
+                  onClick={() => handleMarkT1Start(currentTime)}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow transition-all cursor-pointer"
                 >
-                  ⏱ Marcar posición actual como Inicio 1ª Parte
+                  ⏱ Recalcular desde posición actual
                 </button>
               </div>
 
@@ -1159,6 +1412,7 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                 url={activeVideoUrl}
                 onTimeUpdate={(t) => setCurrentTime(t)}
                 onDurationChange={(d) => setVideoDuration(d)}
+                largeStepSize={largeStepSize}
                 isBoardActive={isBoardActive}
                 onBoardActiveChange={(active) => setIsBoardActive(active)}
                 activeTool={activeTool}
@@ -1309,21 +1563,93 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                 />
               </div>
 
-              {/* Keyboard shortcuts reminder rail */}
-              <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5">
-                <div className="flex items-center gap-3">
-                  <span>⌨️ <strong className="text-white">Espacio</strong>: Play/Pausa</span>
-                  <span><strong className="text-white">Flecha Izq/Der</strong>: Avanzar/Retroceder 1s</span>
-                  <span><strong className="text-white">Flecha Arriba/Abajo</strong>: Salto 5s</span>
+              {/* Integrated Control Rail for Step 2 */}
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1">
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.max(0, currentTime - largeStepSize);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-extrabold cursor-pointer"
+                    title={`Retroceder ${largeStepSize}s (Flecha Abajo)`}
+                  >
+                    -{largeStepSize}s
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.max(0, currentTime - 1.0);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer"
+                    title="Retroceder 1s (Flecha Izquierda)"
+                  >
+                    -1s
+                  </button>
+                  <button 
+                    onClick={() => playerRef.current?.togglePlay()}
+                    className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-slate-950 rounded-xl font-black text-[10px] uppercase transition-all cursor-pointer shadow"
+                  >
+                    Play/Pausa
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.min(videoDuration || 0, currentTime + 1.0);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer"
+                    title="Avanzar 1s (Flecha Derecha)"
+                  >
+                    +1s
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (playerRef.current) {
+                        const t = Math.min(videoDuration || 0, currentTime + largeStepSize);
+                        playerRef.current.seekTo(t, true);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-extrabold cursor-pointer"
+                    title={`Avanzar ${largeStepSize}s (Flecha Arriba)`}
+                  >
+                    +{largeStepSize}s
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setWizardStep(3)}
-                  className="text-primary hover:underline font-bold uppercase text-[10px] flex items-center gap-1"
-                >
-                  <span>Ir al Paso 3: Montaje Final</span>
-                  <ArrowRight className="h-3 w-3" />
-                </button>
+
+                <div className="flex items-center gap-2">
+                  {/* Integrated Jump Selector */}
+                  <div className="flex items-center gap-1.5 bg-slate-950/90 border border-white/10 px-3 py-1 rounded-xl">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Salto Grande:</span>
+                    {[5, 10, 15, 30].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setLargeStepSize(s)}
+                        className={`px-2 py-0.5 rounded-lg text-[9px] font-extrabold transition-all cursor-pointer ${
+                          largeStepSize === s
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "bg-slate-900 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {s}s
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep(3)}
+                    className="text-primary hover:underline font-bold uppercase text-[10px] flex items-center gap-1 ml-2"
+                  >
+                    <span>Paso 3</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                </div>
               </div>
             </div>
 

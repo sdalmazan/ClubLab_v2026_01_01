@@ -10,7 +10,7 @@ export function PlayerBottomNav() {
 
   const navItems = [
     {
-      label: "Hoy",
+      label: "Inicio",
       href: "/player",
       icon: Sparkles,
       isActive: pathname === "/player" || pathname?.endsWith("/player"),

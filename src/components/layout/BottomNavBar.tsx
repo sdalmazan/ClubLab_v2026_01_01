@@ -333,6 +333,11 @@ function MoreSheet({ user, isOpen, onClose, t, isActive }: MoreSheetProps) {
 
 export function BottomNavBar({ user }: BottomNavBarProps) {
   const pathname = usePathname();
+
+  // Do not render staff BottomNavBar when on player portal routes
+  if (pathname?.startsWith("/player")) {
+    return null;
+  }
   const t = useTranslations("nav");
   const [openTabId, setOpenTabId] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);

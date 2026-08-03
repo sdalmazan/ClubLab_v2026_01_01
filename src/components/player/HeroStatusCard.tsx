@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { CheckCircle, AlertTriangle, RefreshCw, Zap, LogOut } from "lucide-react";
+import { CheckCircle, AlertTriangle, RefreshCw, Zap, LogOut, Settings } from "lucide-react";
 import { ClubBranding } from "@/components/ui/ClubBranding";
 
 interface HeroStatusCardProps {
@@ -12,6 +12,7 @@ interface HeroStatusCardProps {
   message: string;
   clubLogoUrl?: string | null;
   clubName?: string | null;
+  onOpenSettings?: () => void;
 }
 
 export function HeroStatusCard({
@@ -20,6 +21,7 @@ export function HeroStatusCard({
   message,
   clubLogoUrl,
   clubName,
+  onOpenSettings,
 }: HeroStatusCardProps) {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -96,6 +98,16 @@ export function HeroStatusCard({
               <Icon className="w-4 h-4 animate-pulse" />
               <span>{config.label}</span>
             </div>
+
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="p-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Ajustes y Datos del Perfil"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            )}
 
             <button
               onClick={handleLogout}
