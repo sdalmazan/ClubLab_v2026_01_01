@@ -172,6 +172,22 @@ export function PlayerProfileEditModal({
               </div>
             ) : (
               <>
+                {/* Nombre Deportivo (Prioritario en toda la app) */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-emerald-400 uppercase flex items-center justify-between">
+                    <span>Nombre Deportivo / Apodo Principal</span>
+                    <span className="text-[9px] text-slate-400 lowercase font-normal">ej. Marcos Isla, Isco, Pedri</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={sportingName}
+                    onChange={(e) => setSportingName(e.target.value)}
+                    placeholder="Ej. Marcos Isla"
+                    className="w-full p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-extrabold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                  />
+                  <p className="text-[10px] text-slate-400">Este es el nombre con el que aparecerás en listados, campogramas y pizarras tácticas.</p>
+                </div>
+
                 {/* Nombres */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">

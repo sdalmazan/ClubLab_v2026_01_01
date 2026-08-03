@@ -98,10 +98,15 @@ const SPOTS = [
 
 const FORMATION_SPOTS: Record<string, string[]> = {
   "4-3-3": ["gk", "d1", "d2", "d4", "d5", "dm3", "m2", "m4", "f1", "f3", "f5"],
+  "4-2-3-1": ["gk", "d1", "d2", "d4", "d5", "dm2", "dm4", "m1", "am3", "m5", "f3"],
   "4-4-2": ["gk", "d1", "d2", "d4", "d5", "m1", "m2", "m4", "m5", "f2", "f4"],
   "3-5-2": ["gk", "d2", "d3", "d4", "m1", "dm2", "dm4", "m5", "am3", "f2", "f4"],
   "3-4-3": ["gk", "d2", "d3", "d4", "m1", "m2", "m4", "m5", "f1", "f3", "f5"],
   "5-3-2": ["gk", "d1", "d2", "d3", "d4", "d5", "m2", "m3", "m4", "f2", "f4"],
+  "4-1-4-1": ["gk", "d1", "d2", "d4", "d5", "dm3", "m1", "m2", "m4", "m5", "f3"],
+  "4-5-1": ["gk", "d1", "d2", "d4", "d5", "dm3", "m1", "m2", "m4", "m5", "f3"],
+  "5-4-1": ["gk", "d1", "d2", "d3", "d4", "d5", "m1", "m2", "m4", "m5", "f3"],
+  "3-6-1": ["gk", "d2", "d3", "d4", "dm2", "dm4", "m1", "m5", "am2", "am4", "f3"],
 };
 
 const JerseyIcon = ({
@@ -795,11 +800,15 @@ export function MatchGamePlan({
                   onChange={(e) => handleFieldChange("formation", e.target.value)}
                   className="rounded-lg bg-slate-900 border border-white/10 px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500/50 cursor-pointer"
                 >
-                  <option value="4-3-3">4-3-3 (Pivote)</option>
+                  <option value="4-2-3-1">4-2-3-1 (Doble Pivote y Mediapunta)</option>
+                  <option value="4-3-3">4-3-3 (Pivote Único)</option>
                   <option value="4-4-2">4-4-2 (Clásico)</option>
                   <option value="3-5-2">3-5-2 (Carrileros)</option>
                   <option value="3-4-3">3-4-3 (Ofensivo)</option>
                   <option value="5-3-2">5-3-2 (Muro)</option>
+                  <option value="4-1-4-1">4-1-4-1 (Bloque)</option>
+                  <option value="4-5-1">4-5-1 (Contención)</option>
+                  <option value="5-4-1">5-4-1 (Defensivo)</option>
                 </select>
               </div>
             ) : (

@@ -423,11 +423,11 @@ export function SquadWorkspace({
                               </div>
                             )}
                             <div>
-                              <span className="font-semibold text-foreground group-hover/link:text-primary transition-colors block">
-                                {fullName}
+                              <span className="font-bold text-foreground group-hover/link:text-primary transition-colors block">
+                                {player.sporting_name || fullName}
                               </span>
                               {player.sporting_name && (
-                                <span className="text-[11px] text-muted-foreground">{player.sporting_name}</span>
+                                <span className="text-[11px] text-muted-foreground">{fullName}</span>
                               )}
                             </div>
                           </Link>
