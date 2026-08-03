@@ -587,11 +587,12 @@ export function PhysioWorkspace({
       </PageHeader>
 
       {/* ── QUICK SUMMARY BAR OF ACTIVE INJURIES (AT-A-GLANCE) ── */}
-      <div className="bg-slate-900 border border-white/10 rounded-xl p-4 space-y-3 text-white shadow-xl">
+      {/* ── QUICK SUMMARY BAR OF ACTIVE INJURIES (AT-A-GLANCE) ── */}
+      <div className="bg-slate-900/60 border border-white/[0.08] rounded-2xl p-4 space-y-3 text-white shadow-lg backdrop-blur-md">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <HeartPulse className="size-4 text-destructive" />
-            <span className="text-xs font-extrabold uppercase tracking-wider">
+            <HeartPulse className="size-4 text-rose-400/90" />
+            <span className="text-xs font-black uppercase tracking-wider text-slate-200">
               Lesiones Activas & Fases RTP ({injuries.length})
             </span>
           </div>
@@ -607,36 +608,35 @@ export function PhysioWorkspace({
               return (
                 <div
                   key={inj.id}
-                  className="flex flex-col justify-between p-3 rounded-lg bg-white/5 border border-white/10 hover:border-white/20 min-w-[240px] text-left transition-all group shrink-0 space-y-2"
+                  className="flex flex-col justify-between p-3.5 rounded-xl bg-slate-950/60 border border-white/[0.07] hover:border-white/20 min-w-[240px] text-left transition-all group shrink-0 space-y-2.5"
                 >
                   <div className="flex items-start justify-between gap-1">
                     <div>
                       <button
                         type="button"
                         onClick={() => setHistoryPlayer({ id: inj.player_id, name: inj.player_name })}
-                        className="text-xs font-bold text-white hover:text-primary transition-colors text-left"
+                        className="text-xs font-bold text-white hover:text-slate-300 transition-colors text-left"
                       >
                         {inj.player_name}
                       </button>
-                      <span className="text-[11px] text-destructive font-semibold truncate block">
+                      <span className="text-[11px] text-rose-400 font-medium truncate block mt-0.5">
                         {inj.body_part}
                       </span>
                     </div>
 
-                    {/* Prominent Button to Attach Medical Report to THIS Injury */}
                     <button
                       type="button"
                       onClick={() => setReportingInjury(inj)}
-                      className="px-2 py-1 rounded bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 text-[10px] font-bold cursor-pointer flex items-center gap-1 shrink-0"
-                      title="Adjuntar informe médico en PDF/Imagen/Texto a esta lesión"
+                      className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 text-[10px] font-bold cursor-pointer flex items-center gap-1 shrink-0 transition-all"
+                      title="Adjuntar informe médico"
                     >
                       <FilePlus className="size-3" />
                       <span>+ Informe</span>
                     </button>
                   </div>
 
-                  <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-                    <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded border uppercase", phaseInfo.badge)}>
+                  <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
+                    <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded uppercase border-0", phaseInfo.badge)}>
                       Fase {inj.recovery_phase}
                     </span>
                     <span className="text-[10px] text-slate-400 font-mono">
@@ -650,19 +650,19 @@ export function PhysioWorkspace({
         )}
       </div>
 
-      {/* ── PHYSIO NAVIGATION TABS (STRICTLY 2 TABS FOR PHYSIO) ── */}
-      <div className="flex bg-slate-900 border border-white/10 rounded-lg p-1 gap-1 flex-wrap">
+      {/* ── PHYSIO NAVIGATION TABS (MINIMALIST OBSIDIAN SWITCHER) ── */}
+      <div className="flex bg-slate-950 border border-white/[0.08] rounded-2xl p-1 gap-1">
         <button
           type="button"
           onClick={() => setActiveTab("appointments")}
           className={cn(
-            "flex-1 min-w-[160px] rounded-md px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2",
+            "flex-1 rounded-xl px-3 py-2.5 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2",
             activeTab === "appointments"
-              ? "bg-primary text-primary-foreground shadow"
-              : "text-slate-400 hover:text-white"
+              ? "bg-slate-800 text-white shadow-md border border-white/10"
+              : "text-slate-400 hover:text-slate-200"
           )}
         >
-          <Clock className="size-4" />
+          <Clock className="size-3.5" />
           <span>Consulta y Citas del Día ({appointments.length})</span>
         </button>
 
@@ -670,13 +670,13 @@ export function PhysioWorkspace({
           type="button"
           onClick={() => setActiveTab("rtp_board")}
           className={cn(
-            "flex-1 min-w-[160px] rounded-md px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2",
+            "flex-1 rounded-xl px-3 py-2.5 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2",
             activeTab === "rtp_board"
-              ? "bg-primary text-primary-foreground shadow"
-              : "text-slate-400 hover:text-white"
+              ? "bg-slate-800 text-white shadow-md border border-white/10"
+              : "text-slate-400 hover:text-slate-200"
           )}
         >
-          <HeartPulse className="size-4 text-destructive" />
+          <HeartPulse className="size-3.5 text-slate-400" />
           <span>Pipeline Lesiones (RTP 4 Fases) ({injuries.length})</span>
         </button>
       </div>

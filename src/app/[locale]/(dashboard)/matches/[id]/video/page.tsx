@@ -109,12 +109,20 @@ export default async function MatchVideoPage({ params }: Props) {
         <div className="flex items-center gap-3.5 text-xs text-slate-400 bg-slate-900/60 border border-white/5 px-4 py-2.5 rounded-2xl">
           <div className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-primary" />
-            <span>{new Date(match.match_date).toLocaleDateString("es-ES")}</span>
+            <span>
+              {(() => {
+                const matchDateRaw = match.match_date || match.date || match.created_at;
+                if (matchDateRaw && !isNaN(new Date(matchDateRaw).getTime()) && new Date(matchDateRaw).getFullYear() > 1970) {
+                  return new Date(matchDateRaw).toLocaleDateString("es-ES");
+                }
+                return typeof matchDateRaw === "string" && matchDateRaw ? matchDateRaw : "Jornada 34";
+              })()}
+            </span>
           </div>
           <div className="h-3 w-px bg-white/10" />
           <div className="flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5 text-slate-500" />
-            <span className="truncate max-w-[120px]">{match.venue || "La Arboleda"}</span>
+            <span className="truncate max-w-[120px]">{match.venue || "C.M. La Arboleda"}</span>
           </div>
         </div>
       </div>

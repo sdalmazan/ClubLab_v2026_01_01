@@ -279,11 +279,13 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
             const hasCutBank = Boolean(loadedData.cut_bank && loadedData.cut_bank.length > 0);
             const isFinalized = Boolean(activeVid.isFinalized);
 
-            if (hasClips || hasMontages || hasCutBank || isFinalized) {
+            if (hasClips || hasMontages || hasCutBank) {
               setWizardStep(3);
               if (hasMontages && loadedData.montages && loadedData.montages.length > 0) {
                 setActiveMontageId(loadedData.montages[0].id);
               }
+            } else if (isFinalized) {
+              setWizardStep(2);
             } else {
               setWizardStep(1);
             }
@@ -297,6 +299,16 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
         setLoading(false);
       });
   }, [match.id, activeType]);
+
+  // Always restore saved half timestamps when activeVideo is loaded or switched
+  useEffect(() => {
+    if (activeVideo?.halves && activeVideo.halves.length >= 2) {
+      setT1Start(activeVideo.halves[0][0]);
+      setT1End(activeVideo.halves[0][1]);
+      setT2Start(activeVideo.halves[1][0]);
+      setT2End(activeVideo.halves[1][1]);
+    }
+  }, [activeVideo]);
 
   // Step 2 Clean Match playback watcher: auto-skip halftime rest & dead zones
   useEffect(() => {
@@ -1553,89 +1565,7 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
               />
             </div>
 
-            {/* Premium Integrated Editing Toolbar */}
-            <div className="bg-slate-950/90 border border-indigo-500/20 backdrop-blur-2xl p-3.5 rounded-2xl shadow-2xl space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {/* Draw on Whiteboard */}
-                  <button
-                    onClick={() => setIsBoardActive(!isBoardActive)}
-                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all cursor-pointer shadow-lg ${
-                      isBoardActive 
-                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white border border-indigo-400/40 ring-2 ring-indigo-500/40 shadow-indigo-500/30" 
-                        : "bg-slate-900/90 border border-white/10 text-slate-200 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    <span className="text-sm">✏️</span>
-                    <span>{isBoardActive ? "Cerrar Pizarra" : "Dibujar en Pizarra"}</span>
-                  </button>
 
-                  {/* Iniciar / Parar Corte */}
-                  <button
-                    onClick={() => {
-                      if (isCutting) {
-                        handleStopCut();
-                      } else {
-                        handleStartCut();
-                      }
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 transition-all cursor-pointer shadow-lg ${
-                      isCutting
-                        ? "bg-gradient-to-r from-rose-600 to-red-600 text-white animate-pulse shadow-rose-500/40 border border-rose-400"
-                        : "bg-slate-900/90 border border-rose-500/30 text-rose-300 hover:bg-rose-950/40 hover:text-white"
-                    }`}
-                  >
-                    <Scissors className="h-4 w-4" />
-                    <span>{isCutting ? "⏹ Parar Corte" : "✂️ Iniciar Corte"}</span>
-                  </button>
-
-                  {/* Freeze Frame Button (Congelar 3s por defecto) */}
-                  <div className="flex items-center gap-1.5 bg-slate-900/90 border border-amber-500/30 px-3 py-1.5 rounded-xl shadow-lg">
-                    <button
-                      onClick={handleAddFreezeFrame}
-                      className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer"
-                      title="Congelar pantalla actual durante X segundos"
-                    >
-                      <span>⏸ Congelar Pantalla</span>
-                    </button>
-                    <select
-                      value={freezeSeconds}
-                      onChange={(e) => setFreezeSeconds(Number(e.target.value))}
-                      className="bg-slate-950 border border-white/10 text-amber-300 font-extrabold text-[11px] rounded-lg px-2 py-0.5 focus:outline-none cursor-pointer"
-                    >
-                      <option value={2}>2s</option>
-                      <option value={3}>3s (Defecto)</option>
-                      <option value={5}>5s</option>
-                      <option value={10}>10s</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Selected Clip Deletion Bar */}
-                {selectedClipId && (
-                  <div className="flex items-center gap-2 bg-rose-950/90 border border-rose-500/40 px-3 py-1.5 rounded-xl shadow-lg animate-fade-in">
-                    <span className="text-[11px] font-extrabold text-rose-300">
-                      Corte seleccionado: {activeVideo?.clips.find(c => c.id === selectedClipId)?.title || "Recorte"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteClip(selectedClipId)}
-                      className="bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[10px] uppercase px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      <span>Eliminar</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedClipId(null)}
-                      className="text-slate-400 hover:text-white text-[10px] font-bold px-1"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Clean Timeline Bar (100% Active Match Time ONLY) */}
             <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-4 space-y-3 shadow-xl backdrop-blur-xl">
@@ -1743,29 +1673,20 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                 />
               </div>
 
-              {/* Integrated Controls & Navigation Rail with Ultra-Premium Play/Pause */}
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1.5">
-                <div className="flex items-center gap-2">
+              {/* Sleek Integrated Control Rail with Play/Pause, Minimalist Actions (Pizarra, Cortar, Congelar), Jump & Step 3 */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs pt-1.5 border-t border-white/5">
+                {/* Left: Playback Controls */}
+                <div className="flex items-center gap-1.5">
                   <button 
-                    onClick={() => {
-                      if (playerRef.current) {
-                        const t = Math.max(0, currentTime - largeStepSize);
-                        playerRef.current.seekTo(t, true);
-                      }
-                    }}
-                    className="px-3 py-2 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-black cursor-pointer shadow transition-all"
+                    onClick={() => playerRef.current && playerRef.current.seekTo(Math.max(0, currentTime - largeStepSize), true)}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-black cursor-pointer shadow transition-all"
                     title={`Retroceder ${largeStepSize}s (Flecha Abajo)`}
                   >
                     -{largeStepSize}s
                   </button>
                   <button 
-                    onClick={() => {
-                      if (playerRef.current) {
-                        const t = Math.max(0, currentTime - 1.0);
-                        playerRef.current.seekTo(t, true);
-                      }
-                    }}
-                    className="px-3 py-2 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer shadow transition-all"
+                    onClick={() => playerRef.current && playerRef.current.seekTo(Math.max(0, currentTime - 1.0), true)}
+                    className="px-2 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer shadow transition-all"
                     title="Retroceder 1s (Flecha Izquierda)"
                   >
                     -1s
@@ -1774,50 +1695,105 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
                   {/* Ultra-Premium Play/Pause Button */}
                   <button 
                     onClick={() => playerRef.current?.togglePlay()}
-                    className="w-10 h-10 bg-gradient-to-r from-primary to-emerald-400 hover:scale-105 active:scale-95 text-slate-950 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 cursor-pointer font-black transition-all"
+                    className="w-9 h-9 bg-gradient-to-r from-primary to-emerald-400 hover:scale-105 active:scale-95 text-slate-950 rounded-full flex items-center justify-center shadow-md shadow-primary/20 cursor-pointer font-black transition-all mx-0.5"
                     title="Reproducir / Pausar (Espacio)"
                   >
-                    <Play className="h-4 w-4 fill-slate-950 translate-x-[1px]" />
+                    <Play className="h-3.5 w-3.5 fill-slate-950 translate-x-[1px]" />
                   </button>
 
                   <button 
-                    onClick={() => {
-                      if (playerRef.current) {
-                        const t = Math.min(videoDuration || 0, currentTime + 1.0);
-                        playerRef.current.seekTo(t, true);
-                      }
-                    }}
-                    className="px-3 py-2 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer shadow transition-all"
+                    onClick={() => playerRef.current && playerRef.current.seekTo(Math.min(videoDuration || 0, currentTime + 1.0), true)}
+                    className="px-2 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-bold cursor-pointer shadow transition-all"
                     title="Avanzar 1s (Flecha Derecha)"
                   >
                     +1s
                   </button>
                   <button 
-                    onClick={() => {
-                      if (playerRef.current) {
-                        const t = Math.min(videoDuration || 0, currentTime + largeStepSize);
-                        playerRef.current.seekTo(t, true);
-                      }
-                    }}
-                    className="px-3 py-2 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-black cursor-pointer shadow transition-all"
+                    onClick={() => playerRef.current && playerRef.current.seekTo(Math.min(videoDuration || 0, currentTime + largeStepSize), true)}
+                    className="px-2.5 py-1.5 bg-slate-950 border border-white/10 hover:bg-slate-800 text-slate-300 rounded-xl text-[10px] font-black cursor-pointer shadow transition-all"
                     title={`Avanzar ${largeStepSize}s (Flecha Arriba)`}
                   >
                     +{largeStepSize}s
                   </button>
                 </div>
 
-                {/* Integrated Jump Selector & Step 3 Navigation */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 bg-slate-950/90 border border-white/10 px-3 py-1.5 rounded-xl shadow">
-                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">Avanzar (↑/↓):</span>
+                {/* Center: Minimalist Tactical Action Capsules (Pizarra, Cortar, Congelar) */}
+                <div className="flex items-center gap-1.5 bg-slate-950/80 border border-white/10 p-1 rounded-2xl">
+                  <button
+                    onClick={() => setIsBoardActive(!isBoardActive)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                      isBoardActive 
+                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30 ring-1 ring-indigo-400" 
+                        : "text-slate-300 hover:text-white hover:bg-white/5"
+                    }`}
+                    title="Activar Pizarra Táctica de Dibujo"
+                  >
+                    <span>✏️</span>
+                    <span>{isBoardActive ? "Pizarra Activa" : "Pizarra"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => isCutting ? handleStopCut() : handleStartCut()}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
+                      isCutting
+                        ? "bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/30"
+                        : "text-rose-300 hover:text-rose-200 hover:bg-rose-950/30"
+                    }`}
+                    title="Crear un corte de vídeo táctico"
+                  >
+                    <Scissors className="h-3 w-3" />
+                    <span>{isCutting ? "⏹ Parar" : "✂️ Cortar"}</span>
+                  </button>
+
+                  <div className="flex items-center gap-1 pl-1 border-l border-white/10">
+                    <button
+                      onClick={handleAddFreezeFrame}
+                      className="px-2 py-1.5 text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 rounded-xl text-[10px] font-black uppercase flex items-center gap-1 transition-all cursor-pointer"
+                      title="Congelar pantalla actual"
+                    >
+                      <span>⏸ Congelar</span>
+                    </button>
+                    <select
+                      value={freezeSeconds}
+                      onChange={(e) => setFreezeSeconds(Number(e.target.value))}
+                      className="bg-slate-900 border border-white/10 text-amber-300 font-bold text-[9px] rounded-lg px-1 py-0.5 focus:outline-none cursor-pointer"
+                    >
+                      <option value={2}>2s</option>
+                      <option value={3}>3s</option>
+                      <option value={5}>5s</option>
+                      <option value={10}>10s</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Right: Selected Clip Deletion + Jump Selector & Step 3 Navigation */}
+                <div className="flex items-center gap-2">
+                  {selectedClipId && (
+                    <div className="flex items-center gap-1.5 bg-rose-950/90 border border-rose-500/40 px-2.5 py-1 rounded-xl shadow animate-fade-in">
+                      <span className="text-[9px] font-extrabold text-rose-300 truncate max-w-[90px]">
+                        {activeVideo?.clips.find(c => c.id === selectedClipId)?.title || "Corte"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClip(selectedClipId)}
+                        className="bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[9px] uppercase px-2 py-0.5 rounded-lg flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>Borrar</span>
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1 bg-slate-950/90 border border-white/10 px-2 py-1 rounded-xl">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Avanzar:</span>
                     {[5, 10, 15, 30].map(s => (
                       <button
                         key={s}
                         onClick={() => setLargeStepSize(s)}
-                        className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-all cursor-pointer ${
+                        className={`px-1.5 py-0.5 rounded-lg text-[9px] font-black transition-all cursor-pointer ${
                           largeStepSize === s
-                            ? "bg-indigo-600 text-white shadow-md ring-1 ring-indigo-400"
-                            : "bg-slate-900 text-slate-400 hover:text-white"
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-slate-400 hover:text-white"
                         }`}
                       >
                         {s}s
@@ -1827,10 +1803,10 @@ export function MatchVideoClient({ match, players, allMatches, matchEvents = [] 
 
                   <button
                     onClick={() => setWizardStep(3)}
-                    className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-xs uppercase px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                    className="bg-primary hover:bg-primary-hover text-slate-950 font-black text-[10px] uppercase px-3 py-1.5 rounded-xl flex items-center gap-1 shadow transition-all cursor-pointer"
                   >
-                    <span>PASO 3</span>
-                    <ChevronRight className="h-4 w-4 stroke-[3]" />
+                    <span>Paso 3</span>
+                    <ChevronRight className="h-3.5 w-3.5 stroke-[3]" />
                   </button>
                 </div>
               </div>

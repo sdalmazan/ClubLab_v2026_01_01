@@ -1644,57 +1644,57 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
               {[
                 {
                   key: "pointer",
-                  title: "Puntero",
-                  label: "➚"
+                  title: "Seleccionar / Mover",
+                  label: "✋"
                 },
                 {
                   key: "pencil",
-                  title: "Lápiz",
-                  label: "✎"
+                  title: "Lápiz Trazo Libe",
+                  label: "✏️"
                 },
                 {
                   key: "arrow",
-                  title: "Flecha desmarque",
-                  label: "➔"
+                  title: "Flecha Desmarque",
+                  label: "↗️"
                 },
                 {
                   key: "circle",
-                  title: "Círculo",
-                  label: "◯"
+                  title: "Zona Círculo",
+                  label: "⭕"
                 },
                 {
                   key: "spotlight",
-                  title: "Foco",
-                  label: "🔆"
+                  title: "Foco Jugador",
+                  label: "💡"
                 },
                 {
                   key: "link",
-                  title: "Enlace línea",
-                  label: "⤂"
+                  title: "Línea Conexión",
+                  label: "📏"
                 },
                 {
                   key: "offside",
-                  title: "Fuera de Juego",
-                  label: "⚑"
+                  title: "Línea Fuera de Juego",
+                  label: "🚩"
                 },
                 {
                   key: "text",
-                  title: "Texto",
+                  title: "Anotación Texto",
                   label: "💬"
                 },
                 {
                   key: "header",
-                  title: "Cabecera",
-                  label: "📰"
+                  title: "Título / Cabecera",
+                  label: "🏷️"
                 },
                 {
                   key: "sticker",
-                  title: "Sticker",
-                  label: "📍"
+                  title: "Icono / Sticker",
+                  label: "⚽"
                 },
                 {
                   key: "magnifier",
-                  title: "Lupa Zoom",
+                  title: "Lupa Ampliación",
                   label: "🔍"
                 },
               ].map((t) => (
@@ -1706,10 +1706,10 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                     setActiveTool(t.key as any);
                     if (t.key !== "pointer") setSelectedId(null);
                   }}
-                  className={`p-1.5 rounded-lg text-[11px] transition-all flex items-center justify-center ${
+                  className={`p-2 rounded-xl text-xs transition-all flex items-center justify-center cursor-pointer shadow-sm ${
                     activeTool === t.key
-                      ? "bg-indigo-600 text-white border border-indigo-500/30"
-                      : "hover:bg-white/5 text-slate-400"
+                      ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white border border-indigo-400/50 ring-2 ring-indigo-500/40 scale-105"
+                      : "bg-slate-900/80 border border-white/10 hover:bg-slate-800 text-slate-300 hover:text-white"
                   }`}
                 >
                   {t.label}

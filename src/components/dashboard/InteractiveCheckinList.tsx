@@ -65,19 +65,19 @@ export function InteractiveCheckinList({
                     checkout: r,
                   })
                 }
-                className={`px-4 py-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all hover:bg-white/10 active:scale-[0.99] ${
-                  hasCheckin ? "" : "bg-amber-500/5 hover:bg-amber-500/10"
+                className={`px-4 py-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all hover:bg-slate-800/80 active:scale-[0.99] border-b border-white/[0.04] ${
+                  hasCheckin ? "" : "bg-white/[0.01]"
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   {jersey != null && (
-                    <span className="text-[10px] font-black text-slate-400 w-6 shrink-0 text-right">#{jersey}</span>
+                    <span className="text-[10px] font-mono font-medium text-slate-500 w-6 shrink-0 text-right">#{jersey}</span>
                   )}
-                  <span className={`font-bold truncate ${hasCheckin ? "text-slate-100" : "text-amber-300"}`}>
+                  <span className={`font-bold truncate ${hasCheckin ? "text-slate-200" : "text-slate-400"}`}>
                     {playerName}
                   </span>
                   {!hasCheckin && (
-                    <span className="text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-white/5 px-2 py-0.5 rounded border border-white/10 shrink-0">
                       Pendiente
                     </span>
                   )}
@@ -86,8 +86,8 @@ export function InteractiveCheckinList({
                 <div className="flex items-center gap-2 shrink-0">
                   {/* Sleep */}
                   {hasCheckin && (
-                    <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-300 font-medium" title="Calidad de Sueño">
-                      <Activity className="size-3.5 text-indigo-400" />
+                    <span className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400 font-medium" title="Calidad de Sueño">
+                      <Activity className="size-3.5 text-slate-400" />
                       {w.sleep_quality ?? "–"}/5
                     </span>
                   )}
@@ -95,12 +95,12 @@ export function InteractiveCheckinList({
                   {/* Fatigue */}
                   {hasCheckin && (
                     <span
-                      className={`flex items-center gap-1 text-[11px] font-bold ${
+                      className={`flex items-center gap-1 text-[11px] font-semibold ${
                         (w.fatigue ?? 0) >= 4
-                          ? "text-rose-400"
+                          ? "text-rose-400/90"
                           : (w.fatigue ?? 0) >= 3
-                          ? "text-amber-400"
-                          : "text-emerald-400"
+                          ? "text-amber-400/90"
+                          : "text-slate-300"
                       }`}
                       title="Nivel de Fatiga"
                     >
@@ -112,36 +112,36 @@ export function InteractiveCheckinList({
                   {/* Discomfort */}
                   {hasCheckin && w.has_discomfort && (
                     <span
-                      className="text-[9px] font-bold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30 truncate max-w-[110px]"
+                      className="text-[9px] font-bold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20 truncate max-w-[110px]"
                       title={w.discomfort_body_part || "Molestia"}
                     >
                       ⚠ {w.discomfort_body_part || "Molestia"}
                     </span>
                   )}
 
-                  {/* WEIGHT BADGE (GREEN IF RECORDED, RED IF MISSING) */}
+                  {/* WEIGHT BADGE (MINIMALIST OBSIDIAN BADGES) */}
                   {hasWeight ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30" title={`Peso registrado: ${w.weight_kg} kg`}>
-                      <Scale className="size-3 text-emerald-400" />
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-300 bg-slate-800/80 px-2.5 py-0.5 rounded-full border border-white/10" title={`Peso registrado: ${w.weight_kg} kg`}>
+                      <Scale className="size-3 text-emerald-400/90" />
                       <span>{w.weight_kg} kg</span>
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20" title="Sin peso registrado en báscula">
-                      <Scale className="size-3 text-rose-400" />
+                    <span className="inline-flex items-center gap-1 text-[9px] font-medium text-slate-400 bg-slate-950 px-2 py-0.5 rounded-full border border-white/5" title="Sin peso registrado en báscula">
+                      <Scale className="size-3 text-slate-500" />
                       <span>Sin peso</span>
                     </span>
                   )}
 
                   {/* Checkout RPE */}
                   {hasCheckout ? (
-                    <span className="text-[9px] font-bold text-sky-300 bg-sky-500/20 px-2 py-0.5 rounded border border-sky-500/30 shrink-0">
+                    <span className="text-[9px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-white/10 shrink-0">
                       RPE {r.rpe}
                     </span>
                   ) : (
-                    <span className="text-[9px] text-slate-500 shrink-0 font-medium">RPE —</span>
+                    <span className="text-[9px] font-mono text-slate-500 shrink-0">RPE —</span>
                   )}
 
-                  <ChevronRight className="size-4 text-slate-400 shrink-0" />
+                  <ChevronRight className="size-3.5 text-slate-500 shrink-0" />
                 </div>
               </div>
             );

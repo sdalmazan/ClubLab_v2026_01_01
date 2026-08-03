@@ -258,17 +258,17 @@ export default async function DashboardPage({
         </Link>
       </PageHeader>
       {/* ── CHECK-IN / CHECK-OUT STATUS WIDGET (MONITORIZACIÓN DUAL EN TIEMPO REAL) ── */}
-      <div className="bg-slate-900 border border-white/10 rounded-2xl p-4 md:p-5 space-y-4 text-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+      <div className="bg-slate-900/60 border border-white/[0.08] rounded-2xl p-4 md:p-5 space-y-4 text-white shadow-lg backdrop-blur-md">
+        <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-slate-400 animate-pulse" />
             <span className="text-xs font-black uppercase tracking-wider text-slate-200">
               Control de Asistencia & Cuestionarios Diarios
             </span>
           </div>
           <Link
             href="/performance/monitoring"
-            className="text-[11px] font-bold corp-text hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
           >
             <span>Ver Monitorización Completa</span>
             <ChevronRight className="size-3" />
@@ -276,64 +276,64 @@ export default async function DashboardPage({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* 1. CHECK-IN PRE-ENTRENAMIENTO */}
-          <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
+          {/* 1. CHECK-IN MATUTINO */}
+          <div className="bg-slate-950/60 border border-white/[0.06] rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
                 Check-in Matutino
               </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/10">
                 {completedCheckinsCount} / {totalPlayers} ({checkinPct}%)
               </span>
             </div>
-            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-              <div className="bg-emerald-400 h-full transition-all duration-500" style={{ width: `${checkinPct}%` }} />
+            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+              <div className="bg-slate-300 h-full transition-all duration-500" style={{ width: `${checkinPct}%` }} />
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400">Pendientes:</span>
-              <span className={`font-bold ${pendingCheckinCount === 0 ? "text-emerald-400" : "text-amber-400"}`}>
+              <span className={`font-medium ${pendingCheckinCount === 0 ? "text-slate-400" : "text-amber-400/90"}`}>
                 {pendingCheckinCount === 0 ? "Ninguno (Al día)" : `${pendingCheckinCount} futbolistas`}
               </span>
             </div>
           </div>
 
-          {/* 2. PRESENCIA & PESO EN BÁSCULA */}
-          <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
+          {/* 2. PRESENCIA & BÁSCULA */}
+          <div className="bg-slate-950/60 border border-white/[0.06] rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-sky-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
                 Presencia & Báscula
               </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/10">
                 {completedWeightsCount} / {totalPlayers} ({totalPlayers > 0 ? Math.round((completedWeightsCount / totalPlayers) * 100) : 0}%)
               </span>
             </div>
-            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-              <div className="bg-sky-400 h-full transition-all duration-500" style={{ width: `${totalPlayers > 0 ? Math.round((completedWeightsCount / totalPlayers) * 100) : 0}%` }} />
+            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+              <div className="bg-slate-400 h-full transition-all duration-500" style={{ width: `${totalPlayers > 0 ? Math.round((completedWeightsCount / totalPlayers) * 100) : 0}%` }} />
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400">Sin registrar:</span>
-              <span className={`font-bold ${totalPlayers - completedWeightsCount === 0 ? "text-emerald-400" : "text-sky-300"}`}>
+              <span className={`font-medium ${totalPlayers - completedWeightsCount === 0 ? "text-slate-400" : "text-slate-300"}`}>
                 {totalPlayers - completedWeightsCount === 0 ? "Todos pesados" : `${totalPlayers - completedWeightsCount} sin peso`}
               </span>
             </div>
           </div>
 
-          {/* 3. CHECK-OUT POST-ENTRENAMIENTO (RPE) */}
-          <div className="bg-slate-950/60 border border-white/5 rounded-xl p-3.5 space-y-2.5">
+          {/* 3. CHECK-OUT (RPE) */}
+          <div className="bg-slate-950/60 border border-white/[0.06] rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
                 Check-out (RPE)
               </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/10">
                 {completedCheckoutsCount} / {totalPlayers} ({checkoutPct}%)
               </span>
             </div>
-            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-              <div className="bg-purple-400 h-full transition-all duration-500" style={{ width: `${checkoutPct}%` }} />
+            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+              <div className="bg-slate-400 h-full transition-all duration-500" style={{ width: `${checkoutPct}%` }} />
             </div>
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-slate-400">Pendientes:</span>
-              <span className={`font-bold ${pendingCheckoutCount === 0 ? "text-emerald-400" : "text-purple-300"}`}>
+              <span className={`font-medium ${pendingCheckoutCount === 0 ? "text-slate-400" : "text-slate-300"}`}>
                 {pendingCheckoutCount === 0 ? "Ninguno (Al día)" : `${pendingCheckoutCount} futbolistas`}
               </span>
             </div>
