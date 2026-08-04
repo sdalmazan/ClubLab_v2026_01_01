@@ -99,10 +99,10 @@ export default async function DashboardLayout({
 
       return { orgRole, teams, seasons };
     },
-    ["dashboard-layout-context"],
+    ["dashboard-layout-context", user!.id],
     {
       tags: [CACHE_TAGS.userContext(user!.id)],
-      revalidate: 120, // 2 minutes — role changes visible within this window
+      revalidate: 60,
     }
   );
 

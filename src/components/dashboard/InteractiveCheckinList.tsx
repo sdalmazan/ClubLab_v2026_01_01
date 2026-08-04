@@ -30,6 +30,13 @@ export function InteractiveCheckinList({
   const [selectedDetailPlayer, setSelectedDetailPlayer] = useState<any | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string>(selectedSessionId || "all");
 
+  // Exclude rest sessions ("descansos")
+  const validSessions = (sessions || []).filter(
+    (s: any) => s.session_type !== "rest" && !s.title?.toLowerCase().includes("descanso")
+  );
+
+  const selectedSession = validSessions.find((s: any) => s.id === activeSessionId);
+
   const handleSessionSelect = (sessionId: string) => {
     setActiveSessionId(sessionId);
     if (onSessionChange) onSessionChange(sessionId);
@@ -52,16 +59,16 @@ export function InteractiveCheckinList({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {sessions.length > 0 && (
+            {validSessions.length > 0 && (
               <select
                 value={activeSessionId}
                 onChange={(e) => handleSessionSelect(e.target.value)}
                 className="bg-slate-950 border border-white/15 text-white text-xs font-bold px-3 py-1.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
               >
-                <option value="all">Todas las Sesiones del Día</option>
-                {sessions.map((s: any) => (
+                <option value="all">Todas las Sesiones</option>
+                {validSessions.map((s: any) => (
                   <option key={s.id} value={s.id}>
-                    {s.title || "Sesión"} ({s.date || "Hoy"})
+                    {s.title || "Sesión de Entrenamiento"} ({s.date || "Hoy"})
                   </option>
                 ))}
               </select>
@@ -76,7 +83,19 @@ export function InteractiveCheckinList({
         <div className="divide-y divide-white/5 max-h-80 overflow-y-auto">
           {players.map((player: any) => {
             const w = player.latest_wellness;
-            const r = player.latest_rpe;
+
+            // Resolve session-specific checkout if a session is selected
+            let r = player.latest_rpe;
+            if (activeSessionId !== "all" && selectedSession) {
+              const sAtt = (selectedSession.session_attendance || []).find((att: any) => att.player_id === player.id);
+              const sRpe = (selectedSession.rpe_entries || []).find((rpe: any) => rpe.player_id === player.id);
+              r = sAtt?.rpe != null
+                ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status }
+                : sRpe?.rpe != null
+                ? { rpe: sRpe.rpe, notes: sRpe.notes }
+                : null;
+            }
+
             const playerName = player.sporting_name || `${player.first_name || ""} ${player.last_name || ""}`.trim() || "Jugador";
             const hasCheckin = !!w;
             const hasCheckout = !!r;
@@ -87,15 +106,22 @@ export function InteractiveCheckinList({
               <div
                 key={player.id}
                 onClick={() => {
-                  const playerSessions = sessions.map((s: any) => {
+                  const playerSessions = validSessions.map((s: any) => {
                     const sAtt = (s.session_attendance || []).find((att: any) => att.player_id === player.id);
+                    const sRpe = (s.rpe_entries || []).find((rpe: any) => rpe.player_id === player.id);
+                    const sCheckout = sAtt?.rpe != null
+                      ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status }
+                      : sRpe?.rpe != null
+                      ? { rpe: sRpe.rpe, notes: sRpe.notes }
+                      : null;
+
                     return {
                       id: s.id,
                       title: s.title || "Sesión de Entrenamiento",
                       date: s.date,
                       session_type: s.session_type,
                       checkin: player.latest_wellness,
-                      checkout: sAtt ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status } : player.latest_rpe,
+                      checkout: sCheckout,
                     };
                   });
 

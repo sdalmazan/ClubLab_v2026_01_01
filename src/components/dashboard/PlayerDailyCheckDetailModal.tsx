@@ -63,11 +63,14 @@ export function PlayerDailyCheckDetailModal({
 
   if (!isOpen || !player) return null;
 
-  const sessions = player.sessions || [];
+  // Exclude rest sessions ("descansos")
+  const sessions = (player.sessions || []).filter(
+    (s) => s.session_type !== "rest" && !s.title?.toLowerCase().includes("descanso")
+  );
   const currentSession = sessions.find((s) => s.id === selectedSessionId) || (sessions.length > 0 ? sessions[0] : null);
 
-  const c = currentSession ? (currentSession.checkin || player.checkin) : player.checkin;
-  const r = currentSession ? (currentSession.checkout || player.checkout) : player.checkout;
+  const c = currentSession ? (currentSession.checkin !== undefined ? currentSession.checkin : player.checkin) : player.checkin;
+  const r = currentSession ? currentSession.checkout : player.checkout;
 
   const getScoreColor = (val?: number, isInverse = false) => {
     if (!val) return "text-slate-400";
@@ -114,11 +117,11 @@ export function PlayerDailyCheckDetailModal({
               className="w-full sm:w-auto bg-slate-950 border border-white/15 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
             >
               {sessions.map((s, idx) => {
-                const sCheckin = s.checkin || (idx === 0 ? player.checkin : null);
-                const sCheckout = s.checkout || (idx === 0 ? player.checkout : null);
+                const sCheckin = s.checkin || player.checkin;
+                const sCheckout = s.checkout;
                 return (
                   <option key={s.id} value={s.id}>
-                    {s.title || `Sesión ${idx + 1}`} ({s.date || "Hoy"}) — In: {sCheckin ? "✓" : "⏳"} | Out: {sCheckout ? "✓" : "⏳"}
+                    {s.title || `Sesión ${idx + 1}`} ({s.date || "Hoy"}) — In: {sCheckin ? "✓" : "⏳"} | Out: {sCheckout ? `RPE ${sCheckout.rpe}` : "⏳ Pendiente"}
                   </option>
                 );
               })}

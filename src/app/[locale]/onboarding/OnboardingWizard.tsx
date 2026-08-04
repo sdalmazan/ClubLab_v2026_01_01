@@ -7,6 +7,7 @@ import { Shield, GraduationCap, User, Check } from "lucide-react";
 import {
   checkUserOnboardingStatusAction,
   completeOnboardingAction,
+  acceptAssignedOrgAction,
 } from "./actions";
 
 type OrgType = "club" | "academy" | "independent_coach";
@@ -178,13 +179,19 @@ export function OnboardingWizard() {
         </div>
 
         <button
-          onClick={() => {
-            router.push("/dashboard");
-            router.refresh();
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
+            try {
+              const res = await acceptAssignedOrgAction();
+              window.location.href = res.redirectUrl || "/dashboard";
+            } catch {
+              window.location.href = "/dashboard";
+            }
           }}
-          className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-sm py-3 transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
+          className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-sm py-3 transition-all shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
         >
-          ¡Aceptar y acceder a mi plantilla! ⚽
+          {loading ? "Accediendo a tu club..." : "¡Aceptar y acceder a mi plantilla! ⚽"}
         </button>
 
         <div className="pt-2 border-t border-white/[0.06]">

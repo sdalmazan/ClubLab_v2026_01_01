@@ -483,17 +483,26 @@ export function CoachMobileView({
                       <div
                         key={p.id}
                         onClick={() => {
-                          const playerSessions = (weekSessions || []).map((s: any) => {
-                            const sAtt = (s.session_attendance || []).find((att: any) => att.player_id === p.id);
-                            return {
-                              id: s.id,
-                              title: s.title || "Sesión de Entrenamiento",
-                              date: s.date,
-                              session_type: s.session_type,
-                              checkin: p.latest_wellness,
-                              checkout: sAtt ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status } : p.latest_rpe,
-                            };
-                          });
+                          const playerSessions = (weekSessions || [])
+                            .filter((s: any) => s.session_type !== "rest" && !s.title?.toLowerCase().includes("descanso"))
+                            .map((s: any) => {
+                              const sAtt = (s.session_attendance || []).find((att: any) => att.player_id === p.id);
+                              const sRpe = (s.rpe_entries || []).find((rpe: any) => rpe.player_id === p.id);
+                              const sCheckout = sAtt?.rpe != null
+                                ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status }
+                                : sRpe?.rpe != null
+                                ? { rpe: sRpe.rpe, notes: sRpe.notes }
+                                : null;
+
+                              return {
+                                id: s.id,
+                                title: s.title || "Sesión de Entrenamiento",
+                                date: s.date,
+                                session_type: s.session_type,
+                                checkin: p.latest_wellness,
+                                checkout: sCheckout,
+                              };
+                            });
 
                           setSelectedDetailPlayer({
                             id: p.id,

@@ -157,6 +157,52 @@ export async function checkUserOnboardingStatusAction(): Promise<{
   }
 }
 
+/**
+ * Server Action: Confirms and accepts an assigned organization, syncs Auth metadata,
+ * purges layout cache tags, and returns the target dashboard route.
+ */
+export async function acceptAssignedOrgAction(): Promise<{ redirectUrl: string; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { redirectUrl: "/login" };
+
+    const adminSupabase = createAdminClient();
+
+    const { data: orgRole } = await adminSupabase
+      .from("user_organization_roles")
+      .select("role, organization_id, team_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (orgRole && orgRole.organization_id) {
+      await adminSupabase.auth.admin.updateUserById(user.id, {
+        user_metadata: {
+          ...user.user_metadata,
+          role: orgRole.role || user.user_metadata?.role || "head_coach",
+          organization_id: orgRole.organization_id,
+          team_id: orgRole.team_id || user.user_metadata?.team_id,
+        },
+      });
+
+      revalidateTag(CACHE_TAGS.userContext(user.id));
+      revalidatePath("/", "layout");
+
+      const userRole = orgRole.role;
+      if (userRole === "player") return { redirectUrl: "/player" };
+      if (userRole === "physio") return { redirectUrl: "/injuries" };
+      if (userRole === "physical_coach") return { redirectUrl: "/performance/dashboard" };
+      return { redirectUrl: "/dashboard" };
+    }
+
+    return { redirectUrl: "/dashboard" };
+  } catch (err: any) {
+    console.error("[acceptAssignedOrgAction Error]", err);
+    return { redirectUrl: "/dashboard" };
+  }
+}
+
 export interface CompleteOnboardingInput {
   orgType: "club" | "academy" | "independent_coach";
   orgName: string;
