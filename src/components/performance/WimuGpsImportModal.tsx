@@ -278,17 +278,17 @@ export function WimuGpsImportModal({
         <div className="flex items-center justify-between px-8 py-3 bg-slate-950/60 border-b border-slate-800 text-xs">
           <div className={`flex items-center gap-2 font-bold ${step === 1 ? "text-white" : "text-slate-500"}`}>
             <span className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px]">1</span>
-            <span>1. Configuración de Lote</span>
+            <span>1. Importar datos</span>
           </div>
           <div className="h-px bg-slate-800 flex-1 mx-4" />
           <div className={`flex items-center gap-2 font-bold ${step === 2 ? "text-white" : "text-slate-500"}`}>
             <span className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px]">2</span>
-            <span>2. Trimmer Engine Validation</span>
+            <span>2. Validar Procesado de datos</span>
           </div>
           <div className="h-px bg-slate-800 flex-1 mx-4" />
           <div className={`flex items-center gap-2 font-bold ${step === 3 ? "text-white" : "text-slate-500"}`}>
             <span className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px]">3</span>
-            <span>3. Guardado DB</span>
+            <span>3. Guardar datos tratados</span>
           </div>
         </div>
 
