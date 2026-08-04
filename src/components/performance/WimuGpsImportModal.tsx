@@ -15,7 +15,10 @@ import {
   Save,
   Check,
   FolderOpen,
-  ArrowUpDown
+  ArrowUpDown,
+  Plus,
+  Trash2,
+  Timer
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,12 +29,27 @@ interface PlayerRosterItem {
   jerseyNumber?: number;
 }
 
+interface PeriodDefinition {
+  name: string;
+  expectedDurationMin: number | "";
+}
+
 interface WimuGpsImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   roster: PlayerRosterItem[];
   onSuccess: () => void;
 }
+
+const DEFAULT_PARTIDO_PERIODS: PeriodDefinition[] = [
+  { name: "1ª Parte", expectedDurationMin: 45 },
+  { name: "2ª Parte", expectedDurationMin: 45 },
+];
+
+const DEFAULT_ENTRENAMIENTO_PERIODS: PeriodDefinition[] = [
+  { name: "Bloque 1", expectedDurationMin: "" },
+  { name: "Bloque 2", expectedDurationMin: "" },
+];
 
 export function WimuGpsImportModal({
   isOpen,
@@ -49,6 +67,9 @@ export function WimuGpsImportModal({
 
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Configurable period definitions
+  const [periodDefs, setPeriodDefs] = useState<PeriodDefinition[]>(DEFAULT_PARTIDO_PERIODS);
+
   // Multi-period block assignment mode
   const [assignmentMode, setAssignmentMode] = useState<"global" | "by_period">("global");
   const [activeBlock, setActiveBlock] = useState<string>("1ª Parte");
@@ -57,7 +78,6 @@ export function WimuGpsImportModal({
   const [blockGpsMapping, setBlockGpsMapping] = useState<Record<string, Record<string, string>>>(() => {
     const initialGlobal: Record<string, string> = {};
     roster.forEach((p, idx) => {
-      // Default initial assignment
       if (idx < 11) {
         initialGlobal[p.id] = String(p.jerseyNumber || idx + 1);
       }
@@ -69,7 +89,6 @@ export function WimuGpsImportModal({
       "2ª Parte": {},
       "Bloque 1": { ...initialGlobal },
       "Bloque 2": {},
-      "Bloque 3": {},
     };
   });
 
@@ -94,9 +113,67 @@ export function WimuGpsImportModal({
   const currentBlockKey = assignmentMode === "global" ? "Global" : activeBlock;
   const currentBlockMapping = blockGpsMapping[currentBlockKey] || {};
 
-  const availableBlocks = sessionType === "PARTIDO"
-    ? ["1ª Parte", "2ª Parte"]
-    : ["Bloque 1", "Bloque 2", "Bloque 3"];
+  // --- Period Definition Helpers ---
+  const handleSessionTypeChange = (type: "PARTIDO" | "ENTRENAMIENTO") => {
+    setSessionType(type);
+    if (type === "PARTIDO") {
+      setPeriodDefs(DEFAULT_PARTIDO_PERIODS);
+      setActiveBlock("1ª Parte");
+    } else {
+      setPeriodDefs(DEFAULT_ENTRENAMIENTO_PERIODS);
+      setActiveBlock("Bloque 1");
+    }
+  };
+
+  const handleAddPeriod = () => {
+    const nextIndex = periodDefs.length + 1;
+    const newName = sessionType === "PARTIDO"
+      ? `${nextIndex}ª Parte`
+      : `Bloque ${nextIndex}`;
+    const newDef: PeriodDefinition = { name: newName, expectedDurationMin: "" };
+    setPeriodDefs(prev => [...prev, newDef]);
+    // Initialize empty mapping for the new block
+    setBlockGpsMapping(prev => ({
+      ...prev,
+      [newName]: {},
+    }));
+  };
+
+  const handleRemovePeriod = (index: number) => {
+    if (periodDefs.length <= 1) return; // At least 1 period
+    const removed = periodDefs[index];
+    setPeriodDefs(prev => prev.filter((_, i) => i !== index));
+    // Remove its GPS mapping
+    setBlockGpsMapping(prev => {
+      const next = { ...prev };
+      delete next[removed.name];
+      return next;
+    });
+    // If the active block was removed, switch to first
+    if (activeBlock === removed.name) {
+      setActiveBlock(periodDefs[0]?.name || "Global");
+    }
+  };
+
+  const handlePeriodDefChange = (index: number, field: keyof PeriodDefinition, value: string | number | "") => {
+    setPeriodDefs(prev => {
+      const next = [...prev];
+      const oldName = next[index].name;
+      next[index] = { ...next[index], [field]: value };
+
+      // If name changed, migrate GPS mapping key
+      if (field === "name" && typeof value === "string" && value !== oldName) {
+        setBlockGpsMapping(prevMapping => {
+          const newMapping = { ...prevMapping };
+          newMapping[value] = newMapping[oldName] || {};
+          delete newMapping[oldName];
+          return newMapping;
+        });
+        if (activeBlock === oldName) setActiveBlock(value);
+      }
+      return next;
+    });
+  };
 
   // Handle native folder picking from browser file system
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,12 +211,9 @@ export function WimuGpsImportModal({
     const hasA = !isNaN(gpsANum);
     const hasB = !isNaN(gpsBNum);
 
-    if (hasA && hasB) {
-      return gpsANum - gpsBNum; // Ascending order of GPS device number
-    }
+    if (hasA && hasB) return gpsANum - gpsBNum;
     if (hasA && !hasB) return -1;
     if (!hasA && hasB) return 1;
-
     return a.name.localeCompare(b.name);
   });
 
@@ -155,6 +229,7 @@ export function WimuGpsImportModal({
           folderPath,
           sessionDate,
           sessionType,
+          periodDefs,
           assignmentMode,
           blockGpsMapping,
         }),
@@ -251,18 +326,18 @@ export function WimuGpsImportModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
       <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden text-slate-100 my-8">
-        {/* Header Minimalista */}
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700">
               <Upload className="size-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold tracking-tight text-white uppercase">
-                Lectura GPS & Trimmer Engine
+              <h2 className="text-sm font-bold tracking-widest text-white uppercase">
+                Lectura GPS
               </h2>
               <p className="text-xs text-slate-400">
-                Configuración de lotes binarios `.qul` y delimitación temporal
+                Importación y procesado de grabaciones `.qul`
               </p>
             </div>
           </div>
@@ -361,10 +436,7 @@ export function WimuGpsImportModal({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSessionType("PARTIDO");
-                        setActiveBlock("1ª Parte");
-                      }}
+                      onClick={() => handleSessionTypeChange("PARTIDO")}
                       className={`py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                         sessionType === "PARTIDO"
                           ? "bg-slate-800 text-white border-slate-600"
@@ -375,10 +447,7 @@ export function WimuGpsImportModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSessionType("ENTRENAMIENTO");
-                        setActiveBlock("Bloque 1");
-                      }}
+                      onClick={() => handleSessionTypeChange("ENTRENAMIENTO")}
                       className={`py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                         sessionType === "ENTRENAMIENTO"
                           ? "bg-slate-800 text-white border-slate-600"
@@ -388,6 +457,84 @@ export function WimuGpsImportModal({
                       ENTRENAMIENTO
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* ── Configuración de Partes / Bloques ── */}
+              <div className="border-t border-slate-800 pt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider block">
+                      Partes / Bloques de la Sesión
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Añade o quita partes. La duración esperada ayuda al Trimmer Engine a delimitar automáticamente.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddPeriod}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 transition-colors cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-3.5" />
+                    Añadir parte
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {periodDefs.map((period, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-3 bg-slate-950 rounded-xl border border-slate-800 px-3 py-2"
+                    >
+                      {/* Nombre */}
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[10px] text-slate-500 block mb-0.5 uppercase font-bold tracking-wider">Nombre</label>
+                        <input
+                          type="text"
+                          value={period.name}
+                          onChange={(e) => handlePeriodDefChange(idx, "name", e.target.value)}
+                          className="w-full text-xs rounded-lg bg-slate-900 border border-slate-800 px-2 py-1 text-white font-bold focus:outline-none focus:border-slate-600"
+                        />
+                      </div>
+
+                      {/* Duración esperada */}
+                      <div className="w-36 shrink-0">
+                        <label className="text-[10px] text-slate-500 block mb-0.5 uppercase font-bold tracking-wider flex items-center gap-1">
+                          <Timer className="size-3" />
+                          Duración esperada (min)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={1}
+                            max={120}
+                            value={period.expectedDurationMin}
+                            onChange={(e) =>
+                              handlePeriodDefChange(
+                                idx,
+                                "expectedDurationMin",
+                                e.target.value === "" ? "" : Number(e.target.value)
+                              )
+                            }
+                            placeholder="Opcional"
+                            className="w-full text-xs rounded-lg bg-slate-900 border border-slate-800 px-2 py-1 text-white font-mono focus:outline-none focus:border-slate-600 placeholder:text-slate-600"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Eliminar */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePeriod(idx)}
+                        disabled={periodDefs.length <= 1}
+                        title="Eliminar parte"
+                        className="shrink-0 p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -433,23 +580,23 @@ export function WimuGpsImportModal({
 
                 {/* Sub-selector for Period/Block when in by_period mode */}
                 {assignmentMode === "by_period" && (
-                  <div className="flex gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                  <div className="flex gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800 flex-wrap">
                     <span className="text-xs text-slate-400 flex items-center font-bold px-2">
                       Bloque / Parte:
                     </span>
-                    {availableBlocks.map((blk) => (
+                    {periodDefs.map((blk) => (
                       <button
-                        key={blk}
+                        key={blk.name}
                         type="button"
-                        onClick={() => setActiveBlock(blk)}
+                        onClick={() => setActiveBlock(blk.name)}
                         className={cn(
                           "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                          activeBlock === blk
+                          activeBlock === blk.name
                             ? "bg-slate-800 text-white border border-slate-700"
                             : "text-slate-400 hover:text-white"
                         )}
                       >
-                        {blk}
+                        {blk.name}
                       </button>
                     ))}
                   </div>
@@ -614,16 +761,16 @@ export function WimuGpsImportModal({
                 <Check className="size-7" />
               </div>
               <h3 className="text-lg font-bold text-white">
-                ¡Sesión GPS & Periodos Guardados en Supabase!
+                ¡Sesión GPS & Periodos Guardados!
               </h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Los datos de rendimiento inercial y espacial han sido procesados y están disponibles.
+                Los datos de rendimiento inercial y espacial han sido procesados y están disponibles en el análisis.
               </p>
             </div>
           )}
         </div>
 
-        {/* Footer Minimalista */}
+        {/* Footer */}
         <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
           <button
             type="button"
@@ -672,7 +819,7 @@ export function WimuGpsImportModal({
                 {isSaving ? (
                   <>
                     <Activity className="size-4 animate-spin" />
-                    <span>Guardando en Supabase...</span>
+                    <span>Guardando...</span>
                   </>
                 ) : (
                   <>
