@@ -182,6 +182,7 @@ export function SessionForm({
   const [plannedIntensity, setPlannedIntensity] = useState(initialData?.planned_intensity ?? "");
   const [notes, setNotes] = useState(initialData?.notes ?? "");
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialData?.template_id ?? "");
+  const [testGridResults, setTestGridResults] = useState<Record<string, Record<string, string>>>({});
 
   // Session-level physical & tactical concepts state
   const [sessionTacticalConcepts, setSessionTacticalConcepts] = useState<string[]>(initialData?.tactical_concepts ?? []);
@@ -283,6 +284,26 @@ export function SessionForm({
     }
     loadPastSessions();
   }, [teamId, navYear]);
+
+  // Inherit call-up from existing group training session on the same date when adding a test session
+  useEffect(() => {
+    if (sessionType === "test" && date && pastSessions.length > 0) {
+      const existingGroupSession = pastSessions.find(
+        (s) => s.date === date && (s.session_type === "training" || s.session_type === "match") && s.id !== initialData?.id
+      );
+      if (existingGroupSession && Array.isArray(existingGroupSession.session_attendance)) {
+        const nextAtt: Record<string, { status: AttendanceStatus; notes?: string }> = {};
+        existingGroupSession.session_attendance.forEach((att: any) => {
+          if (att.player_id) {
+            nextAtt[att.player_id] = { status: att.status || "present", notes: att.notes || "" };
+          }
+        });
+        if (Object.keys(nextAtt).length > 0) {
+          setAttendance((prev) => ({ ...prev, ...nextAtt }));
+        }
+      }
+    }
+  }, [sessionType, date, pastSessions, initialData?.id]);
 
   // Alerts sending state
   const [alertSending, setAlertSending] = useState<Record<string, boolean>>({});
@@ -1371,7 +1392,7 @@ export function SessionForm({
       notes: notes.trim() || null,
       template_id: selectedTemplateId || null,
       attendance: attendancePayload,
-      exercises: sessionType === "match" ? [] : exercisesPayload,
+      exercises: (sessionType === "match" || sessionType === "test") ? [] : exercisesPayload,
       match_game_plan: sessionType === "match" ? matchGamePlan : null,
       checkin_hours_before: Number(checkinHoursBefore),
       checkin_close_mins_before: Number(checkinCloseMinsBefore),
@@ -1393,6 +1414,38 @@ export function SessionForm({
       const resData = await res.json();
       if (!res.ok) {
         throw new Error(resData.error ?? "Error al guardar la sesión.");
+      }
+
+      if (sessionType === "test" && testGridResults && Object.keys(testGridResults).length > 0) {
+        const testEntries: any[] = [];
+        for (const player of squadPlayers) {
+          const pValues = testGridResults[player.id];
+          if (!pValues) continue;
+          for (const [tId, val] of Object.entries(pValues)) {
+            if (val != null && val !== "") {
+              testEntries.push({
+                playerId: player.id,
+                testId: tId,
+                testName: tId,
+                unit: "",
+                value: Number(val) || val,
+                date,
+              });
+            }
+          }
+        }
+
+        if (testEntries.length > 0) {
+          await fetch("/api/training/tests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              teamId,
+              date,
+              entries: testEntries,
+            }),
+          });
+        }
       }
 
       router.push("/training");
@@ -2044,8 +2097,8 @@ export function SessionForm({
                       key={p.id}
                       className="p-2.5 rounded-xl bg-white/2 border border-white/5 flex flex-col justify-between space-y-2 hover:border-white/10 transition-all"
                     >
-                      <span className="text-xs font-bold text-white truncate" title={`${p.first_name} ${p.last_name}`}>
-                        {p.first_name} {p.last_name}
+                      <span className="text-xs font-bold text-white truncate" title={p.sporting_name || `${p.first_name} ${p.last_name}`}>
+                        {p.sporting_name || `${p.first_name} ${p.last_name}`}
                       </span>
 
                       <div className="flex items-center justify-between gap-1">
@@ -2133,6 +2186,7 @@ export function SessionForm({
               sessionDate={date}
               teamId={teamId}
               squadPlayers={squadPlayers}
+              onChangeResults={setTestGridResults}
             />
           )}
 

@@ -65,10 +65,6 @@ export async function GET() {
         name: au?.user_metadata?.full_name ?? au?.email?.split("@")[0] ?? `Personal (${r.role})`,
         role: r.role
       };
-    }).filter((u) => {
-      const email = u.email?.toLowerCase() || "";
-      const name = u.name?.toLowerCase() || "";
-      return email !== "diecilo7@gmail.com" && !name.includes("diego ciria");
     });
 
     return NextResponse.json(matchedUsers);

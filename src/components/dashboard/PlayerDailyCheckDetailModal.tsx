@@ -52,19 +52,37 @@ export function PlayerDailyCheckDetailModal({
 }: PlayerDailyCheckDetailModalProps) {
   const [activeTab, setActiveTab] = useState<"checkin" | "checkout">("checkin");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialSessionId || null);
+  const [fetchedSessions, setFetchedSessions] = useState<SessionCheckRecord[]>([]);
+
+  useEffect(() => {
+    if (player?.sessions && player.sessions.length > 0) {
+      setFetchedSessions(player.sessions);
+    } else if (player?.id) {
+      fetch(`/api/training/sessions?limit=30`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setFetchedSessions(data);
+          } else if (data.sessions && Array.isArray(data.sessions)) {
+            setFetchedSessions(data.sessions);
+          }
+        })
+        .catch((err) => console.error("Error fetching player sessions:", err));
+    }
+  }, [player]);
 
   useEffect(() => {
     if (initialSessionId) {
       setSelectedSessionId(initialSessionId);
-    } else if (player?.sessions && player.sessions.length > 0) {
-      setSelectedSessionId(player.sessions[0].id);
+    } else if (fetchedSessions.length > 0) {
+      setSelectedSessionId(fetchedSessions[0].id);
     }
-  }, [initialSessionId, player]);
+  }, [initialSessionId, fetchedSessions]);
 
   if (!isOpen || !player) return null;
 
   // Exclude rest sessions ("descansos")
-  const sessions = (player.sessions || []).filter(
+  const sessions = (fetchedSessions.length > 0 ? fetchedSessions : player.sessions || []).filter(
     (s) => s.session_type !== "rest" && !s.title?.toLowerCase().includes("descanso")
   );
   const currentSession = sessions.find((s) => s.id === selectedSessionId) || (sessions.length > 0 ? sessions[0] : null);

@@ -158,8 +158,7 @@ export async function GET(request: Request) {
 
     if (!includeInvisible) {
       filteredAppList = filteredAppList.filter((a: any) =>
-        a.player_id !== "3bc4eb8d-f220-4992-94ac-3db8b59a8b3a" &&
-        !a.player_name?.toLowerCase().includes("diego ciria")
+        a.player_id !== "3bc4eb8d-f220-4992-94ac-3db8b59a8b3a"
       );
     }
 

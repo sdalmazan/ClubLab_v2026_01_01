@@ -68,8 +68,8 @@ export function RoleViewSelector({ currentRole, actualRole }: RoleViewSelectorPr
       document.cookie = `cl_role_override=${role}; path=/; max-age=2592000; SameSite=Lax`;
       if (role === "player") {
         window.location.href = "/player";
-      } else if (role === "physical_coach") {
-        window.location.href = "/performance/dashboard";
+      } else if (role === "physio") {
+        window.location.href = "/injuries";
       } else {
         window.location.href = "/dashboard";
       }

@@ -29,6 +29,7 @@ interface TestSessionGridProps {
   selectedTestIds?: string[];
   onSelectedTestsChange?: (testIds: string[]) => void;
   initialResults?: Record<string, Record<string, number | string>>;
+  onChangeResults?: (results: Record<string, Record<string, string>>) => void;
 }
 
 export function TestSessionGrid({
@@ -38,6 +39,7 @@ export function TestSessionGrid({
   selectedTestIds = ["cmj", "sprint20m", "bodyfat"],
   onSelectedTestsChange,
   initialResults = {},
+  onChangeResults,
 }: TestSessionGridProps) {
   const [activeTestIds, setActiveTestIds] = useState<string[]>(selectedTestIds);
   const [resultsMap, setResultsMap] = useState<Record<string, Record<string, string>>>(() => {
@@ -54,12 +56,6 @@ export function TestSessionGrid({
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  useEffect(() => {
-    if (selectedTestIds && selectedTestIds.length > 0) {
-      setActiveTestIds(selectedTestIds);
-    }
-  }, [selectedTestIds]);
-
   const toggleTest = (testId: string) => {
     const next = activeTestIds.includes(testId)
       ? activeTestIds.filter((id) => id !== testId)
@@ -69,13 +65,17 @@ export function TestSessionGrid({
   };
 
   const handleCellChange = (playerId: string, testId: string, val: string) => {
-    setResultsMap((prev) => ({
-      ...prev,
-      [playerId]: {
-        ...prev[playerId],
-        [testId]: val,
-      },
-    }));
+    setResultsMap((prev) => {
+      const next = {
+        ...prev,
+        [playerId]: {
+          ...prev[playerId],
+          [testId]: val,
+        },
+      };
+      if (onChangeResults) onChangeResults(next);
+      return next;
+    });
     setSavedSuccess(false);
   };
 
