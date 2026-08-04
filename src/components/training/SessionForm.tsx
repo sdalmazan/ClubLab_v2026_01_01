@@ -292,7 +292,7 @@ export function SessionForm({
         (s) => s.date === date && (s.session_type === "training" || s.session_type === "match") && s.id !== initialData?.id
       );
       if (existingGroupSession && Array.isArray(existingGroupSession.session_attendance)) {
-        const nextAtt: Record<string, { status: AttendanceStatus; notes?: string }> = {};
+        const nextAtt: Record<string, { status: "present" | "partial" | "readaptation" | "injured" | "absent"; notes: string }> = {};
         existingGroupSession.session_attendance.forEach((att: any) => {
           if (att.player_id) {
             nextAtt[att.player_id] = { status: att.status || "present", notes: att.notes || "" };
