@@ -380,44 +380,72 @@ export function PlayerDailyCheckDetailModal({
               </div>
             ) : playerHistory.length > 0 ? (
               <div className="space-y-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 block">
-                  Histórico de Registros ({playerHistory.length} fechas registradas)
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 block">
+                    Histórico Completo (Check-in & Check-out • {playerHistory.length} fechas)
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Pulsa en una fila para ver el desglose completo de ese día
+                  </span>
+                </div>
                 <div className="overflow-x-auto border border-white/10 rounded-2xl bg-slate-950">
                   <table className="w-full text-left text-[11px]">
                     <thead className="bg-white/5 text-slate-400 font-extrabold uppercase border-b border-white/10 text-[9px]">
                       <tr>
                         <th className="p-2.5">Fecha</th>
-                        <th className="p-2.5">Sueño</th>
-                        <th className="p-2.5">Fatiga</th>
-                        <th className="p-2.5">Dolor</th>
-                        <th className="p-2.5">Peso</th>
-                        <th className="p-2.5">RPE</th>
+                        <th className="p-2.5 text-center">Sueño</th>
+                        <th className="p-2.5 text-center">Fatiga</th>
+                        <th className="p-2.5 text-center text-amber-400">Estrés</th>
+                        <th className="p-2.5 text-center">Dolor</th>
+                        <th className="p-2.5 text-center">Peso</th>
+                        <th className="p-2.5 text-center text-sky-400">Check-out (RPE)</th>
+                        <th className="p-2.5">Notas / Molestias</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 font-mono">
                       {playerHistory.map((item) => {
                         const inData = item.checkin;
                         const outData = item.checkout;
+                        const hasNotesOrDiscomfort = inData?.notes || inData?.discomfort_body_part || outData?.notes || outData?.post_feeling;
+
                         return (
-                          <tr key={item.date} className="hover:bg-white/[0.02] transition-colors">
+                          <tr key={item.date} className="hover:bg-white/[0.04] transition-colors">
                             <td className="p-2.5 font-bold text-white whitespace-nowrap">
-                              {item.date}
+                              📅 {item.date}
                             </td>
-                            <td className="p-2.5 font-bold text-slate-300">
+                            <td className="p-2.5 text-center font-bold text-slate-300">
                               {inData?.sleep_quality ? `${inData.sleep_quality}/5` : "–"}
                             </td>
-                            <td className="p-2.5 font-bold text-slate-300">
+                            <td className="p-2.5 text-center font-bold text-slate-300">
                               {inData?.fatigue ? `${inData.fatigue}/5` : "–"}
                             </td>
-                            <td className="p-2.5 font-bold text-slate-300">
+                            <td className="p-2.5 text-center font-bold text-amber-300">
+                              {inData?.stress ? `${inData.stress}/5` : "–"}
+                            </td>
+                            <td className="p-2.5 text-center font-bold text-slate-300">
                               {inData?.muscle_soreness ? `${inData.muscle_soreness}/5` : "–"}
                             </td>
-                            <td className="p-2.5 font-bold text-slate-300">
+                            <td className="p-2.5 text-center font-bold text-slate-300">
                               {inData?.weight_kg ? `${inData.weight_kg} kg` : "–"}
                             </td>
-                            <td className="p-2.5 font-bold text-sky-400">
-                              {outData?.rpe ? `RPE ${outData.rpe}` : "–"}
+                            <td className="p-2.5 text-center font-bold">
+                              {outData?.rpe ? (
+                                <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                  RPE {outData.rpe}/10
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-sans italic text-[10px]">Sin RPE</span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-slate-300 max-w-[200px] truncate font-sans text-[10px]">
+                              {inData?.discomfort_body_part && (
+                                <span className="text-amber-400 font-bold mr-1">
+                                  ⚠️ {inData.discomfort_body_part}
+                                </span>
+                              )}
+                              {inData?.notes && <span>"{inData.notes}"</span>}
+                              {outData?.notes && <span className="text-sky-300 ml-1">Out: "{outData.notes}"</span>}
+                              {!hasNotesOrDiscomfort && <span className="text-slate-600 italic">–</span>}
                             </td>
                           </tr>
                         );
