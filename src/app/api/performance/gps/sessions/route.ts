@@ -1,0 +1,201 @@
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export async function GET(req: Request) {
+  try {
+    const supabase = createAdminClient();
+    const { searchParams } = new URL(req.url);
+    const sessionId = searchParams.get("sessionId");
+
+    if (sessionId) {
+      const { data: session, error: sErr } = await supabase
+        .from("wimu_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .single();
+
+      if (sErr) throw sErr;
+
+      const { data: periods } = await supabase
+        .from("session_trimmed_periods")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("start_min", { ascending: true });
+
+      const { data: metrics } = await supabase
+        .from("wimu_player_session_metrics")
+        .select("*, players(id, first_name, last_name, sporting_name, jersey_number, membership)")
+        .eq("session_id", sessionId);
+
+      return NextResponse.json({
+        success: true,
+        session,
+        periods: periods || [],
+        metrics: metrics || [],
+      });
+    }
+
+    // Fetch all sessions
+    const { data: sessions, error: fetchErr } = await supabase
+      .from("wimu_sessions")
+      .select("*")
+      .order("session_date", { ascending: false });
+
+    if (fetchErr) throw fetchErr;
+
+    // Fetch all metrics across sessions to calculate season averages per player
+    const { data: allMetrics } = await supabase
+      .from("wimu_player_session_metrics")
+      .select("player_id, distance_km, hsr_m, sprints_count, max_speed_kmh, player_load, player_load_min, accelerations, decelerations");
+
+    const playerSeasonStats: Record<string, {
+      totalSessions: number;
+      avgDistanceKm: number;
+      avgHsrM: number;
+      avgSprints: number;
+      avgMaxSpeedKmh: number;
+      avgPlayerLoadMin: number;
+      avgAccelerations: number;
+    }> = {};
+
+    if (allMetrics && Array.isArray(allMetrics)) {
+      const playerAccumulator: Record<string, {
+        count: number;
+        dist: number;
+        hsr: number;
+        sprints: number;
+        maxSpeed: number;
+        plMin: number;
+        accel: number;
+      }> = {};
+
+      allMetrics.forEach(m => {
+        const pid = m.player_id;
+        if (!pid) return;
+        if (!playerAccumulator[pid]) {
+          playerAccumulator[pid] = { count: 0, dist: 0, hsr: 0, sprints: 0, maxSpeed: 0, plMin: 0, accel: 0 };
+        }
+        playerAccumulator[pid].count += 1;
+        playerAccumulator[pid].dist += Number(m.distance_km || 0);
+        playerAccumulator[pid].hsr += Number(m.hsr_m || 0);
+        playerAccumulator[pid].sprints += Number(m.sprints_count || 0);
+        playerAccumulator[pid].maxSpeed = Math.max(playerAccumulator[pid].maxSpeed, Number(m.max_speed_kmh || 0));
+        playerAccumulator[pid].plMin += Number(m.player_load_min || 0);
+        playerAccumulator[pid].accel += Number(m.accelerations || 0);
+      });
+
+      Object.entries(playerAccumulator).forEach(([pid, stat]) => {
+        const c = stat.count || 1;
+        playerSeasonStats[pid] = {
+          totalSessions: c,
+          avgDistanceKm: Number((stat.dist / c).toFixed(2)),
+          avgHsrM: Number((stat.hsr / c).toFixed(1)),
+          avgSprints: Number((stat.sprints / c).toFixed(1)),
+          avgMaxSpeedKmh: Number(stat.maxSpeed.toFixed(1)),
+          avgPlayerLoadMin: Number((stat.plMin / c).toFixed(2)),
+          avgAccelerations: Number((stat.accel / c).toFixed(1)),
+        };
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      sessions: sessions || [],
+      playerSeasonStats,
+    });
+  } catch (err: any) {
+    console.error("Error fetching GPS sessions:", err);
+    return NextResponse.json(
+      { success: false, error: err.message || "Error al obtener sesiones GPS." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const supabase = createAdminClient();
+    const body = await req.json();
+    const {
+      sessionDate,
+      sessionType,
+      detectionMode,
+      folderPath,
+      notes,
+      periods,
+      playerMetrics,
+    } = body;
+
+    // 1. Insert session record
+    const { data: sessionData, error: sessionErr } = await supabase
+      .from("wimu_sessions")
+      .insert({
+        session_date: sessionDate || new Date().toISOString().split("T")[0],
+        session_type: sessionType || "PARTIDO",
+        detection_mode: detectionMode || "AUTOMATIC_KICKOFF_SIGNATURE",
+        folder_path: folderPath || "",
+        notes: notes || "",
+      })
+      .select()
+      .single();
+
+    if (sessionErr) throw sessionErr;
+
+    const sessionId = sessionData.id;
+
+    // 2. Insert trimmed periods
+    if (periods && Array.isArray(periods) && periods.length > 0) {
+      const periodsToInsert = periods.map((p: any) => ({
+        session_id: sessionId,
+        period_name: p.name || p.period_name,
+        t_start: p.t_start,
+        t_end: p.t_end,
+        start_min: p.start_min || 0,
+        end_min: p.end_min || 0,
+        duration_min: p.duration_min || 0,
+        confidence_score: p.confidence_score || 0.95,
+      }));
+
+      const { error: pErr } = await supabase
+        .from("session_trimmed_periods")
+        .insert(periodsToInsert);
+
+      if (pErr) console.error("Error inserting trimmed periods:", pErr);
+    }
+
+    // 3. Insert player metrics
+    if (playerMetrics && Array.isArray(playerMetrics) && playerMetrics.length > 0) {
+      const metricsToInsert = playerMetrics.map((m: any) => ({
+        session_id: sessionId,
+        player_id: m.player_id,
+        distance_km: m.distance_km || 0,
+        hsr_m: m.hsr_m || 0,
+        sprints_count: m.sprints_count || 0,
+        max_speed_kmh: m.max_speed_kmh || 0,
+        player_load: m.player_load || 0,
+        player_load_min: m.player_load_min || 0,
+        accelerations: m.accelerations || 0,
+        decelerations: m.decelerations || 0,
+        heatmap_data: m.heatmap_data || [],
+      }));
+
+      const { error: mErr } = await supabase
+        .from("wimu_player_session_metrics")
+        .insert(metricsToInsert);
+
+      if (mErr) throw mErr;
+    }
+
+    return NextResponse.json({
+      success: true,
+      sessionId,
+      message: "Sesión GPS guardada correctamente en Supabase.",
+    });
+  } catch (err: any) {
+    console.error("Error saving GPS session:", err);
+    return NextResponse.json(
+      { success: false, error: err.message || "Error al guardar sesión GPS." },
+      { status: 500 }
+    );
+  }
+}

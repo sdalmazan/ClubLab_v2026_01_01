@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { PerformanceSubNav } from "@/components/performance/PerformanceSubNav";
 import { ExportDataModal } from "@/components/performance/ExportDataModal";
 import { PlayerDailyCheckDetailModal } from "@/components/dashboard/PlayerDailyCheckDetailModal";
+import { WimuGpsImportModal } from "@/components/performance/WimuGpsImportModal";
+import { GpsAnalysisDashboard } from "@/components/performance/GpsAnalysisDashboard";
 import { 
   Activity, 
   Flame, 
@@ -27,7 +29,8 @@ import {
   FileSpreadsheet,
   Plus,
   Eye,
-  Sliders
+  Sliders,
+  MapPin
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -77,7 +80,8 @@ function formatPositionLabel(posKey?: string): string {
 const INITIAL_HOLISTIC_ROSTER: HolisticPlayerRecord[] = [];
 
 export default function PerformanceMonitoringPage() {
-  const [activeTab, setActiveTab] = useState<"matrix360" | "wellness_weight">("matrix360");
+  const [activeTab, setActiveTab] = useState<"matrix360" | "wellness_weight" | "gps_analysis">("matrix360");
+  const [isGpsEnabled, setIsGpsEnabled] = useState(true);
   const [roster, setRoster] = useState<HolisticPlayerRecord[]>(INITIAL_HOLISTIC_ROSTER);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -85,13 +89,32 @@ export default function PerformanceMonitoringPage() {
   // Modals state
   const [isGpsModalOpen, setIsGpsModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [gpsFileName, setGpsFileName] = useState("");
-  const [gpsSessionType, setGpsSessionType] = useState("Entrenamiento Principal");
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Selected Player Detail Modal & 360 Dossier Modal
   const [selectedDetailPlayer, setSelectedDetailPlayer] = useState<any | null>(null);
   const [dossierPlayer, setDossierPlayer] = useState<HolisticPlayerRecord | null>(null);
+
+  // Load organization settings to check if GPS is enabled
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        if (typeof window !== "undefined") {
+          const cached = localStorage.getItem("cl_is_gps_enabled");
+          if (cached !== null) {
+            setIsGpsEnabled(cached === "true");
+          }
+        }
+        const res = await fetch("/api/organization/settings");
+        const data = await res.json();
+        if (data?.success && data?.is_gps_enabled !== undefined) {
+          setIsGpsEnabled(Boolean(data.is_gps_enabled));
+        }
+      } catch (err) {
+        console.error("Failed to load GPS enabled setting:", err);
+      }
+    }
+    loadSettings();
+  }, []);
 
   useEffect(() => {
     async function loadSquad() {
@@ -161,20 +184,6 @@ export default function PerformanceMonitoringPage() {
     loadSquad();
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setGpsFileName(file.name);
-    }
-  };
-
-  const handleImportGpsSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert(`¡Datos GPS de la sesión ("${gpsSessionType}") importados correctamente para la plantilla!`);
-    setIsGpsModalOpen(false);
-    setGpsFileName("");
-  };
-
   const filteredRoster = roster.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.position.toLowerCase().includes(search.toLowerCase())
@@ -182,7 +191,7 @@ export default function PerformanceMonitoringPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 md:p-8 text-slate-100 space-y-6">
-      {/* ── HEADER & GPS IMPORT CTA ── */}
+      {/* ── HEADER & ACTIONS ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
@@ -202,27 +211,18 @@ export default function PerformanceMonitoringPage() {
             <FileSpreadsheet className="size-4" />
             <span>Exportar Datos (CSV)</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setIsGpsModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer shrink-0"
-          >
-            <Upload className="size-4" />
-            <span>+ Importar Datos GPS</span>
-          </button>
         </div>
       </div>
 
       <PerformanceSubNav />
 
-      {/* ── MAIN TABS: MATRIZ 360° vs WELLNESS & PESO ── */}
+      {/* ── MAIN TABS: MATRIZ 360° vs WELLNESS vs GPS ANÁLISIS ── */}
       <div className="flex bg-slate-900 border border-white/10 rounded-xl p-1 gap-1 flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab("matrix360")}
           className={cn(
-            "flex-1 min-w-[200px] rounded-lg px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
+            "flex-1 min-w-[180px] rounded-lg px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
             activeTab === "matrix360"
               ? "bg-primary text-primary-foreground shadow"
               : "text-slate-400 hover:text-white"
@@ -236,7 +236,7 @@ export default function PerformanceMonitoringPage() {
           type="button"
           onClick={() => setActiveTab("wellness_weight")}
           className={cn(
-            "flex-1 min-w-[200px] rounded-lg px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
+            "flex-1 min-w-[180px] rounded-lg px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
             activeTab === "wellness_weight"
               ? "bg-primary text-primary-foreground shadow"
               : "text-slate-400 hover:text-white"
@@ -245,7 +245,72 @@ export default function PerformanceMonitoringPage() {
           <Scale className="size-4" />
           <span>Wellness & Pesaje Matutino</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("gps_analysis")}
+          className={cn(
+            "flex-1 min-w-[180px] rounded-lg px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2",
+            activeTab === "gps_analysis"
+              ? "bg-emerald-500 text-slate-950 font-black shadow"
+              : "text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20"
+          )}
+        >
+          <MapPin className="size-4" />
+          <span>GPS Análisis</span>
+          {!isGpsEnabled && (
+            <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+              Desactivado
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* ── TAB 3: GPS ANÁLISIS ── */}
+      {activeTab === "gps_analysis" && (
+        <>
+          {isGpsEnabled ? (
+            <GpsAnalysisDashboard
+              onOpenImportModal={() => setIsGpsModalOpen(true)}
+            />
+          ) : (
+            <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-8 text-center space-y-4 max-w-xl mx-auto shadow-2xl">
+              <div className="size-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mx-auto flex items-center justify-center">
+                <MapPin className="size-7" />
+              </div>
+              <h3 className="text-lg font-black text-white">
+                La Integración GPS no está activa actualmente
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Activa la captura de datos WIMU / GPS para habilitar el procesamiento en lote con Trimmer Engine, mapas de calor 2D y comparativas de percentiles.
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsGpsEnabled(true);
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("cl_is_gps_enabled", "true");
+                    document.cookie = "cl_is_gps_enabled=true; path=/; max-age=31536000";
+                  }
+                  try {
+                    await fetch("/api/organization/settings", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ settingsToUpdate: { is_gps_enabled: true } }),
+                    });
+                  } catch (err) {
+                    console.error("Error enabling GPS:", err);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-lg inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="size-4" />
+                <span>Activar Integración GPS Ahora</span>
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── TAB 1: MATRIZ HOLÍSTICA 360° ── */}
       {activeTab === "matrix360" && (
@@ -494,67 +559,6 @@ export default function PerformanceMonitoringPage() {
         </div>
       )}
 
-      {/* ── MODAL: IMPORTAR DATOS GPS (CSV / DISPOSITIVO) — OPAQUE 100% ── */}
-      {isGpsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
-          <div className="bg-slate-900 border border-white/20 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                <Upload className="size-4 text-emerald-400" />
-                Importar Datos GPS de Sesión
-              </h3>
-              <button type="button" onClick={() => setIsGpsModalOpen(false)} className="text-slate-400 hover:text-white p-1">
-                <X className="size-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleImportGpsSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-white block mb-1">Tipo de Sesión / Partido:</label>
-                <input
-                  type="text"
-                  required
-                  value={gpsSessionType}
-                  onChange={(e) => setGpsSessionType(e.target.value)}
-                  className="w-full rounded-md bg-slate-950 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="font-semibold text-white block">Seleccionar Archivo CSV (Catapult, WIMU, STATSports):</label>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept=".csv,.fit,.json"
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full p-4 border border-dashed border-white/20 hover:border-emerald-400/50 rounded-xl bg-white/5 text-center space-y-1 cursor-pointer transition-all"
-                >
-                  <FileSpreadsheet className="size-6 text-emerald-400 mx-auto" />
-                  <span className="text-xs font-bold text-white block">
-                    {gpsFileName ? gpsFileName : "Hacer clic para examinar archivo CSV de GPS"}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block">Soporta métricas de distancia, HSR, aceleraciones y sprints</span>
-                </button>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-                <button type="button" onClick={() => setIsGpsModalOpen(false)} className="px-4 py-2 rounded-xl bg-white/10 text-white font-bold text-xs">
-                  Cancelar
-                </button>
-                <button type="submit" className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs hover:bg-emerald-400">
-                  Cargar Datos GPS
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* ── MODAL: FICHA EXPEDIENTE HOLÍSTICO 360° DEL JUGADOR — OPAQUE 100% ── */}
       {dossierPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
@@ -639,6 +643,21 @@ export default function PerformanceMonitoringPage() {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         squadPlayers={roster}
+      />
+
+      {/* WIMU GPS Import & Trimmer Engine Modal */}
+      <WimuGpsImportModal
+        isOpen={isGpsModalOpen}
+        onClose={() => setIsGpsModalOpen(false)}
+        roster={roster.map((p) => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          jerseyNumber: p.jerseyNumber,
+        }))}
+        onSuccess={() => {
+          setActiveTab("gps_analysis");
+        }}
       />
 
       {/* Player Daily Check Detail Modal */}

@@ -11,6 +11,7 @@ import { PlayerProfileEditModal } from "@/components/player/PlayerProfileEditMod
 import { PlayerBottomNav } from "@/components/player/PlayerBottomNav";
 import { ProfileCompletionBar } from "@/components/player/ProfileCompletionBar";
 import { RecommendationCard } from "@/components/player/RecommendationCard";
+import { PlayerGpsPercentileCard } from "@/components/player/PlayerGpsPercentileCard";
 import { calculatePlayerProfileCompletion } from "@/services/playerExperienceService";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
 import { ConfirmAttendanceWeightModal } from "@/components/player/ConfirmAttendanceWeightModal";
@@ -422,6 +423,9 @@ export default function PlayerTodayPage() {
           <span>{attendanceWeight ? "Modificar Peso" : "Registrar Peso"}</span>
         </button>
       </div>
+
+      {/* GPS Performance & Percentile Comparison Card */}
+      <PlayerGpsPercentileCard />
 
       {/* Profile Completion & Medical Antecedents Card */}
       <div className="p-4 rounded-2xl bg-card border border-border space-y-3 shadow-sm">
