@@ -395,10 +395,10 @@ export function PlayerDailyCheckDetailModal({
                         <th className="p-2.5">Fecha</th>
                         <th className="p-2.5 text-center">Sueño</th>
                         <th className="p-2.5 text-center">Fatiga</th>
-                        <th className="p-2.5 text-center text-amber-400">Estrés</th>
+                        <th className="p-2.5 text-center">Estrés</th>
                         <th className="p-2.5 text-center">Dolor</th>
                         <th className="p-2.5 text-center">Peso</th>
-                        <th className="p-2.5 text-center text-sky-400">Check-out (RPE)</th>
+                        <th className="p-2.5 text-center">Check-out (RPE)</th>
                         <th className="p-2.5">Notas / Molestias</th>
                       </tr>
                     </thead>
@@ -408,29 +408,59 @@ export function PlayerDailyCheckDetailModal({
                         const outData = item.checkout;
                         const hasNotesOrDiscomfort = inData?.notes || inData?.discomfort_body_part || outData?.notes || outData?.post_feeling;
 
+                        const isLowSleep = inData?.sleep_quality != null && inData.sleep_quality <= 2;
+                        const isHighFatigue = inData?.fatigue != null && inData.fatigue >= 4;
+                        const isHighStress = inData?.stress != null && inData.stress >= 4;
+                        const isHighSoreness = inData?.muscle_soreness != null && inData.muscle_soreness >= 4;
+                        const isHighRpe = outData?.rpe != null && outData.rpe >= 9;
+
                         return (
                           <tr key={item.date} className="hover:bg-white/[0.04] transition-colors">
                             <td className="p-2.5 font-bold text-white whitespace-nowrap">
                               📅 {item.date}
                             </td>
-                            <td className="p-2.5 text-center font-bold text-slate-300">
-                              {inData?.sleep_quality ? `${inData.sleep_quality}/5` : "–"}
+                            <td className="p-2.5 text-center font-bold">
+                              {inData?.sleep_quality ? (
+                                <span className={isLowSleep ? "text-rose-400 bg-rose-500/10 px-1 py-0.5 rounded border border-rose-500/20" : "text-slate-300"}>
+                                  {inData.sleep_quality}/5
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">–</span>
+                              )}
                             </td>
-                            <td className="p-2.5 text-center font-bold text-slate-300">
-                              {inData?.fatigue ? `${inData.fatigue}/5` : "–"}
+                            <td className="p-2.5 text-center font-bold">
+                              {inData?.fatigue ? (
+                                <span className={isHighFatigue ? "text-rose-400 bg-rose-500/10 px-1 py-0.5 rounded border border-rose-500/20" : "text-slate-300"}>
+                                  {inData.fatigue}/5
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">–</span>
+                              )}
                             </td>
-                            <td className="p-2.5 text-center font-bold text-amber-300">
-                              {inData?.stress ? `${inData.stress}/5` : "–"}
+                            <td className="p-2.5 text-center font-bold">
+                              {inData?.stress ? (
+                                <span className={isHighStress ? "text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20" : "text-slate-300"}>
+                                  {inData.stress}/5
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">–</span>
+                              )}
                             </td>
-                            <td className="p-2.5 text-center font-bold text-slate-300">
-                              {inData?.muscle_soreness ? `${inData.muscle_soreness}/5` : "–"}
+                            <td className="p-2.5 text-center font-bold">
+                              {inData?.muscle_soreness ? (
+                                <span className={isHighSoreness ? "text-rose-400 bg-rose-500/10 px-1 py-0.5 rounded border border-rose-500/20" : "text-slate-300"}>
+                                  {inData.muscle_soreness}/5
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">–</span>
+                              )}
                             </td>
                             <td className="p-2.5 text-center font-bold text-slate-300">
                               {inData?.weight_kg ? `${inData.weight_kg} kg` : "–"}
                             </td>
                             <td className="p-2.5 text-center font-bold">
                               {outData?.rpe ? (
-                                <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                <span className={isHighRpe ? "px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30" : "px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20"}>
                                   RPE {outData.rpe}/10
                                 </span>
                               ) : (
