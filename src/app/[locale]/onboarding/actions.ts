@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+import { invalidateUserContext } from '@/features/analysis/cache/layer';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -186,7 +188,7 @@ export async function acceptAssignedOrgAction(): Promise<{ redirectUrl: string; 
         },
       });
 
-      revalidateTag(CACHE_TAGS.userContext(user.id));
+      invalidateUserContext(user.id);
       revalidatePath("/", "layout");
 
       const userRole = orgRole.role;
