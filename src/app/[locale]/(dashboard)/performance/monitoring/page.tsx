@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { PerformanceSubNav } from "@/components/performance/PerformanceSubNav";
+import { ExportDataModal } from "@/components/performance/ExportDataModal";
+import { PlayerDailyCheckDetailModal } from "@/components/dashboard/PlayerDailyCheckDetailModal";
 import { 
   Activity, 
   Flame, 
@@ -38,17 +40,18 @@ interface HolisticPlayerRecord {
   injuryStatus: "apto" | "rtp" | "baja";
   injuryDetail?: string;
   discomfortNote?: string;
-  wellnessScore: number; // 0 to 25
-  sleepQuality: number; // 1 to 5
-  fatigueLevel: number; // 1 to 5
+  wellnessScore: number | null;
+  sleepQuality: number | null;
+  fatigueLevel: number | null;
   gpsDistanceKm: number;
   hsrDistanceM: number;
   sprintsCount: number;
   acwrRatio: number;
-  bodyFatPercentage: number;
-  weightKg: number;
+  bodyFatPercentage: number | null;
+  weightKg: number | null;
   weightDiffKg?: number;
   completedWellnessToday: boolean;
+  rawPlayerObj: any;
 }
 
 function formatPositionLabel(posKey?: string): string {
@@ -79,14 +82,15 @@ export default function PerformanceMonitoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   
-  // GPS Import Modal state
+  // Modals state
   const [isGpsModalOpen, setIsGpsModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [gpsFileName, setGpsFileName] = useState("");
   const [gpsSessionType, setGpsSessionType] = useState("Entrenamiento Principal");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Selected Player 360 Dossier Modal
-  const [dossierPlayer, setDossierPlayer] = useState<HolisticPlayerRecord | null>(null);
+  // Selected Player Detail Modal
+  const [selectedDetailPlayer, setSelectedDetailPlayer] = useState<any | null>(null);
 
   useEffect(() => {
     async function loadSquad() {
@@ -113,18 +117,21 @@ export default function PerformanceMonitoringPage() {
             const latestW = p.latest_wellness;
             const completedWellnessToday = !!latestW;
 
-            const sleep = latestW?.sleep_quality ?? 4;
-            const fatigue = latestW?.fatigue ?? 2;
-            const mood = latestW?.mood ?? 4;
-            const muscle = latestW?.muscle_soreness ?? 1;
-            const stress = latestW?.stress ?? 2;
-            const wellnessScore = (sleep + (6 - fatigue) + mood + (6 - muscle) + (6 - stress));
+            const sleep = latestW?.sleep_quality ?? null;
+            const fatigue = latestW?.fatigue ?? null;
+            const mood = latestW?.mood ?? null;
+            const muscle = latestW?.muscle_soreness ?? null;
+            const stress = latestW?.stress ?? null;
+
+            const wellnessScore = (sleep != null && fatigue != null && mood != null && muscle != null && stress != null)
+              ? (sleep + (6 - fatigue) + mood + (6 - muscle) + (6 - stress))
+              : null;
 
             return {
               id: p.id,
               name: fullName,
               position: pos,
-              jerseyNumber: p.membership?.jersey_number || undefined,
+              jerseyNumber: p.membership?.jersey_number || p.jersey_number || undefined,
               injuryStatus,
               injuryDetail: p.active_injury ? `${p.active_injury.body_part} (${p.active_injury.severity || 'Activa'})` : p.availability_notes || undefined,
               discomfortNote: latestW?.discomfort_body_part || latestW?.localized_discomfort || undefined,
@@ -135,10 +142,11 @@ export default function PerformanceMonitoringPage() {
               hsrDistanceM: p.hsr_distance_m || 0,
               sprintsCount: p.sprints_count || 0,
               acwrRatio: p.acwr_ratio || 1.0,
-              bodyFatPercentage: p.height_cm ? Math.round((p.weight_kg || 75) / Math.pow(p.height_cm / 100, 2) * 10) / 10 : 11.5,
-              weightKg: p.weight_kg || 74.0,
+              bodyFatPercentage: p.body_fat_percentage != null ? p.body_fat_percentage : null,
+              weightKg: latestW?.weight_kg || p.weight_kg || null,
               weightDiffKg: 0,
               completedWellnessToday,
+              rawPlayerObj: p,
             };
           });
           setRoster(mapped);
@@ -184,14 +192,25 @@ export default function PerformanceMonitoringPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsGpsModalOpen(true)}
-          className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer shrink-0"
-        >
-          <Upload className="size-4" />
-          <span>+ Importar Datos GPS (CSV/Dispositivo)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 font-extrabold text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer shrink-0"
+          >
+            <FileSpreadsheet className="size-4" />
+            <span>Exportar Datos (CSV)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsGpsModalOpen(true)}
+            className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer shrink-0"
+          >
+            <Upload className="size-4" />
+            <span>+ Importar Datos GPS</span>
+          </button>
+        </div>
       </div>
 
       <PerformanceSubNav />
@@ -310,34 +329,47 @@ export default function PerformanceMonitoringPage() {
                       </td>
 
                       <td className="p-3.5 font-mono">
-                        <span className={p.wellnessScore < 15 ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
-                          {p.wellnessScore} / 25
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">Sueño: {p.sleepQuality}/5</span>
+                        {p.completedWellnessToday && p.wellnessScore != null ? (
+                          <>
+                            <span className={p.wellnessScore < 15 ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
+                              {p.wellnessScore} / 25
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">Sueño: {p.sleepQuality ?? "–"}/5</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-bold text-amber-400/90 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            ⏳ Sin Check-in
+                          </span>
+                        )}
                       </td>
 
                       <td className="p-3.5 font-mono">
-                        <span className="font-bold text-white">{p.gpsDistanceKm} km</span>
-                        <span className="text-[10px] text-slate-400 block">HSR: {p.hsrDistanceM} m</span>
+                        <span className="font-bold text-white">{p.gpsDistanceKm > 0 ? `${p.gpsDistanceKm} km` : "—"}</span>
+                        {p.hsrDistanceM > 0 && <span className="text-[10px] text-slate-400 block">HSR: {p.hsrDistanceM} m</span>}
                       </td>
 
                       <td className="p-3.5 font-mono">
                         <span className={p.acwrRatio > 1.4 ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>
-                          {p.acwrRatio}
+                          {p.acwrRatio || 1.0}
                         </span>
                       </td>
 
                       <td className="p-3.5 font-mono">
-                        <span className="font-bold text-sky-400">{p.bodyFatPercentage}%</span>
-                        <span className="text-[10px] text-slate-400 block">6 Pliegues</span>
+                        {p.bodyFatPercentage != null ? (
+                          <>
+                            <span className="font-bold text-sky-400">{p.bodyFatPercentage}%</span>
+                            <span className="text-[10px] text-slate-400 block">Pliegues ISAK</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 italic">— Sin medir</span>
+                        )}
                       </td>
 
                       <td className="p-3.5 font-mono">
-                        <span className="font-bold text-white">{p.weightKg} kg</span>
-                        {p.weightDiffKg != null && (
-                          <span className={cn("text-[10px] block font-bold", p.weightDiffKg < 0 ? "text-emerald-400" : "text-amber-400")}>
-                            {p.weightDiffKg > 0 ? `+${p.weightDiffKg}` : p.weightDiffKg} kg
-                          </span>
+                        {p.weightKg != null ? (
+                          <span className="font-bold text-white">{p.weightKg} kg</span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 italic">—</span>
                         )}
                       </td>
 
@@ -346,11 +378,17 @@ export default function PerformanceMonitoringPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDossierPlayer(p);
+                            setSelectedDetailPlayer({
+                              id: p.id,
+                              name: p.name,
+                              jerseyNumber: p.jerseyNumber,
+                              checkin: p.rawPlayerObj?.latest_wellness,
+                              checkout: p.rawPlayerObj?.latest_rpe,
+                            });
                           }}
-                          className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-[10px] font-bold transition-all"
+                          className="px-2.5 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold transition-all cursor-pointer"
                         >
-                          Ver Ficha 360°
+                          Ver Check-in / Out
                         </button>
                       </td>
                     </tr>
@@ -594,6 +632,20 @@ export default function PerformanceMonitoringPage() {
           </div>
         </div>
       )}
+
+      {/* Export CSV Modal */}
+      <ExportDataModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        squadPlayers={roster}
+      />
+
+      {/* Player Daily Check Detail Modal */}
+      <PlayerDailyCheckDetailModal
+        isOpen={!!selectedDetailPlayer}
+        onClose={() => setSelectedDetailPlayer(null)}
+        player={selectedDetailPlayer}
+      />
     </div>
   );
 }

@@ -217,9 +217,7 @@ export async function getSquadPlayers(
     const checkin = wellnessMap.get(p.id) || null;
     const effectiveWeight = checkin?.weight_kg ?? p.weight_kg ?? null;
     const finalWellness = checkin
-      ? { ...checkin, weight_kg: effectiveWeight }
-      : effectiveWeight != null
-      ? { weight_kg: effectiveWeight, sleep_quality: 4, fatigue: 2 }
+      ? { ...checkin, weight_kg: checkin.weight_kg ?? p.weight_kg }
       : null;
 
     return {

@@ -76,9 +76,6 @@ export default async function DashboardPage({
   if (userRole === "player") {
     redirect("/player");
   }
-  if (userRole === "physical_coach") {
-    redirect("/performance/dashboard");
-  }
   if (userRole === "physio") {
     redirect("/injuries");
   }

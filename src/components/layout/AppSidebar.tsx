@@ -148,14 +148,17 @@ export function AppSidebar({ user }: AppSidebarProps) {
       if (item.href === "/admin" && (user.email === "diecilo7@gmail.com" || userRoleStr === "super_admin")) {
         return true;
       }
-      if (item.href === "/academy" && (
-        userRoleStr === "academy_coordinator" ||
-        userRoleStr === "academy_director" ||
-        userRoleStr === "club_admin" ||
-        userRoleStr === "sporting_director" ||
-        userRoleStr === "super_admin"
-      )) {
-        return true;
+      if (item.href === "/academy") {
+        if (userRoleStr === "super_admin") return true;
+        if ((user as any).org_type === "academy" && (
+          userRoleStr === "academy_coordinator" ||
+          userRoleStr === "academy_director" ||
+          userRoleStr === "club_admin" ||
+          userRoleStr === "sporting_director"
+        )) {
+          return true;
+        }
+        return false;
       }
       if (userRoleStr === "physio") {
         const allowedPhysioHrefs = ["/injuries", "/training", "/matches", "/settings"];

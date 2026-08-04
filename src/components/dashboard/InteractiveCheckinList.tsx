@@ -37,6 +37,16 @@ export function InteractiveCheckinList({
     (s: any) => s.session_type !== "rest" && !s.title?.toLowerCase().includes("descanso")
   );
 
+  useEffect(() => {
+    if (validSessions.length > 0 && activeSessionId === "all") {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todayS = validSessions.find((s: any) => s.date === todayStr);
+      if (todayS) {
+        setActiveSessionId(todayS.id);
+      }
+    }
+  }, [validSessions]);
+
   const selectedSession = validSessions.find((s: any) => s.id === activeSessionId);
 
   const handleSessionSelect = (sessionId: string) => {
@@ -46,9 +56,13 @@ export function InteractiveCheckinList({
 
   // Helper to resolve player checkin & checkout for current view/session
   const getPlayerData = (player: any) => {
-    const w = activeSessionId !== "all" && selectedSession
-      ? (selectedSession.wellness_checkins || []).find((cw: any) => cw.player_id === player.id) || player.latest_wellness
-      : player.latest_wellness;
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    let w = player.latest_wellness;
+    if (activeSessionId !== "all" && selectedSession) {
+      const sessionW = (selectedSession.wellness_checkins || []).find((cw: any) => cw.player_id === player.id);
+      w = sessionW || (selectedSession.date === todayStr ? player.latest_wellness : null);
+    }
 
     let r = player.latest_rpe;
     if (activeSessionId !== "all" && selectedSession) {

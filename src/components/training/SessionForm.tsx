@@ -39,6 +39,7 @@ import { GroupPlanner } from "./GroupPlanner";
 import { MatchGamePlan } from "./MatchGamePlan";
 import { FieldMap } from "@/components/players/FieldMap";
 import { SessionPrintReport } from "./SessionPrintReport";
+import { TestSessionGrid } from "./TestSessionGrid";
 import { TacticalSvgRenderer, hasWhiteboardData } from "./print/TacticalSvgRenderer";
 import { prepareAndPrintDocument } from "@/lib/printUtils";
 import { TaskWhiteboard, type WhiteboardData } from "./TaskWhiteboard";
@@ -1802,6 +1803,7 @@ export function SessionForm({
                   <option value="training" className="bg-slate-900">Entrenamiento Grupal</option>
                   <option value="individual" className="bg-slate-900">Entrenamiento Individual</option>
                   <option value="match" className="bg-slate-900">Partido</option>
+                  <option value="test" className="bg-slate-900">Sesión de Test & Valoración Física</option>
                 </select>
               </div>
             </div>
@@ -2125,6 +2127,15 @@ export function SessionForm({
         )}
       </div>
 
+          {/* ── SESIÓN DE TEST (Solo para test) ── */}
+          {sessionType === "test" && (
+            <TestSessionGrid
+              sessionDate={date}
+              teamId={teamId}
+              squadPlayers={squadPlayers}
+            />
+          )}
+
           {/* ── PLAN DE PARTIDO (Solo para partido) ── */}
           {sessionType === "match" && (
             <div className="bg-card rounded-lg border border-border p-6 space-y-4">
@@ -2193,7 +2204,7 @@ export function SessionForm({
                 </div>
               )}
             </div>
-          ) : sessionType !== "match" ? (
+          ) : sessionType !== "match" && sessionType !== "test" ? (
             <div className="space-y-6">
               {/* Block 0: PRE-SESSION (Vídeo / Fuerza / Activación Previa) */}
               {!showBlock0 ? (
