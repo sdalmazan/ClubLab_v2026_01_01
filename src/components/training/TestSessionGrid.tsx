@@ -211,7 +211,7 @@ export function TestSessionGrid({
             <tbody className="divide-y divide-white/5">
               {squadPlayers.map((player) => {
                 const playerName = player.sporting_name || `${player.first_name || ""} ${player.last_name || ""}`.trim() || "Jugador";
-                const jersey = player.membership?.jersey_number ?? player.jersey_number ?? "–";
+                const jersey = player.membership?.jersey_number ?? (player as any).jersey_number ?? "–";
                 const pValues = resultsMap[player.id] || {};
 
                 return (

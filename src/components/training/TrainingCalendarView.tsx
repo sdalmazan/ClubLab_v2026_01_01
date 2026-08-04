@@ -52,6 +52,10 @@ const SESSION_TYPE_STYLES: Record<SessionType, { badge: string; border: string }
     badge: "bg-slate-500/10 text-slate-400 border-slate-500/20",
     border: "border-border hover:border-primary/50 bg-card text-foreground"
   },
+  test: {
+    badge: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    border: "border-border hover:border-primary/50 bg-card text-foreground"
+  },
 };
 
 export function TrainingCalendarView({ sessions = [] }: TrainingCalendarViewProps) {
