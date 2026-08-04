@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { TacticalSvgRenderer } from "./TacticalSvgRenderer";
+import { TacticalSvgRenderer, hasWhiteboardData } from "./TacticalSvgRenderer";
 import { cn } from "@/lib/utils";
 
 /**
@@ -79,7 +79,8 @@ export function TrainingPrintExerciseCard({
   );
   const showDesc = exerciseDescription && exerciseDescription !== notes;
 
-  const hasWhiteboard = Boolean(ex.whiteboard_data);
+  const wbData = ex.whiteboard_data ?? (ex.whiteboard_data === undefined ? ex.exercise?.whiteboard_data : null);
+  const hasWhiteboard = hasWhiteboardData(wbData);
 
   return (
     <div className="bg-white print-break-avoid text-[8pt] leading-tight w-full border-b border-slate-300 pb-2 mb-1.5 last:border-b-0 last:pb-0 last:mb-0">
@@ -189,7 +190,7 @@ export function TrainingPrintExerciseCard({
         {hasWhiteboard && (
           <div className="col-span-5 flex items-stretch h-full min-h-[140px]">
             <TacticalSvgRenderer
-              value={ex.whiteboard_data}
+              value={wbData}
               width={400}
               height={300}
               className="w-full h-full rounded overflow-hidden border border-slate-200"

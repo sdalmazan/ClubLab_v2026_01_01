@@ -6,41 +6,71 @@ import { PlayerDailyCheckDetailModal } from "@/components/dashboard/PlayerDailyC
 
 interface InteractiveCheckinListProps {
   players: any[];
+  sessions?: any[];
   completedCheckinsCount: number;
   completedWeightsCount?: number;
   completedCheckoutsCount?: number;
   pendingCheckinCount: number;
   totalPlayers: number;
+  selectedSessionId?: string;
+  onSessionChange?: (sessionId: string) => void;
 }
 
 export function InteractiveCheckinList({
   players = [],
+  sessions = [],
   completedCheckinsCount,
   completedWeightsCount = 0,
   completedCheckoutsCount = 0,
   pendingCheckinCount,
   totalPlayers,
+  selectedSessionId,
+  onSessionChange,
 }: InteractiveCheckinListProps) {
   const [selectedDetailPlayer, setSelectedDetailPlayer] = useState<any | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string>(selectedSessionId || "all");
+
+  const handleSessionSelect = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    if (onSessionChange) onSessionChange(sessionId);
+  };
 
   if (totalPlayers === 0) return null;
 
   return (
     <>
       <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02] gap-2">
           <div>
             <span className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
               <HeartPulse className="size-4 text-emerald-400" />
-              Detalle Check-in por Jugador
+              Detalle Check-in y Check-out por Sesión
             </span>
             <span className="text-[10px] text-slate-400 block mt-0.5">
-              Haz clic en cualquier futbolista para ver el informe de salud, pesaje y esfuerzo
+              Haz clic en cualquier futbolista para ver la ficha o selecciona la sesión que deseas revisar
             </span>
           </div>
-          <span className="text-[10px] font-bold text-slate-300 bg-white/5 px-2.5 py-1 rounded-full border border-white/10 shrink-0">
-            {completedCheckinsCount} / {totalPlayers} Listos
-          </span>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {sessions.length > 0 && (
+              <select
+                value={activeSessionId}
+                onChange={(e) => handleSessionSelect(e.target.value)}
+                className="bg-slate-950 border border-white/15 text-white text-xs font-bold px-3 py-1.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+              >
+                <option value="all">Todas las Sesiones del Día</option>
+                {sessions.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title || "Sesión"} ({s.date || "Hoy"})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <span className="text-[10px] font-bold text-slate-300 bg-white/5 px-2.5 py-1 rounded-full border border-white/10 shrink-0">
+              {completedCheckinsCount} / {totalPlayers} Listos
+            </span>
+          </div>
         </div>
 
         <div className="divide-y divide-white/5 max-h-80 overflow-y-auto">
@@ -56,15 +86,28 @@ export function InteractiveCheckinList({
             return (
               <div
                 key={player.id}
-                onClick={() =>
+                onClick={() => {
+                  const playerSessions = sessions.map((s: any) => {
+                    const sAtt = (s.session_attendance || []).find((att: any) => att.player_id === player.id);
+                    return {
+                      id: s.id,
+                      title: s.title || "Sesión de Entrenamiento",
+                      date: s.date,
+                      session_type: s.session_type,
+                      checkin: player.latest_wellness,
+                      checkout: sAtt ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status } : player.latest_rpe,
+                    };
+                  });
+
                   setSelectedDetailPlayer({
                     id: player.id,
                     name: playerName,
                     jerseyNumber: jersey,
                     checkin: w,
                     checkout: r,
-                  })
-                }
+                    sessions: playerSessions,
+                  });
+                }}
                 className={`px-4 py-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all hover:bg-slate-800/80 active:scale-[0.99] border-b border-white/[0.04] ${
                   hasCheckin ? "" : "bg-white/[0.01]"
                 }`}

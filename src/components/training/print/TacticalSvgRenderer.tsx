@@ -25,6 +25,32 @@ interface TacticalSvgRendererProps {
   printMode?: boolean;
 }
 
+export function hasWhiteboardData(wbData: any): boolean {
+  if (!wbData) return false;
+  let parsed = wbData;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return false;
+    }
+  }
+  if (parsed && typeof parsed === "object" && parsed.whiteboard_data) {
+    parsed = parsed.whiteboard_data;
+  }
+  if (!parsed || typeof parsed !== "object") return false;
+
+  if (parsed.imageDataUrl && typeof parsed.imageDataUrl === "string" && parsed.imageDataUrl.length > 50) {
+    return true;
+  }
+
+  const strokes = Array.isArray(parsed.strokes) ? parsed.strokes : [];
+  const markers = Array.isArray(parsed.markers) ? parsed.markers : [];
+  const texts   = Array.isArray(parsed.texts) ? parsed.texts : [];
+
+  return strokes.length > 0 || markers.length > 0 || texts.length > 0;
+}
+
 export function TacticalSvgRenderer({
   value,
   width = 600,

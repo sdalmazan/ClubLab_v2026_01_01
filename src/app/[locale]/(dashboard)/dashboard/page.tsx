@@ -341,9 +341,10 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* ── DETALLE DE CHECK-IN POR JUGADOR ── */}
+      {/* ── DETALLE DE CHECK-IN Y CHECK-OUT POR SESIÓN POR JUGADOR ── */}
       <InteractiveCheckinList
         players={players}
+        sessions={dbSessions}
         completedCheckinsCount={completedCheckinsCount}
         completedWeightsCount={completedWeightsCount}
         completedCheckoutsCount={completedCheckoutsCount}

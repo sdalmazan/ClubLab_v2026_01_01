@@ -39,6 +39,7 @@ import { GroupPlanner } from "./GroupPlanner";
 import { MatchGamePlan } from "./MatchGamePlan";
 import { FieldMap } from "@/components/players/FieldMap";
 import { SessionPrintReport } from "./SessionPrintReport";
+import { TacticalSvgRenderer, hasWhiteboardData } from "./print/TacticalSvgRenderer";
 import { prepareAndPrintDocument } from "@/lib/printUtils";
 import { TaskWhiteboard, type WhiteboardData } from "./TaskWhiteboard";
 import { TacticalConceptsSelector } from "./TacticalConceptsSelector";
@@ -2742,13 +2743,17 @@ export function SessionForm({
                                 {blockExercises.map((ex: any, exIdx: number) => (
                                   <div key={exIdx} className="flex items-center justify-between text-[9px] text-slate-400 group py-0.5 gap-2">
                                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                      {ex.whiteboard_data?.imageDataUrl ? (
+                                      {hasWhiteboardData(ex.whiteboard_data) ? (
                                         <div className="h-5 w-8 shrink-0 rounded border border-white/10 bg-slate-950/40 overflow-hidden flex items-center justify-center">
-                                          <img 
-                                            src={ex.whiteboard_data.imageDataUrl} 
-                                            alt="Esquema" 
-                                            className="h-full w-full object-cover"
-                                          />
+                                          {ex.whiteboard_data?.imageDataUrl ? (
+                                            <img 
+                                              src={ex.whiteboard_data.imageDataUrl} 
+                                              alt="Esquema" 
+                                              className="h-full w-full object-cover"
+                                            />
+                                          ) : (
+                                            <TacticalSvgRenderer value={ex.whiteboard_data} width={120} height={80} className="w-full h-full" />
+                                          )}
                                         </div>
                                       ) : (
                                         <span className="h-5 w-8 shrink-0 rounded border border-dashed border-white/5 bg-white/2 flex items-center justify-center text-[7px] text-slate-650 font-bold select-none">
@@ -3269,13 +3274,17 @@ export function SessionForm({
                         </div>
 
                         {/* Whiteboard rendered full-width */}
-                        {ex.whiteboard_data?.imageDataUrl && (
+                        {hasWhiteboardData(ex.whiteboard_data) && (
                           <div className="rounded-xl border border-white/5 bg-slate-950 p-0.5 overflow-hidden aspect-[4/3]">
-                            <img
-                              src={ex.whiteboard_data.imageDataUrl}
-                              alt="Pizarra"
-                              className="w-full h-full object-contain"
-                            />
+                            {ex.whiteboard_data?.imageDataUrl ? (
+                              <img
+                                src={ex.whiteboard_data.imageDataUrl}
+                                alt="Pizarra"
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              <TacticalSvgRenderer value={ex.whiteboard_data} width={400} height={300} className="w-full h-full" />
+                            )}
                           </div>
                         )}
 
@@ -3480,7 +3489,7 @@ export function SessionForm({
               {index + 1}
             </span>
             
-            {!isExpanded && ex.whiteboard_data?.imageDataUrl && (
+            {!isExpanded && hasWhiteboardData(ex.whiteboard_data) && (
               <div 
                 onClick={(e) => {
                   e.stopPropagation();
@@ -3489,11 +3498,15 @@ export function SessionForm({
                 className="h-8 w-12 shrink-0 rounded border border-white/10 bg-slate-950/40 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-all flex items-center justify-center group"
                 title="Editar dibujo"
               >
-                <img 
-                  src={ex.whiteboard_data.imageDataUrl} 
-                  alt="Esquema" 
-                  className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                />
+                {ex.whiteboard_data?.imageDataUrl ? (
+                  <img 
+                    src={ex.whiteboard_data.imageDataUrl} 
+                    alt="Esquema" 
+                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                  />
+                ) : (
+                  <TacticalSvgRenderer value={ex.whiteboard_data} width={120} height={80} className="w-full h-full" />
+                )}
               </div>
             )}
             <div className="min-w-0 flex-1">
@@ -3677,8 +3690,14 @@ export function SessionForm({
               type="number"
               min="0"
               placeholder="Minutos"
-              value={ex.transition_rest_min ?? 2}
-              onChange={(e) => updateExerciseField(index, "transition_rest_min", Math.max(0, Number(e.target.value)))}
+              value={ex.transition_rest_min ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateExerciseField(index, "transition_rest_min", val === "" ? "" : Math.max(0, Number(val)));
+              }}
+              onBlur={(e) => {
+                if (e.target.value === "") updateExerciseField(index, "transition_rest_min", 0);
+              }}
               className="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
             />
           </div>
@@ -3698,7 +3717,8 @@ export function SessionForm({
                   if (val && (!ex.series || ex.series.length === 0)) {
                     // Populate series array based on current num_series
                     const defaultSeries = [];
-                    for (let i = 0; i < (ex.num_series || 1); i++) {
+                    const n = Number(ex.num_series) || 1;
+                    for (let i = 0; i < n; i++) {
                       defaultSeries.push({
                         set_index: i + 1,
                         duration_min: ex.series_duration_min || 15,
@@ -3722,8 +3742,14 @@ export function SessionForm({
                 <input
                   type="number"
                   min="1"
-                  value={ex.num_series ?? 1}
-                  onChange={(e) => updateExerciseField(index, "num_series", Math.max(1, Number(e.target.value)))}
+                  value={ex.num_series ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateExerciseField(index, "num_series", val === "" ? "" : Math.max(1, Number(val)));
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === "" || Number(e.target.value) < 1) updateExerciseField(index, "num_series", 1);
+                  }}
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
                 />
               </div>
@@ -3732,8 +3758,14 @@ export function SessionForm({
                 <input
                   type="number"
                   min="1"
-                  value={ex.series_duration_min ?? 15}
-                  onChange={(e) => updateExerciseField(index, "series_duration_min", Math.max(1, Number(e.target.value)))}
+                  value={ex.series_duration_min ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateExerciseField(index, "series_duration_min", val === "" ? "" : Math.max(1, Number(val)));
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === "" || Number(e.target.value) < 1) updateExerciseField(index, "series_duration_min", 15);
+                  }}
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
                 />
               </div>
@@ -3742,8 +3774,14 @@ export function SessionForm({
                 <input
                   type="number"
                   min="0"
-                  value={ex.series_recovery_min ?? 2}
-                  onChange={(e) => updateExerciseField(index, "series_recovery_min", Math.max(0, Number(e.target.value)))}
+                  value={ex.series_recovery_min ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateExerciseField(index, "series_recovery_min", val === "" ? "" : Math.max(0, Number(val)));
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === "") updateExerciseField(index, "series_recovery_min", 2);
+                  }}
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white"
                 />
               </div>
@@ -3757,9 +3795,14 @@ export function SessionForm({
                   type="number"
                   min="1"
                   max="10"
-                  value={ex.num_series ?? 1}
+                  value={ex.num_series ?? ""}
                   onChange={(e) => {
-                    const nextNum = Math.max(1, Math.min(10, Number(e.target.value)));
+                    const val = e.target.value;
+                    if (val === "") {
+                      updateExerciseField(index, "num_series", "");
+                      return;
+                    }
+                    const nextNum = Math.max(1, Math.min(10, Number(val)));
                     updateExerciseField(index, "num_series", nextNum);
                     
                     const currentSeries = ex.series ?? [];
@@ -3777,6 +3820,9 @@ export function SessionForm({
                     }
                     updateExerciseField(index, "series", nextSeries);
                   }}
+                  onBlur={(e) => {
+                    if (e.target.value === "" || Number(e.target.value) < 1) updateExerciseField(index, "num_series", 1);
+                  }}
                   className="w-12 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-xs text-white text-center focus:outline-none"
                 />
               </div>
@@ -3788,10 +3834,11 @@ export function SessionForm({
                       type="number"
                       min="1"
                       placeholder="Dur. (min)"
-                      value={s.duration_min}
+                      value={s.duration_min ?? ""}
                       onChange={(e) => {
+                        const val = e.target.value;
                         const newSeries = (ex.series ?? []).map((sItem: any, i: number) => {
-                          if (i === sIdx) return { ...sItem, duration_min: Number(e.target.value) };
+                          if (i === sIdx) return { ...sItem, duration_min: val === "" ? "" : Number(val) };
                           return sItem;
                         });
                         updateExerciseField(index, "series", newSeries);
@@ -3802,10 +3849,11 @@ export function SessionForm({
                       type="number"
                       min="0"
                       placeholder="Rec. (min)"
-                      value={s.recovery_min}
+                      value={s.recovery_min ?? ""}
                       onChange={(e) => {
+                        const val = e.target.value;
                         const newSeries = (ex.series ?? []).map((sItem: any, i: number) => {
-                          if (i === sIdx) return { ...sItem, recovery_min: Number(e.target.value) };
+                          if (i === sIdx) return { ...sItem, recovery_min: val === "" ? "" : Number(val) };
                           return sItem;
                         });
                         updateExerciseField(index, "series", newSeries);
@@ -3831,19 +3879,28 @@ export function SessionForm({
               className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/25 text-violet-300 text-[10px] font-bold px-3 py-1 transition-all cursor-pointer"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              {ex.whiteboard_data ? "Editar Dibujo" : "Dibujar Tarea"}
+              {hasWhiteboardData(ex.whiteboard_data) ? "Editar Dibujo" : "Dibujar Tarea"}
             </button>
           </div>
-          {ex.whiteboard_data?.imageDataUrl ? (
+          {hasWhiteboardData(ex.whiteboard_data) ? (
             <div 
               onClick={() => setWhiteboardExerciseIndex(index)}
-              className="mt-2.5 flex justify-center bg-slate-950/60 p-3 rounded-2xl border border-white/10 hover:border-violet-500/30 transition-all cursor-pointer shadow-inner"
+              className="mt-2.5 flex justify-center bg-slate-950/60 p-3 rounded-2xl border border-white/10 hover:border-violet-500/30 transition-all cursor-pointer shadow-inner max-h-64 overflow-hidden"
             >
-              <img
-                src={ex.whiteboard_data.imageDataUrl}
-                alt="Esquema de Tarea"
-                className="rounded-xl max-h-56 object-contain shadow-lg bg-slate-950"
-              />
+              {ex.whiteboard_data?.imageDataUrl ? (
+                <img
+                  src={ex.whiteboard_data.imageDataUrl}
+                  alt="Esquema de Tarea"
+                  className="rounded-xl max-h-56 object-contain shadow-lg bg-slate-950"
+                />
+              ) : (
+                <TacticalSvgRenderer
+                  value={ex.whiteboard_data}
+                  width={500}
+                  height={350}
+                  className="w-full max-h-56 rounded-xl"
+                />
+              )}
             </div>
           ) : (
             <div 

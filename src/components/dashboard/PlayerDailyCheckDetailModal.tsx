@@ -1,7 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Moon, HeartPulse, Activity, Scale, Smile, Zap, MessageSquare, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Moon, HeartPulse, Activity, Scale, Smile, Zap, MessageSquare, CheckCircle2, AlertTriangle, Clock, Calendar } from "lucide-react";
+
+export interface SessionCheckRecord {
+  id: string;
+  title: string;
+  date?: string;
+  session_type?: string;
+  checkin?: any | null;
+  checkout?: any | null;
+}
 
 interface PlayerDailyCheckDetailModalProps {
   isOpen: boolean;
@@ -30,20 +39,35 @@ interface PlayerDailyCheckDetailModalProps {
       notes?: string | null;
       created_at?: string;
     } | null;
+    sessions?: SessionCheckRecord[];
   } | null;
+  initialSessionId?: string | null;
 }
 
 export function PlayerDailyCheckDetailModal({
   isOpen,
   onClose,
   player,
+  initialSessionId,
 }: PlayerDailyCheckDetailModalProps) {
   const [activeTab, setActiveTab] = useState<"checkin" | "checkout">("checkin");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialSessionId || null);
+
+  useEffect(() => {
+    if (initialSessionId) {
+      setSelectedSessionId(initialSessionId);
+    } else if (player?.sessions && player.sessions.length > 0) {
+      setSelectedSessionId(player.sessions[0].id);
+    }
+  }, [initialSessionId, player]);
 
   if (!isOpen || !player) return null;
 
-  const c = player.checkin;
-  const r = player.checkout;
+  const sessions = player.sessions || [];
+  const currentSession = sessions.find((s) => s.id === selectedSessionId) || (sessions.length > 0 ? sessions[0] : null);
+
+  const c = currentSession ? (currentSession.checkin || player.checkin) : player.checkin;
+  const r = currentSession ? (currentSession.checkout || player.checkout) : player.checkout;
 
   const getScoreColor = (val?: number, isInverse = false) => {
     if (!val) return "text-slate-400";
@@ -76,6 +100,31 @@ export function PlayerDailyCheckDetailModal({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Session Selector Bar (Revisión por sesión seleccionable) */}
+        {sessions.length > 0 && (
+          <div className="bg-slate-900 border-b border-white/10 px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 shrink-0">
+              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+              Sesión a Revisar:
+            </span>
+            <select
+              value={selectedSessionId || sessions[0]?.id || ""}
+              onChange={(e) => setSelectedSessionId(e.target.value)}
+              className="w-full sm:w-auto bg-slate-950 border border-white/15 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+            >
+              {sessions.map((s, idx) => {
+                const sCheckin = s.checkin || (idx === 0 ? player.checkin : null);
+                const sCheckout = s.checkout || (idx === 0 ? player.checkout : null);
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.title || `Sesión ${idx + 1}`} ({s.date || "Hoy"}) — In: {sCheckin ? "✓" : "⏳"} | Out: {sCheckout ? "✓" : "⏳"}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
 
         {/* Tab Switcher: Check-in vs Check-out */}
         <div className="flex border-b border-border/40 bg-accent/10 px-5 pt-3 gap-3">

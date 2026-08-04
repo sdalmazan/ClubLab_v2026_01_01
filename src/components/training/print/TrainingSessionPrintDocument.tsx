@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { TrainingPrintHeader } from "./TrainingPrintHeader";
 import { TrainingPrintSquad } from "./TrainingPrintSquad";
 import { TrainingPrintExerciseCard } from "./TrainingPrintExerciseCard";
+import { hasWhiteboardData } from "./TacticalSvgRenderer";
 
 interface TrainingSessionPrintDocumentProps {
   session: any;
@@ -115,7 +116,7 @@ export function TrainingSessionPrintDocument({
               )}
 
               {/* Exercises Container: 2 columns if compact session (and no whiteboard), or 1 column flex layout */}
-              <div className={cn(isCompactSession && blockExercises.length >= 2 && !blockExercises.some(e => Boolean(e.whiteboard_data)) ? "grid grid-cols-2 gap-2" : "space-y-2.5")}>
+              <div className={cn(isCompactSession && blockExercises.length >= 2 && !blockExercises.some(e => hasWhiteboardData(e.whiteboard_data)) ? "grid grid-cols-2 gap-2" : "space-y-2.5")}>
                 {blockExercises.map((ex, exIdx) => {
                   const globalIdx = exercises.indexOf(ex);
                   return (

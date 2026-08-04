@@ -479,20 +479,35 @@ export function CoachMobileView({
                   const jersey = p.membership?.jersey_number ?? p.jersey_number ?? null;
                   const pName = p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Jugador";
 
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => setSelectedDetailPlayer({
-                        id: p.id,
-                        name: pName,
-                        jerseyNumber: jersey,
-                        checkin: w,
-                        checkout: r,
-                      })}
-                      className={`px-3 py-2.5 flex items-center justify-between gap-2 text-xs cursor-pointer hover:bg-white/5 transition-colors ${
-                        hasCheckin ? "" : "bg-amber-500/5"
-                      }`}
-                    >
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          const playerSessions = (weekSessions || []).map((s: any) => {
+                            const sAtt = (s.session_attendance || []).find((att: any) => att.player_id === p.id);
+                            return {
+                              id: s.id,
+                              title: s.title || "Sesión de Entrenamiento",
+                              date: s.date,
+                              session_type: s.session_type,
+                              checkin: p.latest_wellness,
+                              checkout: sAtt ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status } : p.latest_rpe,
+                            };
+                          });
+
+                          setSelectedDetailPlayer({
+                            id: p.id,
+                            name: pName,
+                            jerseyNumber: jersey,
+                            checkin: w,
+                            checkout: r,
+                            sessions: playerSessions,
+                          });
+                        }}
+                        className={`px-3 py-2.5 flex items-center justify-between gap-2 text-xs cursor-pointer hover:bg-white/5 transition-colors ${
+                          hasCheckin ? "" : "bg-amber-500/5"
+                        }`}
+                      >
                       <div className="flex items-center gap-2 min-w-0">
                         {jersey != null && (
                           <span className="text-[10px] font-black text-slate-500 w-5 shrink-0 text-right">#{jersey}</span>
