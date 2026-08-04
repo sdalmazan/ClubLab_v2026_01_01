@@ -89,8 +89,9 @@ export default function PerformanceMonitoringPage() {
   const [gpsSessionType, setGpsSessionType] = useState("Entrenamiento Principal");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Selected Player Detail Modal
+  // Selected Player Detail Modal & 360 Dossier Modal
   const [selectedDetailPlayer, setSelectedDetailPlayer] = useState<any | null>(null);
+  const [dossierPlayer, setDossierPlayer] = useState<HolisticPlayerRecord | null>(null);
 
   useEffect(() => {
     async function loadSquad() {

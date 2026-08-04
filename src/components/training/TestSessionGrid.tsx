@@ -217,7 +217,7 @@ export function TestSessionGrid({
                 return (
                   <tr key={player.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 px-4 font-mono font-bold text-slate-500 text-center">
-                      #{jersey}
+                      #{player.membership?.jersey_number ?? (player as any).jersey_number ?? "–"}
                     </td>
                     <td className="py-2.5 px-4 font-bold text-slate-200 truncate max-w-[180px]">
                       {playerName}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { HeartPulse, Activity, CheckCircle2, ChevronRight, Scale, AlertTriangle, Search, Filter, X } from "lucide-react";
 import { PlayerDailyCheckDetailModal } from "@/components/dashboard/PlayerDailyCheckDetailModal";
 

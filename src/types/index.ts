@@ -311,13 +311,14 @@ export interface RPEEntry {
 // SESSIONS & TRAINING
 // ============================================================
 
-export type SessionType = "training" | "individual" | "match" | "rest";
+export type SessionType = "training" | "individual" | "match" | "rest" | "test";
 
 export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
   training: "Entrenamiento Grupal",
   individual: "Entrenamiento Individual",
   match: "Partido",
   rest: "Descanso",
+  test: "Sesión de Test & Valoración Física",
 };
 
 export type MicrocycleDay =
