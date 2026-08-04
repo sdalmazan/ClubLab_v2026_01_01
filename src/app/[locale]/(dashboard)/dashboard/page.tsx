@@ -145,6 +145,13 @@ export default async function DashboardPage({
         date,
         session_type,
         notes,
+        session_attendance (
+          player_id,
+          status,
+          rpe,
+          notes,
+          rpe_recorded_at
+        ),
         session_exercises (
           duration_min,
           exercise:exercises (
@@ -153,8 +160,27 @@ export default async function DashboardPage({
         )
       `)
       .eq("team_id", resolvedTeamId)
-      .order("date", { ascending: true });
-    dbSessions = data || [];
+      .neq("session_type", "rest")
+      .order("date", { ascending: false })
+      .limit(30);
+
+    const { data: wellnessCheckins } = await supabase
+      .from("player_wellness_checkins")
+      .select("*")
+      .order("date", { ascending: false })
+      .limit(100);
+
+    const { data: rpeEntries } = await supabase
+      .from("rpe_entries")
+      .select("*")
+      .order("date", { ascending: false })
+      .limit(100);
+
+    dbSessions = (data || []).map((s: any) => ({
+      ...s,
+      wellness_checkins: (wellnessCheckins || []).filter((w: any) => w.session_id === s.id || w.date === s.date),
+      rpe_entries: (rpeEntries || []).filter((r: any) => r.session_id === s.id || r.date === s.date),
+    }));
   }
 
   const weekSessions = dbSessions.filter((s) => s.date >= mondayStr && s.date <= sundayStr);

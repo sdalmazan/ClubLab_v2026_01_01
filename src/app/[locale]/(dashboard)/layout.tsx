@@ -46,7 +46,7 @@ export default async function DashboardLayout({
     async (userId: string) => {
       const sb = createAdminClient();
 
-      const { data: orgRole } = await sb
+      let { data: orgRole } = await sb
         .from("user_organization_roles")
         .select(`
           role,
@@ -64,7 +64,63 @@ export default async function DashboardLayout({
         .eq("user_id", userId)
         .order("created_at", { ascending: true })
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      if (!orgRole && user?.user_metadata?.organization_id) {
+        const userMetaOrgId = user.user_metadata.organization_id;
+        const userMetaRole = user.user_metadata.role || "head_coach";
+        const { data: orgData } = await sb
+          .from("organizations")
+          .select(`
+            name,
+            slug,
+            type,
+            subscriptions (
+              plans ( slug )
+            )
+          `)
+          .eq("id", userMetaOrgId)
+          .maybeSingle();
+
+        if (orgData) {
+          orgRole = {
+            role: userMetaRole,
+            team_id: user.user_metadata.team_id || null,
+            organization_id: userMetaOrgId,
+            organizations: orgData,
+          } as any;
+
+          await sb.from("user_organization_roles").upsert({
+            user_id: userId,
+            organization_id: userMetaOrgId,
+            role: userMetaRole,
+          }, { onConflict: "user_id,organization_id" });
+        }
+      }
+
+      if (!orgRole && user?.email) {
+        const { data: inv } = await sb
+          .from("player_invitations")
+          .select("organization_id, role, organizations(name, slug, type, subscriptions(plans(slug)))")
+          .ilike("email", user.email.trim())
+          .limit(1)
+          .maybeSingle();
+
+        if (inv && inv.organization_id) {
+          orgRole = {
+            role: inv.role || "head_coach",
+            team_id: null,
+            organization_id: inv.organization_id,
+            organizations: inv.organizations,
+          } as any;
+
+          await sb.from("user_organization_roles").upsert({
+            user_id: userId,
+            organization_id: inv.organization_id,
+            role: inv.role || "head_coach",
+          }, { onConflict: "user_id,organization_id" });
+        }
+      }
 
       if (!orgRole) {
         return { orgRole: null, teams: [], seasons: [] };
