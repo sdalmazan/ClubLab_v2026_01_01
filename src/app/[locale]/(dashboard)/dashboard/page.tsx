@@ -42,9 +42,6 @@ export default async function DashboardPage({
   if (roleOverride === "player") {
     redirect("/player");
   }
-  if (roleOverride === "physical_coach") {
-    redirect("/performance/dashboard");
-  }
   if (roleOverride === "physio") {
     redirect("/injuries");
   }

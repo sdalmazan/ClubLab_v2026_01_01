@@ -156,9 +156,14 @@ export async function GET(request: Request) {
       filteredAppList = appList.filter((a: any) => a.date === dateParam || a.date === todayStr);
     }
 
-    if (!includeInvisible) {
+    const currentUserEmail = user.email?.toLowerCase();
+    const isDiegoCiriaUser = currentUserEmail === "diecilo7@gmail.com" || currentUserEmail === "diego.ciria.lopez@gmail.com";
+    const canSeeDiegoAppointments = isSuperAdmin || isDiegoCiriaUser;
+
+    if (!canSeeDiegoAppointments) {
       filteredAppList = filteredAppList.filter((a: any) =>
-        a.player_id !== "3bc4eb8d-f220-4992-94ac-3db8b59a8b3a"
+        a.player_id !== "3bc4eb8d-f220-4992-94ac-3db8b59a8b3a" &&
+        !a.player_name?.toLowerCase().includes("diego ciria")
       );
     }
 

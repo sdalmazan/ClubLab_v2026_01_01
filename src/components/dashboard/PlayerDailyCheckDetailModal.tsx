@@ -1,18 +1,45 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Moon, HeartPulse, Activity, Scale, Smile, Zap, MessageSquare, CheckCircle2, AlertTriangle, Clock, Calendar } from "lucide-react";
+import {
+  X,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  MessageSquare,
+  Smile,
+  Zap,
+  Moon,
+  HeartPulse,
+  Activity,
+  Scale,
+  Calendar,
+} from "lucide-react";
 
 export interface SessionCheckRecord {
   id: string;
   title: string;
-  date?: string;
+  date: string;
   session_type?: string;
-  checkin?: any | null;
-  checkout?: any | null;
+  checkin?: {
+    sleep_quality?: number;
+    fatigue?: number;
+    mood?: number;
+    muscle_soreness?: number;
+    stress?: number;
+    weight_kg?: number;
+    has_discomfort?: boolean;
+    discomfort_body_part?: string;
+    discomfort_intensity?: number;
+    notes?: string;
+  } | null;
+  checkout?: {
+    rpe?: number;
+    notes?: string;
+  } | null;
 }
 
-interface PlayerDailyCheckDetailModalProps {
+export interface PlayerDailyCheckDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   player: {
@@ -20,23 +47,21 @@ interface PlayerDailyCheckDetailModalProps {
     name: string;
     jerseyNumber?: number | string | null;
     checkin?: {
-      date?: string;
       sleep_quality?: number;
       fatigue?: number;
       mood?: number;
       muscle_soreness?: number;
       stress?: number;
+      weight_kg?: number;
       has_discomfort?: boolean;
-      discomfort_body_part?: string | null;
-      discomfort_intensity?: number | null;
-      weight_kg?: number | null;
-      notes?: string | null;
+      discomfort_body_part?: string;
+      discomfort_intensity?: number;
+      notes?: string;
       created_at?: string;
     } | null;
     checkout?: {
       rpe?: number;
-      fatigue_post?: number;
-      notes?: string | null;
+      notes?: string;
       created_at?: string;
     } | null;
     sessions?: SessionCheckRecord[];
@@ -50,9 +75,11 @@ export function PlayerDailyCheckDetailModal({
   player,
   initialSessionId,
 }: PlayerDailyCheckDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<"checkin" | "checkout">("checkin");
+  const [activeTab, setActiveTab] = useState<"checkin" | "checkout" | "history">("checkin");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialSessionId || null);
   const [fetchedSessions, setFetchedSessions] = useState<SessionCheckRecord[]>([]);
+  const [playerHistory, setPlayerHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     if (player?.sessions && player.sessions.length > 0) {
@@ -68,6 +95,19 @@ export function PlayerDailyCheckDetailModal({
           }
         })
         .catch((err) => console.error("Error fetching player sessions:", err));
+    }
+
+    if (player?.id) {
+      setLoadingHistory(true);
+      fetch(`/api/player/history?playerId=${player.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.history && Array.isArray(data.history)) {
+            setPlayerHistory(data.history);
+          }
+        })
+        .catch((err) => console.error("Error fetching player history:", err))
+        .finally(() => setLoadingHistory(false));
     }
   }, [player]);
 
@@ -100,7 +140,7 @@ export function PlayerDailyCheckDetailModal({
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-card w-full max-w-lg rounded-3xl border border-border/80 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-card w-full max-w-xl rounded-3xl border border-border/80 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="p-5 border-b border-border/50 flex items-center justify-between bg-accent/30">
           <div className="flex items-center gap-3">
@@ -109,7 +149,7 @@ export function PlayerDailyCheckDetailModal({
             </div>
             <div>
               <span className="text-[10px] font-black text-primary uppercase tracking-widest block">
-                Detalle Diario de Jugador
+                Detalle Diario & Histórico de Jugador
               </span>
               <h3 className="text-lg font-bold text-foreground mt-0.5">{player.name}</h3>
             </div>
@@ -147,11 +187,11 @@ export function PlayerDailyCheckDetailModal({
           </div>
         )}
 
-        {/* Tab Switcher: Check-in vs Check-out */}
-        <div className="flex border-b border-border/40 bg-accent/10 px-5 pt-3 gap-3">
+        {/* Tab Switcher: Check-in vs Check-out vs Histórico */}
+        <div className="flex border-b border-border/40 bg-accent/10 px-5 pt-3 gap-2 overflow-x-auto">
           <button
             onClick={() => setActiveTab("checkin")}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer whitespace-nowrap ${
               activeTab === "checkin"
                 ? "text-emerald-400 border-b-2 border-emerald-400"
                 : "text-muted-foreground hover:text-foreground"
@@ -161,7 +201,7 @@ export function PlayerDailyCheckDetailModal({
           </button>
           <button
             onClick={() => setActiveTab("checkout")}
-            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer ${
+            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer whitespace-nowrap ${
               activeTab === "checkout"
                 ? "text-sky-400 border-b-2 border-sky-400"
                 : "text-muted-foreground hover:text-foreground"
@@ -169,11 +209,21 @@ export function PlayerDailyCheckDetailModal({
           >
             🏁 Check-out / RPE Post-Entreno {r ? "✓" : "(Pendiente)"}
           </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`pb-3 px-3 text-xs font-bold transition-all relative cursor-pointer whitespace-nowrap ${
+              activeTab === "history"
+                ? "text-purple-400 border-b-2 border-purple-400"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            📜 Histórico (30 Días)
+          </button>
         </div>
 
         {/* Content Body */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
-          {activeTab === "checkin" ? (
+          {activeTab === "checkin" && (
             c ? (
               <div className="space-y-4">
                 {/* Highlights Summary Bar */}
@@ -193,7 +243,7 @@ export function PlayerDailyCheckDetailModal({
                   <div className="p-3 rounded-2xl bg-accent/40 border border-border/40 text-center">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase block">Peso hoy</span>
                     <span className="text-base font-bold text-foreground">
-                      {c.weight_kg ? `${c.weight_kg} kg` : "–"}
+                      {c.weight_kg != null ? `${c.weight_kg} kg` : "–"}
                     </span>
                   </div>
                 </div>
@@ -251,27 +301,16 @@ export function PlayerDailyCheckDetailModal({
                       </span>
                     </div>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold uppercase shrink-0 border ${
-                    c.weight_kg
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                      : "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                  }`}>
-                    {c.weight_kg ? `⚖️ ${c.weight_kg} kg` : "⚖️ Sin Peso"}
-                  </span>
                 </div>
 
-                {/* Discomfort Warning Card */}
-                {c.has_discomfort ? (
-                  <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs space-y-1">
-                    <div className="flex items-center gap-2 text-rose-400 font-bold">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span>Molestia reportada: {c.discomfort_body_part || "Zona corporal"}</span>
+                {/* Discomfort Warning Box if reported */}
+                {c.has_discomfort || c.discomfort_body_part ? (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span>Molestia reportada en: {c.discomfort_body_part || "Zona no especificada"}</span>
                     </div>
-                    {c.discomfort_intensity && (
-                      <p className="text-[11px] text-rose-300/80">
-                        Intensidad dolor: <strong className="text-white">{c.discomfort_intensity}/10</strong>
-                      </p>
-                    )}
+                    {c.notes && <p className="text-amber-200/80 text-[11px] italic">"{c.notes}"</p>}
                   </div>
                 ) : (
                   <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2">
@@ -297,7 +336,9 @@ export function PlayerDailyCheckDetailModal({
                 <p>El jugador aún no ha completado el formulario de salud y fatiga matutino.</p>
               </div>
             )
-          ) : (
+          )}
+
+          {activeTab === "checkout" && (
             r ? (
               <div className="space-y-4">
                 <div className="p-4 rounded-2xl bg-sky-500/10 border border-sky-500/30 space-y-2">
@@ -330,6 +371,69 @@ export function PlayerDailyCheckDetailModal({
               </div>
             )
           )}
+
+          {activeTab === "history" && (
+            loadingHistory ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                <Clock className="w-6 h-6 animate-spin text-purple-400 mx-auto mb-2" />
+                <span>Cargando historial de registros...</span>
+              </div>
+            ) : playerHistory.length > 0 ? (
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 block">
+                  Histórico de Registros ({playerHistory.length} fechas registradas)
+                </span>
+                <div className="overflow-x-auto border border-white/10 rounded-2xl bg-slate-950">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="bg-white/5 text-slate-400 font-extrabold uppercase border-b border-white/10 text-[9px]">
+                      <tr>
+                        <th className="p-2.5">Fecha</th>
+                        <th className="p-2.5">Sueño</th>
+                        <th className="p-2.5">Fatiga</th>
+                        <th className="p-2.5">Dolor</th>
+                        <th className="p-2.5">Peso</th>
+                        <th className="p-2.5">RPE</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-mono">
+                      {playerHistory.map((item) => {
+                        const inData = item.checkin;
+                        const outData = item.checkout;
+                        return (
+                          <tr key={item.date} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="p-2.5 font-bold text-white whitespace-nowrap">
+                              {item.date}
+                            </td>
+                            <td className="p-2.5 font-bold text-slate-300">
+                              {inData?.sleep_quality ? `${inData.sleep_quality}/5` : "–"}
+                            </td>
+                            <td className="p-2.5 font-bold text-slate-300">
+                              {inData?.fatigue ? `${inData.fatigue}/5` : "–"}
+                            </td>
+                            <td className="p-2.5 font-bold text-slate-300">
+                              {inData?.muscle_soreness ? `${inData.muscle_soreness}/5` : "–"}
+                            </td>
+                            <td className="p-2.5 font-bold text-slate-300">
+                              {inData?.weight_kg ? `${inData.weight_kg} kg` : "–"}
+                            </td>
+                            <td className="p-2.5 font-bold text-sky-400">
+                              {outData?.rpe ? `RPE ${outData.rpe}` : "–"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+                <AlertTriangle className="w-6 h-6 text-slate-500 mx-auto" />
+                <p className="font-bold text-foreground">Sin historial previo</p>
+                <p>No se encontraron registros anteriores de check-in o check-out para este futbolista.</p>
+              </div>
+            )
+          )}
         </div>
 
         {/* Modal Footer */}
@@ -338,7 +442,7 @@ export function PlayerDailyCheckDetailModal({
             onClick={onClose}
             className="px-4 py-2 bg-accent hover:bg-accent/80 text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
           >
-            Cerrar
+            Cerrar Ficha
           </button>
         </div>
       </div>

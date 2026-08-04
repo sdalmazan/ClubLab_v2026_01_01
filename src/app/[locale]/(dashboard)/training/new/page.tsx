@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function NewSessionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ teamId?: string }>;
+  searchParams: Promise<{ teamId?: string; date?: string; type?: string }>;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -45,8 +45,11 @@ export default async function NewSessionPage({
     redirect("/onboarding");
   }
 
+  const resolvedSearchParams = await searchParams;
   const teams = await getOrgTeams();
-  const activeTeamId = (await searchParams).teamId ?? orgRole.team_id ?? teams[0]?.id ?? null;
+  const activeTeamId = resolvedSearchParams.teamId ?? orgRole.team_id ?? teams[0]?.id ?? null;
+  const initialDate = resolvedSearchParams.date ?? null;
+  const initialType = (resolvedSearchParams.type as any) ?? null;
 
   const [squadPlayers, templates, exerciseLibrary] = await Promise.all([
     activeTeamId ? getSquadPlayers(activeTeamId) : Promise.resolve([]),
@@ -64,7 +67,7 @@ export default async function NewSessionPage({
           <div className="flex h-9 w-9 items-center justify-center rounded-xl btn-corporate shadow-lg">
             <CalendarDays className="h-4.5 w-4.5 text-white" />
           </div>
-          <span>Nueva Sesión</span>
+          <span>Nueva Sesión {initialDate ? `(${initialDate})` : ""}</span>
         </h1>
         <p className="text-slate-400 text-sm mt-1 ml-11">
           Diseña las tareas, convoca a los jugadores y planifica zonas tácticas y equipamiento.
@@ -82,6 +85,8 @@ export default async function NewSessionPage({
         organizationSettings={orgSettings}
         userTeamId={orgRole.team_id}
         userRole={orgRole.role}
+        initialDate={initialDate}
+        initialSessionType={initialType}
       />
     </div>
   );

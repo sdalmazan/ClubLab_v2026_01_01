@@ -52,6 +52,8 @@ import type { ExerciseLibraryItem } from "@/services/tasks";
 import type { SessionTemplate, SessionType, LoadLevel, MicrocycleDay, PositionKey } from "@/types";
 import { resolveCampogramaSlot } from "@/types";
 
+import { SessionTypePickerModal } from "./SessionTypePickerModal";
+
 interface SessionFormProps {
   organizationId: string;
   userId: string;
@@ -60,6 +62,8 @@ interface SessionFormProps {
   templates: SessionTemplate[];
   exerciseLibrary: ExerciseLibraryItem[];
   initialData?: any; // If editing
+  initialDate?: string | null;
+  initialSessionType?: SessionType | null;
   organizationSettings?: any;
   userTeamId?: string | null;
   userRole?: string | null;
@@ -119,6 +123,8 @@ export function SessionForm({
   templates = [],
   exerciseLibrary = [],
   initialData,
+  initialDate = null,
+  initialSessionType = null,
   organizationSettings,
   userTeamId = null,
   userRole = null,
@@ -142,7 +148,7 @@ export function SessionForm({
     return teams[0]?.id ?? "";
   });
   const [title, setTitle] = useState(initialData?.title ?? "");
-  const [date, setDate] = useState(() => initialData?.date ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => initialData?.date || initialDate || new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState(() => {
     if (initialData?.start_time) {
       return initialData.start_time.slice(0, 5);
@@ -150,7 +156,8 @@ export function SessionForm({
     return organizationSettings?.default_training_time ?? "19:30";
   });
   const [durationMin, setDurationMin] = useState(initialData?.duration_min ?? 90);
-  const [sessionType, setSessionType] = useState<SessionType>(initialData?.session_type ?? "training");
+  const [sessionType, setSessionType] = useState<SessionType>(() => initialData?.session_type || initialSessionType || "training");
+  const [showTypePickerModal, setShowTypePickerModal] = useState(!initialData && !initialSessionType);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
   const mapDbToUiMicrocycle = (dbVal: string | null) => {
     if (dbVal === "MD-4") return "Día 1";
@@ -3520,6 +3527,17 @@ export function SessionForm({
           </div>
         </div>
       )}
+
+      {/* ── MODAL DE SELECCIÓN DE TIPO DE SESIÓN ── */}
+      <SessionTypePickerModal
+        isOpen={showTypePickerModal}
+        onClose={() => setShowTypePickerModal(false)}
+        onSelectType={(selectedType) => {
+          setSessionType(selectedType);
+          setShowTypePickerModal(false);
+        }}
+        selectedDate={date}
+      />
     </>
   );
 
