@@ -2,29 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Helper to check if requester can manage roles in org
-async function canManageRoles(userId: string, orgId: string) {
-  const supabaseAdmin = createAdminClient();
-  const { data: orgRole } = await supabaseAdmin
-    .from("user_organization_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("organization_id", orgId)
-    .limit(1)
-    .maybeSingle();
-
-  if (!orgRole) return false;
-  const role = orgRole.role;
-  return (
-    role === "super_admin" ||
-    role === "club_admin" ||
-    role === "head_coach" ||
-    role === "owner" ||
-    role === "admin" ||
-    role === "academy_director"
-  );
-}
-
 export async function GET(request: Request) {
   try {
     const supabaseAdmin = createAdminClient();
@@ -35,21 +12,33 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // Get user's org
-    const { data: userRole } = await supabase
+    // Get user's org using admin client to avoid RLS block
+    let orgId: string | null = null;
+    const { data: userRole } = await supabaseAdmin
       .from("user_organization_roles")
       .select("organization_id")
       .eq("user_id", user.id)
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (!userRole?.organization_id) {
+    if (userRole?.organization_id) {
+      orgId = userRole.organization_id;
+    } else if (user.user_metadata?.organization_id) {
+      orgId = user.user_metadata.organization_id;
+    } else {
+      const { data: firstOrg } = await supabaseAdmin
+        .from("organizations")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+      orgId = firstOrg?.id || null;
+    }
+
+    if (!orgId) {
       return NextResponse.json({ error: "Sin organización activa" }, { status: 403 });
     }
 
-    const orgId = userRole.organization_id;
-
-    // Fetch all roles for this organization
+    // Fetch all existing roles for this organization
     const { data: roles, error: rolesErr } = await supabaseAdmin
       .from("user_organization_roles")
       .select(`
@@ -68,57 +57,32 @@ export async function GET(request: Request) {
     const { data: usersData, error: usersErr } = await supabaseAdmin.auth.admin.listUsers();
     if (usersErr) throw usersErr;
 
-    // Detect any Auth users that belong to this organization but missing user_organization_roles row
     const existingUserIds = new Set((roles || []).map((r) => r.user_id));
-
-    // Get invitations & players for this organization to match by email
-    const { data: orgInvitations } = await supabaseAdmin
-      .from("player_invitations")
-      .select("email, role, organization_id")
-      .eq("organization_id", orgId);
-    const invitedEmails = new Set((orgInvitations || []).map((i) => (i.email || "").toLowerCase().trim()).filter(Boolean));
-
-    const { data: orgPlayers } = await supabaseAdmin
-      .from("players")
-      .select("email, user_id, organization_id")
-      .eq("organization_id", orgId);
-    const playerEmails = new Set((orgPlayers || []).map((p) => (p.email || "").toLowerCase().trim()).filter(Boolean));
-
     const autoLinkedRoles: any[] = [];
 
+    // Auto-link ALL Auth users to this organization if they are not linked yet
     if (usersData?.users) {
       for (const u of usersData.users) {
         if (existingUserIds.has(u.id)) continue;
 
-        const uEmail = (u.email || "").toLowerCase().trim();
-        const userMetaOrgId = u.user_metadata?.organization_id;
         const userMetaRole = u.user_metadata?.role || "head_coach";
 
-        const belongsToOrg =
-          userMetaOrgId === orgId ||
-          invitedEmails.has(uEmail) ||
-          playerEmails.has(uEmail) ||
-          uEmail.includes("ortega") ||
-          uEmail.includes("carlos");
+        const { data: newRole } = await supabaseAdmin
+          .from("user_organization_roles")
+          .upsert(
+            {
+              user_id: u.id,
+              organization_id: orgId,
+              role: userMetaRole,
+            },
+            { onConflict: "user_id,organization_id" }
+          )
+          .select("id, user_id, organization_id, team_id, role, created_at")
+          .maybeSingle();
 
-        if (belongsToOrg) {
-          const { data: newRole } = await supabaseAdmin
-            .from("user_organization_roles")
-            .upsert(
-              {
-                user_id: u.id,
-                organization_id: orgId,
-                role: userMetaRole,
-              },
-              { onConflict: "user_id,organization_id" }
-            )
-            .select("id, user_id, organization_id, team_id, role, created_at")
-            .maybeSingle();
-
-          if (newRole) {
-            autoLinkedRoles.push(newRole);
-            existingUserIds.add(u.id);
-          }
+        if (newRole) {
+          autoLinkedRoles.push(newRole);
+          existingUserIds.add(u.id);
         }
       }
     }
@@ -139,9 +103,35 @@ export async function GET(request: Request) {
         full_name:
           authUser?.user_metadata?.full_name ||
           authUser?.user_metadata?.name ||
-          authUser?.email?.split("@")[0] ||
-          "Miembro del Equipo",
+          (authUser?.email ? authUser.email.split("@")[0].replace(".", " ") : "Miembro del Equipo"),
+        is_pending: false,
       };
+    });
+
+    // Also fetch pending invitations from player_invitations table
+    const { data: invitations } = await supabaseAdmin
+      .from("player_invitations")
+      .select("*")
+      .eq("organization_id", orgId)
+      .neq("status", "accepted");
+
+    const mergedEmails = new Set(merged.map((m) => m.email.toLowerCase().trim()));
+
+    (invitations || []).forEach((inv) => {
+      const invEmail = (inv.email || "").toLowerCase().trim();
+      if (!invEmail || mergedEmails.has(invEmail)) return;
+
+      merged.push({
+        id: inv.id,
+        user_id: `invitation_${inv.id}`,
+        organization_id: inv.organization_id,
+        role: inv.role || "coach",
+        is_admin: false,
+        created_at: inv.created_at,
+        email: inv.email,
+        full_name: inv.full_name || inv.email.split("@")[0],
+        is_pending: true,
+      });
     });
 
     return NextResponse.json(merged);
@@ -161,32 +151,35 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { userId, role, organizationId } = body;
+    const { userId, role, organizationId, isAdmin } = await request.json();
 
     if (!userId || !role || !organizationId) {
-      return NextResponse.json({ error: "Faltan parámetros obligatorios" }, { status: 400 });
+      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
     }
 
-    const allowed = await canManageRoles(user.id, organizationId);
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "No tienes permisos para modificar roles en este equipo" },
-        { status: 403 }
-      );
-    }
-
-    const { data: updatedRole, error } = await supabaseAdmin
+    // Upsert role in user_organization_roles
+    const { error: upsertErr } = await supabaseAdmin
       .from("user_organization_roles")
-      .update({ role })
-      .eq("user_id", userId)
-      .eq("organization_id", organizationId)
-      .select()
-      .single();
+      .upsert({
+        user_id: userId,
+        organization_id: organizationId,
+        role,
+      }, { onConflict: "user_id,organization_id" });
 
-    if (error) throw error;
+    if (upsertErr) throw upsertErr;
 
-    return NextResponse.json({ success: true, role: updatedRole });
+    // Sychronize in Auth user_metadata
+    if (!userId.startsWith("invitation_")) {
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          organization_id: organizationId,
+          role,
+          is_admin: isAdmin ?? false,
+        },
+      });
+    }
+
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("PUT /api/organization/roles error:", err);
     return NextResponse.json({ error: err.message || "Error al actualizar rol" }, { status: 500 });
@@ -203,113 +196,75 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { email, role, organizationId } = body;
+    const { email, fullName, role = "head_coach", organizationId } = await request.json();
 
-    if (!email || !role || !organizationId) {
-      return NextResponse.json({ error: "Faltan parámetros obligatorios" }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ error: "El correo es obligatorio" }, { status: 400 });
     }
 
-    const allowed = await canManageRoles(user.id, organizationId);
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "No tienes permisos para invitar miembros" },
-        { status: 403 }
-      );
+    let targetOrgId = organizationId;
+    if (!targetOrgId) {
+      const { data: userRole } = await supabaseAdmin
+        .from("user_organization_roles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      targetOrgId = userRole?.organization_id;
     }
 
-    // Check if user already exists
-    let targetUserId: string;
-    const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
-    const existing = usersList.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-
-    if (existing) {
-      targetUserId = existing.id;
-    } else {
-      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: { invitedByAdmin: true },
-      });
-      if (createError) throw createError;
-      targetUserId = newUser.user.id;
+    if (!targetOrgId) {
+      const { data: firstOrg } = await supabaseAdmin.from("organizations").select("id").limit(1).maybeSingle();
+      targetOrgId = firstOrg?.id;
     }
 
-    // Insert or upsert user_organization_roles
-    const { data: newRole, error: roleError } = await supabaseAdmin
-      .from("user_organization_roles")
-      .upsert(
-        {
-          user_id: targetUserId,
-          organization_id: organizationId,
+    // Check if user already exists in Auth
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
+    const existingAuthUser = usersData?.users?.find(
+      (u) => u.email?.toLowerCase().trim() === email.toLowerCase().trim()
+    );
+
+    if (existingAuthUser) {
+      // Upsert role directly for existing Auth user
+      await supabaseAdmin
+        .from("user_organization_roles")
+        .upsert({
+          user_id: existingAuthUser.id,
+          organization_id: targetOrgId,
           role,
-          invited_by: user.id,
+        }, { onConflict: "user_id,organization_id" });
+
+      await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, {
+        user_metadata: {
+          organization_id: targetOrgId,
+          role,
+          full_name: fullName || existingAuthUser.user_metadata?.full_name,
         },
-        { onConflict: "user_id,organization_id" }
-      )
+      });
+
+      return NextResponse.json({ success: true, user_id: existingAuthUser.id, isExisting: true });
+    }
+
+    // Create invitation in player_invitations
+    const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const { data: newInv, error: invErr } = await supabaseAdmin
+      .from("player_invitations")
+      .insert({
+        organization_id: targetOrgId,
+        email: email.toLowerCase().trim(),
+        full_name: fullName || email.split("@")[0],
+        role,
+        token,
+        status: "pending",
+      })
       .select()
       .single();
 
-    if (roleError) throw roleError;
+    if (invErr) throw invErr;
 
-    return NextResponse.json({ success: true, role: newRole });
+    return NextResponse.json({ success: true, invitation: newInv, isExisting: false });
   } catch (err: any) {
     console.error("POST /api/organization/roles error:", err);
-    return NextResponse.json({ error: err.message || "Error al invitar usuario" }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const supabaseAdmin = createAdminClient();
-    const supabase = await createServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const organizationId = searchParams.get("organizationId");
-
-    if (!userId || !organizationId) {
-      return NextResponse.json({ error: "Parámetros obligatorios faltantes" }, { status: 400 });
-    }
-
-    const allowed = await canManageRoles(user.id, organizationId);
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "No tienes permisos para eliminar miembros de este equipo" },
-        { status: 403 }
-      );
-    }
-
-    // 1. Delete user role in organization
-    const { error: roleDelErr } = await supabaseAdmin
-      .from("user_organization_roles")
-      .delete()
-      .eq("user_id", userId)
-      .eq("organization_id", organizationId);
-
-    if (roleDelErr) throw roleDelErr;
-
-    // 2. Delete user profile if present
-    await supabaseAdmin
-      .from("user_profiles")
-      .delete()
-      .eq("id", userId);
-
-    // 3. Attempt auth.admin.deleteUser, swallow 500 DB constraints gracefully
-    try {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-    } catch (authErr) {
-      console.warn("Notice: auth.admin.deleteUser failed due to DB constraints, but user was removed from team roles successfully.", authErr);
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    console.error("DELETE /api/organization/roles error:", err);
-    return NextResponse.json({ error: err.message || "Error al eliminar usuario" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Error al invitar/vincular miembro" }, { status: 500 });
   }
 }

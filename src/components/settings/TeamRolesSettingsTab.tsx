@@ -12,6 +12,7 @@ interface StaffMember {
   created_at: string;
   email: string;
   full_name: string;
+  is_pending?: boolean;
 }
 
 interface TeamRolesSettingsTabProps {
@@ -284,7 +285,14 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
                             {member.full_name ? member.full_name.charAt(0).toUpperCase() : "M"}
                           </div>
                           <div>
-                            <span className="font-bold text-white block">{member.full_name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white block">{member.full_name}</span>
+                              {member.is_pending && (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  ⏳ Pendiente
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[9px] font-mono text-slate-500">ID: #{member.user_id.slice(0, 8)}</span>
                           </div>
                         </div>
