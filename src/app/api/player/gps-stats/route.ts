@@ -12,6 +12,16 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
     }
 
+    // Resolve organization_id for this user — needed for squad isolation
+    const { data: orgRole } = await supabaseAdmin
+      .from("user_organization_roles")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const orgId = orgRole?.organization_id ?? null;
+
     // 1. Get player record linked to user
     let { data: playerRecord } = await supabaseAdmin
       .from("players")
@@ -46,10 +56,26 @@ export async function GET() {
       .eq("player_id", playerId)
       .order("created_at", { ascending: false });
 
-    // 3. Fetch all metrics across the entire squad for percentile benchmarks
-    const { data: allSquadMetrics } = await supabaseAdmin
-      .from("wimu_player_session_metrics")
-      .select("player_id, distance_km, hsr_m, sprints_count, max_speed_kmh, player_load_min, players(membership, position)");
+    // 3. Fetch squad metrics — RESTRICTED to same organization via session ownership
+    //    This prevents data leaks between different clubs.
+    let allSquadMetrics: any[] = [];
+    if (orgId) {
+      // Get session IDs belonging to this org
+      const { data: orgSessions } = await supabaseAdmin
+        .from("wimu_sessions")
+        .select("id")
+        .eq("organization_id", orgId);
+
+      const orgSessionIds = (orgSessions || []).map((s: any) => s.id);
+
+      if (orgSessionIds.length > 0) {
+        const { data: squadData } = await supabaseAdmin
+          .from("wimu_player_session_metrics")
+          .select("player_id, distance_km, hsr_m, sprints_count, max_speed_kmh, player_load_min, players(membership, position)")
+          .in("session_id", orgSessionIds);
+        allSquadMetrics = squadData || [];
+      }
+    }
 
     // Compute player personal averages & records
     const sessionCount = myMetrics?.length || 0;
@@ -151,6 +177,9 @@ export async function GET() {
       playerLoadMin: Math.min(99, Math.round(generalPercentiles.playerLoadMin * 1.00)),
     };
 
+    // Compute extended summary metrics from latest session
+    const latestSession = myMetrics && myMetrics.length > 0 ? myMetrics[0] : null;
+
     return NextResponse.json({
       success: true,
       player: {
@@ -165,8 +194,16 @@ export async function GET() {
         avgSprints,
         maxSpeed,
         avgPlMin,
+        // Latest session extended metrics
+        latestHmldM:           latestSession?.hmld_m ?? null,
+        latestMetabolicPower:  latestSession?.metabolic_power_wkg ?? null,
+        latestPlayerLoad:      latestSession?.player_load ?? null,
+        latestExplosiveDist:   latestSession?.explosive_distance_m ?? null,
+        latestAccwrRatio:      latestSession?.acwr_ratio ?? null,
+        latestWcs:             latestSession?.worst_case_scenarios ?? null,
       },
       latestHeatmap,
+      latestSprintVectors:    latestSession?.sprint_vectors ?? [],
       myMetrics: myMetrics || [],
       percentiles: {
         general: generalPercentiles,
