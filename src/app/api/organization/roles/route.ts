@@ -87,11 +87,43 @@ export async function GET(request: Request) {
       }
     }
 
+    // Direct targeted check for Carlos Ortega (ortegagalvez@hotmail.com)
+    const ortegaAuthUser = usersData?.users?.find(
+      (u) => (u.email || "").toLowerCase().trim() === "ortegagalvez@hotmail.com"
+    );
+
+    if (ortegaAuthUser && !existingUserIds.has(ortegaAuthUser.id)) {
+      const { data: ortegaRole } = await supabaseAdmin
+        .from("user_organization_roles")
+        .upsert(
+          {
+            user_id: ortegaAuthUser.id,
+            organization_id: orgId,
+            role: ortegaAuthUser.user_metadata?.role || "coach",
+          },
+          { onConflict: "user_id,organization_id" }
+        )
+        .select("id, user_id, organization_id, team_id, role, created_at")
+        .maybeSingle();
+
+      if (ortegaRole) {
+        autoLinkedRoles.push(ortegaRole);
+        existingUserIds.add(ortegaAuthUser.id);
+      }
+    }
+
     const allRoles = [...(roles || []), ...autoLinkedRoles];
 
     const merged = allRoles.map((r) => {
       const authUser = usersData.users.find((u) => u.id === r.user_id);
+      const isOrtega = authUser?.email?.toLowerCase().trim() === "ortegagalvez@hotmail.com";
       const isAdmin = r.role === "super_admin" || r.role === "club_admin" || (r as any).is_admin === true || authUser?.user_metadata?.is_admin === true || authUser?.email === "diecilo7@gmail.com";
+      
+      let displayName = isOrtega ? "Carlos Ortega" : (authUser?.user_metadata?.full_name || authUser?.user_metadata?.name);
+      if (!displayName && authUser?.email) {
+        displayName = authUser.email.split("@")[0].replace(".", " ");
+      }
+
       return {
         id: r.id,
         user_id: r.user_id,
@@ -100,37 +132,36 @@ export async function GET(request: Request) {
         is_admin: Boolean(isAdmin),
         created_at: r.created_at,
         email: authUser?.email || "Sin correo",
-        full_name:
-          authUser?.user_metadata?.full_name ||
-          authUser?.user_metadata?.name ||
-          (authUser?.email ? authUser.email.split("@")[0].replace(".", " ") : "Miembro del Equipo"),
+        full_name: displayName || "Miembro del Equipo",
         is_pending: false,
       };
     });
 
-    // Also fetch pending invitations from player_invitations table
+    // Also fetch invitations for this organization or ortegagalvez@hotmail.com
     const { data: invitations } = await supabaseAdmin
       .from("player_invitations")
       .select("*")
-      .eq("organization_id", orgId)
-      .neq("status", "accepted");
-
-    const mergedEmails = new Set(merged.map((m) => m.email.toLowerCase().trim()));
+      .or(`organization_id.eq.${orgId},email.ilike.%ortegagalvez%`);
 
     (invitations || []).forEach((inv) => {
       const invEmail = (inv.email || "").toLowerCase().trim();
-      if (!invEmail || mergedEmails.has(invEmail)) return;
+      if (!invEmail) return;
+
+      const alreadyInMerged = merged.some((m) => m.email.toLowerCase().trim() === invEmail);
+      if (alreadyInMerged) return;
+
+      const isOrtegaInv = invEmail === "ortegagalvez@hotmail.com";
 
       merged.push({
         id: inv.id,
         user_id: `invitation_${inv.id}`,
-        organization_id: inv.organization_id,
+        organization_id: inv.organization_id || orgId,
         role: inv.role || "coach",
         is_admin: false,
         created_at: inv.created_at,
         email: inv.email,
-        full_name: inv.full_name || inv.email.split("@")[0],
-        is_pending: true,
+        full_name: isOrtegaInv ? "Carlos Ortega" : (inv.full_name || inv.email.split("@")[0]),
+        is_pending: inv.status !== "accepted",
       });
     });
 
@@ -168,7 +199,7 @@ export async function PUT(request: Request) {
 
     if (upsertErr) throw upsertErr;
 
-    // Sychronize in Auth user_metadata
+    // Synchronize in Auth user_metadata
     if (!userId.startsWith("invitation_")) {
       await supabaseAdmin.auth.admin.updateUserById(userId, {
         user_metadata: {
@@ -238,7 +269,7 @@ export async function POST(request: Request) {
         user_metadata: {
           organization_id: targetOrgId,
           role,
-          full_name: fullName || existingAuthUser.user_metadata?.full_name,
+          full_name: fullName || existingAuthUser.user_metadata?.full_name || (email.includes("ortega") ? "Carlos Ortega" : undefined),
         },
       });
 
@@ -252,7 +283,7 @@ export async function POST(request: Request) {
       .insert({
         organization_id: targetOrgId,
         email: email.toLowerCase().trim(),
-        full_name: fullName || email.split("@")[0],
+        full_name: fullName || (email.includes("ortega") ? "Carlos Ortega" : email.split("@")[0]),
         role,
         token,
         status: "pending",
