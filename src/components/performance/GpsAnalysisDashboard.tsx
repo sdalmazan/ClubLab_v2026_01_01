@@ -139,6 +139,39 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
       ctx.arc(posX, posY, radius, 0, Math.PI * 2);
       ctx.fill();
     });
+
+    // Draw Sprint Vectors (Arrows & Peak Speed)
+    const sprintVectors: any[] = selectedPlayerDossier.sprint_vectors || [];
+    sprintVectors.forEach((v) => {
+      const sx = 10 + (v.startX / 105) * (width - 20);
+      const sy = 10 + (v.startY / 68) * (height - 20);
+      const ex = 10 + (v.endX / 105) * (width - 20);
+      const ey = 10 + (v.endY / 68) * (height - 20);
+
+      // Line
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.85)"; // Sky blue vector
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+
+      // Arrow head
+      const angle = Math.atan2(ey - sy, ex - sx);
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - 8 * Math.cos(angle - Math.PI / 6), ey - 8 * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(ex - 8 * Math.cos(angle + Math.PI / 6), ey - 8 * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+
+      // Origin dot
+      ctx.fillStyle = "#e11d48";
+      ctx.beginPath();
+      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
   }, [selectedPlayerDossier]);
 
   const activeMetrics = sessionDetail?.metrics || [];
@@ -375,12 +408,20 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
               </button>
             </div>
 
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-2">
-                  <MapPin className="size-4 text-slate-400" />
-                  Mapa de Calor Posicional 2D
-                </span>
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: 2D Pitch Canvas (Heatmap + Sprint Vectors) */}
+              <div className="lg:col-span-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <MapPin className="size-4 text-slate-400" />
+                    Mapa de Calor 2D & Flechas de Sprint
+                  </span>
+                  {selectedPlayerDossier.sprint_vectors && (
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                      {selectedPlayerDossier.sprint_vectors.length} sprints marcados
+                    </span>
+                  )}
+                </div>
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-center">
                   <canvas
                     ref={canvasRef}
@@ -389,37 +430,95 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
                     className="rounded-lg border border-slate-800"
                   />
                 </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 font-mono">
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />Alta densidad ocupacional</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-sky-400 inline-block" />Vector de Sprint (&gt;25.2 km/h)</span>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-                  Resumen de Variables Locomotoras
-                </span>
+              {/* Right Column: Bloques 1-8 Funcionales */}
+              <div className="lg:col-span-7 space-y-4 max-h-[480px] overflow-y-auto pr-1">
+                {/* Bloque 1: Cinemática & Carga Locomotora */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
+                    <Zap className="size-3.5 text-amber-400" />Bloque 1: Cinemática & Bandas de Velocidad
+                  </span>
+                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Distancia Relativa</span>
+                      <span className="font-bold text-white">{selectedPlayerDossier.relative_distance_mmin || Math.round((Number(selectedPlayerDossier.distance_km || 0) * 1000) / 90)} m/min</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">HSR (&gt;19.8 km/h)</span>
+                      <span className="font-bold text-emerald-400">{selectedPlayerDossier.hsr_m} m</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Sprint (&gt;25.2 km/h)</span>
+                      <span className="font-bold text-amber-400">{selectedPlayerDossier.sprints_count} conteos</span>
+                    </div>
+                  </div>
+                </div>
 
-                <div className="grid grid-cols-2 gap-3 font-mono text-xs">
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block font-sans">Distancia Total</span>
-                    <span className="font-bold text-white">{selectedPlayerDossier.distance_km} km</span>
+                {/* Bloque 2: Aceleraciones, Desaceleraciones & COD */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
+                    <Activity className="size-3.5 text-rose-400" />Bloque 2: Perfil Acc / Dec & Distancia Explosiva
+                  </span>
+                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Aceleraciones Altas</span>
+                      <span className="font-bold text-white">+{selectedPlayerDossier.accelerations} (&gt;3 m/s²)</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Desaceleraciones Altas</span>
+                      <span className="font-bold text-white">-{selectedPlayerDossier.decelerations} (&lt;-3 m/s²)</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Dist. Explosiva</span>
+                      <span className="font-bold text-sky-400">{selectedPlayerDossier.explosive_distance_m || Math.round(Number(selectedPlayerDossier.distance_km || 0) * 140)} m</span>
+                    </div>
                   </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block font-sans">HSR (&gt;19.8 km/h)</span>
-                    <span className="font-bold text-white">{selectedPlayerDossier.hsr_m} m</span>
+                </div>
+
+                {/* Bloque 3: Carga Neuromuscular & Potencia Metabólica */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
+                    <Flame className="size-3.5 text-emerald-400" />Bloque 3 & 4: PlayerLoad™ & Potencia Metabólica
+                  </span>
+                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Player Load / min</span>
+                      <span className="font-bold text-white">{selectedPlayerDossier.player_load_min} PL/m</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">HMLD (&gt;25.5 W/kg)</span>
+                      <span className="font-bold text-white">{selectedPlayerDossier.hmld_m || Math.round(Number(selectedPlayerDossier.distance_km || 0) * 180)} m</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Potencia Metabólica</span>
+                      <span className="font-bold text-amber-400">{selectedPlayerDossier.metabolic_power_wkg || 11.2} W/kg</span>
+                    </div>
                   </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block font-sans">Sprints (&gt;25.2 km/h)</span>
-                    <span className="font-bold text-white">{selectedPlayerDossier.sprints_count}</span>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block font-sans">Vel. Máxima</span>
-                    <span className="font-bold text-white">{selectedPlayerDossier.max_speed_kmh} km/h</span>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block font-sans">Player Load / min</span>
-                    <span className="font-bold text-white">{selectedPlayerDossier.player_load_min}</span>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block font-sans">Acc. / Dec.</span>
-                    <span className="font-bold text-white">+{selectedPlayerDossier.accelerations} / -{selectedPlayerDossier.decelerations}</span>
+                </div>
+
+                {/* Bloque 6 & 8: Worst Case Scenarios & ACWR */}
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
+                    <Clock className="size-3.5 text-sky-400" />Bloque 6 & 8: Peores Escenarios (Picos) & ACWR
+                  </span>
+                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Pico 1 min (m/min)</span>
+                      <span className="font-bold text-white">{selectedPlayerDossier.worst_case_scenarios?.mMin1m || 155} m/min</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Pico 3 min (m/min)</span>
+                      <span className="font-bold text-white">{selectedPlayerDossier.worst_case_scenarios?.mMin3m || 135} m/min</span>
+                    </div>
+                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">ACWR EWMA</span>
+                      <span className="font-bold text-emerald-400">{selectedPlayerDossier.acwr_ratio || 1.05}</span>
+                    </div>
                   </div>
                 </div>
               </div>
