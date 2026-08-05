@@ -42,22 +42,69 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Falta el ID del usuario" }, { status: 400 });
         }
 
-        // 1. Update user metadata in Supabase Auth
-        await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
-          user_metadata: { is_admin: Boolean(isAdmin) },
-        });
+        const nextIsAdmin = Boolean(isAdmin);
 
-        // 2. Try to update user_organization_roles table
-        try {
-          await supabaseAdmin
-            .from("user_organization_roles")
-            .update({ is_admin: Boolean(isAdmin) })
-            .eq("user_id", targetUserId);
-        } catch (e) {
-          // Column optional in custom schemas
+        // Case A: Invitation ID
+        if (typeof targetUserId === "string" && targetUserId.startsWith("invitation_")) {
+          const invId = targetUserId.replace("invitation_", "");
+          const { data: inv } = await supabaseAdmin
+            .from("player_invitations")
+            .update({ role: nextIsAdmin ? "club_admin" : "coach" })
+            .eq("id", invId)
+            .select("email")
+            .maybeSingle();
+
+          if (inv?.email) {
+            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
+            const authU = usersData?.users?.find(
+              (u) => (u.email || "").toLowerCase().trim() === inv.email.toLowerCase().trim()
+            );
+
+            if (authU) {
+              await supabaseAdmin.auth.admin.updateUserById(authU.id, {
+                user_metadata: {
+                  ...authU.user_metadata,
+                  is_admin: nextIsAdmin,
+                  role: nextIsAdmin ? "club_admin" : (authU.user_metadata?.role || "coach"),
+                },
+              });
+
+              await supabaseAdmin
+                .from("user_organization_roles")
+                .update({
+                  role: nextIsAdmin ? "club_admin" : "coach",
+                })
+                .eq("user_id", authU.id);
+            }
+          }
+
+          return NextResponse.json({ success: true, isAdmin: nextIsAdmin });
         }
 
-        return NextResponse.json({ success: true, isAdmin: Boolean(isAdmin) });
+        // Case B: Real Auth User UUID
+        try {
+          const { data: userRecord } = await supabaseAdmin.auth.admin.getUserById(targetUserId);
+          const currentMeta = userRecord?.user?.user_metadata || {};
+
+          await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+            user_metadata: {
+              ...currentMeta,
+              is_admin: nextIsAdmin,
+              role: nextIsAdmin ? "club_admin" : (currentMeta.role === "club_admin" ? "coach" : currentMeta.role || "coach"),
+            },
+          });
+
+          await supabaseAdmin
+            .from("user_organization_roles")
+            .update({
+              role: nextIsAdmin ? "club_admin" : "coach",
+            })
+            .eq("user_id", targetUserId);
+        } catch (e: any) {
+          console.error("toggle_user_admin_permission error:", e.message);
+        }
+
+        return NextResponse.json({ success: true, isAdmin: nextIsAdmin });
       }
       case "assign_user_organization_role":
       case "update_user_role": {
