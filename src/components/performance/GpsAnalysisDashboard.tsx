@@ -22,9 +22,10 @@ import { cn } from "@/lib/utils";
 
 interface GpsAnalysisDashboardProps {
   onOpenImportModal: () => void;
+  refreshKey?: number;
 }
 
-export function GpsAnalysisDashboard({ onOpenImportModal }: GpsAnalysisDashboardProps) {
+export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsAnalysisDashboardProps) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [sessionDetail, setSessionDetail] = useState<{
@@ -81,7 +82,9 @@ export function GpsAnalysisDashboard({ onOpenImportModal }: GpsAnalysisDashboard
 
   useEffect(() => {
     loadSessionsData();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
 
   const handleSessionChange = (id: string) => {
     setSelectedSessionId(id);

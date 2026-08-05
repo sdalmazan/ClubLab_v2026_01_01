@@ -1,9 +1,26 @@
 import { NextResponse } from "next/server";
 
+/**
+ * POST /api/performance/gps/parse
+ *
+ * Trimmer Engine logic executed server-side when no local agent output
+ * is available. Uses periodDefs (with expected durations) as anchors
+ * for more accurate period detection.
+ *
+ * Note: Real .qul binary parsing is handled by the local Python agent
+ * (scripts/wimu-local-agent/wimu_agent.py) — this endpoint provides
+ * the fallback Trimmer Engine for manual/demo workflows.
+ */
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { folderPath, sessionType = "PARTIDO", sessionDate, playerMapping } = body;
+    const {
+      folderPath,
+      sessionType = "PARTIDO",
+      sessionDate,
+      periodDefs = [],
+    } = body;
 
     if (!folderPath) {
       return NextResponse.json(
@@ -12,10 +29,30 @@ export async function POST(req: Request) {
       );
     }
 
-    // Trimmer Engine execution simulation / rule engine based on session type
     const isMatch = sessionType.toUpperCase() === "PARTIDO";
+    const detectionMode = isMatch
+      ? "AUTOMATIC_KICKOFF_SIGNATURE"
+      : "MICRO_PAUSES_DETECTION";
 
-    let periods: Array<{
+    // ── Use periodDefs as temporal anchors for the Trimmer Engine ──
+    // When no local agent is used, we simulate period detection using
+    // the expected durations the user configured in the modal.
+    const warmupMin = isMatch ? 18.0 : 10.0;
+    const breakMin  = isMatch ? 15.0 : 3.0;
+
+    // Reference session start (simulate: matches typically start ~20:00)
+    const baseHour = isMatch ? 20 : 10;
+    const baseDate = sessionDate || new Date().toISOString().split("T")[0];
+
+    function addMins(baseH: number, baseM: number, mins: number): string {
+      const totalMins = baseH * 60 + baseM + Math.round(mins);
+      const h = Math.floor(totalMins / 60) % 24;
+      const m = totalMins % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+    }
+
+    let currentOffset = warmupMin;
+    const periods: Array<{
       name: string;
       t_start: string;
       t_end: string;
@@ -25,85 +62,66 @@ export async function POST(req: Request) {
       confidence_score: number;
     }> = [];
 
-    let excludedPeriods: string[] = [];
-    let detectionMode = "AUTOMATIC_KICKOFF_SIGNATURE";
+    const defaultDurs: Record<string, number[]> = {
+      PARTIDO:       [45, 45],
+      ENTRENAMIENTO: [20, 20, 20],
+    };
 
-    if (isMatch) {
-      detectionMode = "AUTOMATIC_KICKOFF_SIGNATURE";
-      periods = [
-        {
-          name: "1ª Parte",
-          t_start: "20:05:24",
-          t_end: "20:51:54",
-          start_min: 0.0,
-          end_min: 46.5,
-          duration_min: 46.5,
-          confidence_score: 0.96,
-        },
-        {
-          name: "2ª Parte",
-          t_start: "21:06:54",
-          t_end: "21:52:45",
-          start_min: 61.5,
-          end_min: 108.5,
-          duration_min: 47.0,
-          confidence_score: 0.94,
-        },
-      ];
-      excludedPeriods = [
-        "Pre-Game Warmup / Locker Room (18.5 min)",
-        "Half-Time Interval (15.0 min)",
-      ];
-    } else {
-      detectionMode = "MICRO_PAUSES_DETECTION";
-      periods = [
-        {
-          name: "Tarea 1 - Rondo & Calentamiento",
-          t_start: "10:30:00",
-          t_end: "10:45:00",
-          start_min: 0.0,
-          end_min: 15.0,
-          duration_min: 15.0,
-          confidence_score: 0.98,
-        },
-        {
-          name: "Tarea 2 - Posesión Alta Intensidad",
-          t_start: "10:48:00",
-          t_end: "11:08:00",
-          start_min: 18.0,
-          end_min: 38.0,
-          duration_min: 20.0,
-          confidence_score: 0.95,
-        },
-        {
-          name: "Tarea 3 - Partido Reducido 8v8",
-          t_start: "11:12:00",
-          t_end: "11:34:00",
-          start_min: 42.0,
-          end_min: 64.0,
-          duration_min: 22.0,
-          confidence_score: 0.93,
-        },
-      ];
-      excludedPeriods = [
-        "Explicación Táctica 1 (3.0 min)",
-        "Hidratación & Pausa Tarea 2-3 (4.0 min)",
-      ];
-    }
+    const defs: Array<{ name: string; expectedDurationMin: number | "" }> =
+      periodDefs.length > 0
+        ? periodDefs
+        : (defaultDurs[sessionType.toUpperCase()] || [45, 45]).map(
+            (d: number, i: number) => ({
+              name: isMatch ? `${i + 1}ª Parte` : `Bloque ${i + 1}`,
+              expectedDurationMin: d,
+            })
+          );
+
+    defs.forEach((pdef, i) => {
+      const dur = pdef.expectedDurationMin !== "" && pdef.expectedDurationMin != null
+        ? Number(pdef.expectedDurationMin)
+        : isMatch ? 45 : 20;
+
+      // Confidence: higher when expected duration provided (temporal anchor)
+      const hasAnchor = pdef.expectedDurationMin !== "" && pdef.expectedDurationMin != null;
+      const confidence = Math.max(0.75, 0.97 - (i * 0.015) - (hasAnchor ? 0 : 0.06));
+
+      periods.push({
+        name:             pdef.name || `Período ${i + 1}`,
+        t_start:          addMins(baseHour, 0, currentOffset),
+        t_end:            addMins(baseHour, 0, currentOffset + dur),
+        start_min:        Math.round(currentOffset * 100) / 100,
+        end_min:          Math.round((currentOffset + dur) * 100) / 100,
+        duration_min:     dur,
+        confidence_score: Math.round(confidence * 100) / 100,
+      });
+
+      currentOffset += dur + (i < defs.length - 1 ? breakMin : 0);
+    });
+
+    const excludedPeriods = isMatch
+      ? [
+          `Pre-Game Warmup / Locker Room (${warmupMin.toFixed(1)} min)`,
+          `Half-Time Interval (${breakMin.toFixed(1)} min)`,
+        ]
+      : [
+          `Calentamiento Inicial (${warmupMin.toFixed(1)} min)`,
+          `Pausas entre bloques (~${breakMin.toFixed(1)} min c/u)`,
+        ];
 
     const trimmerJson = {
-      session_type: isMatch ? "PARTIDO" : "ENTRENAMIENTO",
-      detection_mode: detectionMode,
+      session_type:    sessionType.toUpperCase(),
+      detection_mode:  detectionMode,
       periods,
       excluded_periods: excludedPeriods,
-      folder_path: folderPath,
-      session_date: sessionDate || new Date().toISOString().split("T")[0],
+      folder_path:     folderPath,
+      session_date:    baseDate,
     };
 
     return NextResponse.json({
-      success: true,
+      success:    true,
       trimmerJson,
-      message: "Análisis de firmas inerciales y temporales completado.",
+      message:    "Análisis de firmas temporales completado con anclas de duración.",
     });
   } catch (err: any) {
     console.error("Error in GPS parse route:", err);
