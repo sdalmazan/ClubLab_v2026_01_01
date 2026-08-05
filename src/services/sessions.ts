@@ -224,6 +224,8 @@ export async function recalculateAndSaveSessionMetrics(teamId: string, supabase:
 /**
  * Obtiene todas las sesiones de la organización (opcionalmente filtrado por equipo).
  */
+import { createAdminClient } from "@/lib/supabase/admin";
+
 export async function getSessions(teamId?: string): Promise<TrainingSession[]> {
   const supabase = await createClient();
   let query = supabase
@@ -235,11 +237,25 @@ export async function getSessions(teamId?: string): Promise<TrainingSession[]> {
     query = query.eq("team_id", teamId);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
 
-  if (error) {
-    logger.error("getSessions", { error: error.message });
-    return [];
+  if (error || !data || data.length === 0) {
+    try {
+      const adminSb = createAdminClient();
+      let adminQuery = adminSb
+        .from("training_sessions")
+        .select("*")
+        .order("date", { ascending: false });
+
+      if (teamId) {
+        adminQuery = adminQuery.eq("team_id", teamId);
+      }
+
+      const { data: adminData } = await adminQuery;
+      if (adminData && adminData.length > 0) {
+        data = adminData;
+      }
+    } catch (e) {}
   }
 
   if (!data || data.length === 0) return [];

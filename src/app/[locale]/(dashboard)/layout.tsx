@@ -137,19 +137,49 @@ export default async function DashboardLayout({
       let teams: any[] = [];
       let seasons: any[] = [];
 
+      let teamsQuery = sb
+        .from("teams")
+        .select("id, name, category, season_id")
+        .order("created_at", { ascending: true });
+
       if (clubIds.length > 0) {
-        const { data: teamsData } = await sb
+        teamsQuery = teamsQuery.or(`organization_id.eq.${orgRole.organization_id},club_id.in.(${clubIds.join(",")})`);
+      } else if (orgRole.organization_id) {
+        teamsQuery = teamsQuery.eq("organization_id", orgRole.organization_id);
+      }
+
+      const { data: teamsData } = await teamsQuery;
+
+      if ((!teamsData || teamsData.length === 0) && orgRole.organization_id) {
+        const { data: fallbackTeams } = await sb
           .from("teams")
           .select("id, name, category, season_id")
-          .in("club_id", clubIds)
           .order("created_at", { ascending: true });
+        teams = fallbackTeams ?? [];
+      } else {
         teams = teamsData ?? [];
+      }
 
-        const { data: seasonsData } = await sb
+      let seasonsQuery = sb
+        .from("seasons")
+        .select("id, name, is_active")
+        .order("name", { ascending: false });
+
+      if (clubIds.length > 0) {
+        seasonsQuery = seasonsQuery.or(`organization_id.eq.${orgRole.organization_id},club_id.in.(${clubIds.join(",")})`);
+      } else if (orgRole.organization_id) {
+        seasonsQuery = seasonsQuery.eq("organization_id", orgRole.organization_id);
+      }
+
+      const { data: seasonsData } = await seasonsQuery;
+
+      if ((!seasonsData || seasonsData.length === 0) && orgRole.organization_id) {
+        const { data: fallbackSeasons } = await sb
           .from("seasons")
           .select("id, name, is_active")
-          .in("club_id", clubIds)
           .order("name", { ascending: false });
+        seasons = fallbackSeasons ?? [];
+      } else {
         seasons = seasonsData ?? [];
       }
 

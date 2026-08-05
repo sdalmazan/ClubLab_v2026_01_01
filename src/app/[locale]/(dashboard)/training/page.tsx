@@ -62,9 +62,9 @@ export default async function TrainingPage({
   // Load organization role & type
   const { data: orgRole } = await supabase
     .from("user_organization_roles")
-    .select("team_id, organizations ( type )")
+    .select("team_id, organization_id, organizations ( type )")
     .eq("user_id", user?.id)
-    .single();
+    .maybeSingle();
 
   const orgType = (orgRole as any)?.organizations?.type ?? "club";
 

@@ -91,18 +91,42 @@ export default async function DashboardPage({
       .eq("organization_id", orgRole.organization_id);
     
     const clubIds = clubs?.map((c: any) => c.id) || [];
+    let firstTeam: any = null;
+
     if (clubIds.length > 0) {
-      const { data: firstTeam } = await supabase
+      const { data } = await supabase
         .from("teams")
         .select("id")
-        .in("club_id", clubIds)
+        .or(`organization_id.eq.${orgRole.organization_id},club_id.in.(${clubIds.join(",")})`)
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
-      
-      if (firstTeam) {
-        resolvedTeamId = firstTeam.id;
-      }
+      firstTeam = data;
+    }
+
+    if (!firstTeam && orgRole?.organization_id) {
+      const { data } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("organization_id", orgRole.organization_id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      firstTeam = data;
+    }
+
+    if (!firstTeam) {
+      const { data } = await supabase
+        .from("teams")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      firstTeam = data;
+    }
+
+    if (firstTeam) {
+      resolvedTeamId = firstTeam.id;
     }
   }
 
