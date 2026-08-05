@@ -184,30 +184,93 @@ export async function PUT(request: Request) {
 
     const { userId, role, organizationId, isAdmin } = await request.json();
 
-    if (!userId || !role || !organizationId) {
-      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+    if (!userId || !role) {
+      return NextResponse.json({ error: "Faltan campos requeridos: userId y role" }, { status: 400 });
     }
 
-    // Upsert role in user_organization_roles
+    let targetOrgId = organizationId;
+    if (!targetOrgId) {
+      const { data: userRole } = await supabaseAdmin
+        .from("user_organization_roles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      targetOrgId = userRole?.organization_id;
+    }
+    if (!targetOrgId) {
+      const { data: firstOrg } = await supabaseAdmin.from("organizations").select("id").limit(1).maybeSingle();
+      targetOrgId = firstOrg?.id;
+    }
+
+    // Handle invitation row updates
+    if (typeof userId === "string" && userId.startsWith("invitation_")) {
+      const invId = userId.replace("invitation_", "");
+      const { data: inv } = await supabaseAdmin
+        .from("player_invitations")
+        .update({ role })
+        .eq("id", invId)
+        .select("email")
+        .maybeSingle();
+
+      const invEmail = inv?.email?.toLowerCase().trim();
+      if (invEmail) {
+        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
+        const authU = usersData?.users?.find(
+          (u) => (u.email || "").toLowerCase().trim() === invEmail
+        );
+        if (authU) {
+          await supabaseAdmin
+            .from("user_organization_roles")
+            .upsert(
+              {
+                user_id: authU.id,
+                organization_id: targetOrgId,
+                role,
+              },
+              { onConflict: "user_id,organization_id" }
+            );
+
+          await supabaseAdmin.auth.admin.updateUserById(authU.id, {
+            user_metadata: {
+              organization_id: targetOrgId,
+              role,
+              is_admin: isAdmin ?? false,
+            },
+          });
+        }
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    // Standard UUID Auth User role update
     const { error: upsertErr } = await supabaseAdmin
       .from("user_organization_roles")
-      .upsert({
-        user_id: userId,
-        organization_id: organizationId,
-        role,
-      }, { onConflict: "user_id,organization_id" });
+      .upsert(
+        {
+          user_id: userId,
+          organization_id: targetOrgId,
+          role,
+        },
+        { onConflict: "user_id,organization_id" }
+      );
 
-    if (upsertErr) throw upsertErr;
+    if (upsertErr) {
+      console.error("Error upserting user_organization_roles:", upsertErr);
+    }
 
     // Synchronize in Auth user_metadata
-    if (!userId.startsWith("invitation_")) {
+    try {
       await supabaseAdmin.auth.admin.updateUserById(userId, {
         user_metadata: {
-          organization_id: organizationId,
+          organization_id: targetOrgId,
           role,
           is_admin: isAdmin ?? false,
         },
       });
+    } catch (e: any) {
+      console.error("Error updating user_metadata:", e.message);
     }
 
     return NextResponse.json({ success: true });
