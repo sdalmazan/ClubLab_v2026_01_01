@@ -17,9 +17,7 @@ import {
   Plus,
   Trash2,
   Timer,
-  Download,
-  FileJson,
-  Bot,
+  FileCheck,
   ChevronRight,
   Info,
 } from "lucide-react";
@@ -37,39 +35,6 @@ interface PlayerRosterItem {
 interface PeriodDefinition {
   name: string;
   expectedDurationMin: number | "";
-}
-
-interface AgentOutput {
-  session_date: string;
-  session_type: string;
-  folder_path: string;
-  files_processed: number;
-  trimmer: {
-    detection_mode: string;
-    periods: Array<{
-      name: string;
-      t_start: string;
-      t_end: string;
-      start_min: number;
-      end_min: number;
-      duration_min: number;
-      confidence_score: number;
-    }>;
-    excluded_periods: string[];
-  };
-  player_metrics: Array<{
-    player_id: string;
-    gps_device_number: number;
-    distance_km: number;
-    hsr_m: number;
-    sprints_count: number;
-    max_speed_kmh: number;
-    player_load: number;
-    player_load_min: number;
-    accelerations: number;
-    decelerations: number;
-    heatmap_data: Array<{ x: number; y: number; value: number }>;
-  }>;
 }
 
 interface WimuGpsImportModalProps {
@@ -91,8 +56,6 @@ const DEFAULT_ENTRENAMIENTO_PERIODS: PeriodDefinition[] = [
   { name: "Bloque 2", expectedDurationMin: "" },
 ];
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function WimuGpsImportModal({
   isOpen,
   onClose,
@@ -101,17 +64,14 @@ export function WimuGpsImportModal({
 }: WimuGpsImportModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [folderPath, setFolderPath] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
   const [sessionType, setSessionType] = useState<"PARTIDO" | "ENTRENAMIENTO">("PARTIDO");
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Agent output (from uploaded wimu_output.json)
-  const [agentOutput, setAgentOutput] = useState<AgentOutput | null>(null);
-
   const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const outputJsonRef  = useRef<HTMLInputElement | null>(null);
 
   // Period definitions
   const [periodDefs, setPeriodDefs] = useState<PeriodDefinition[]>(DEFAULT_PARTIDO_PERIODS);
@@ -127,7 +87,7 @@ export function WimuGpsImportModal({
     return { Global: init, "1ª Parte": { ...init }, "2ª Parte": {}, "Bloque 1": { ...init }, "Bloque 2": {} };
   });
 
-  // Trimmer Engine result (from API or agent)
+  // Trimmer Engine & decoded metrics result from API
   const [trimmerData, setTrimmerData] = useState<{
     session_type: string;
     detection_mode: string;
@@ -136,14 +96,18 @@ export function WimuGpsImportModal({
       start_min: number; end_min: number; duration_min: number; confidence_score: number;
     }>;
     excluded_periods: string[];
+    files_processed?: number;
+    parsed_files?: Array<{ filename: string; deviceNumber: number | null; durationMin: number }>;
   } | null>(null);
+
+  const [decodedPlayerMetrics, setDecodedPlayerMetrics] = useState<any[]>([]);
 
   if (!isOpen) return null;
 
   const currentBlockKey = assignmentMode === "global" ? "Global" : activeBlock;
   const currentBlockMapping = blockGpsMapping[currentBlockKey] || {};
 
-  // ─── Period definition helpers ────────────────────────────────────────────
+  // ─── Period helpers ────────────────────────────────────────────────────────
 
   const handleSessionTypeChange = (type: "PARTIDO" | "ENTRENAMIENTO") => {
     setSessionType(type);
@@ -179,23 +143,24 @@ export function WimuGpsImportModal({
     });
   };
 
-  // ─── Folder picker ────────────────────────────────────────────────────────
+  // ─── Folder / File Picker ──────────────────────────────────────────────────
 
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
+      const qulFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".qul"));
+      setSelectedFiles(qulFiles);
+
       const firstFile = files[0];
       const fullPath = (firstFile as any).path;
       if (fullPath) {
         const last = Math.max(fullPath.lastIndexOf("/"), fullPath.lastIndexOf("\\"));
         setFolderPath(last !== -1 ? fullPath.substring(0, last) : fullPath);
       } else {
-        setFolderPath(firstFile.webkitRelativePath.split("/")[0] || firstFile.name);
+        setFolderPath(firstFile.webkitRelativePath.split("/")[0] || "Archivos Seleccionados");
       }
     }
   };
-
-  // ─── GPS number input ─────────────────────────────────────────────────────
 
   const handleGpsNumberChange = (playerId: string, value: string) => {
     setBlockGpsMapping(prev => ({
@@ -203,8 +168,6 @@ export function WimuGpsImportModal({
       [currentBlockKey]: { ...prev[currentBlockKey], [playerId]: value },
     }));
   };
-
-  // ─── Sorted roster ────────────────────────────────────────────────────────
 
   const sortedRoster = [...roster].sort((a, b) => {
     const na = parseInt(currentBlockMapping[a.id] || "", 10);
@@ -215,102 +178,42 @@ export function WimuGpsImportModal({
     return a.name.localeCompare(b.name);
   });
 
-  // ─── Config download (for local agent) ───────────────────────────────────
-
-  const handleDownloadConfig = async () => {
-    try {
-      // Fetch current API token (masked) — in config we need the real one
-      // We prompt to get it from settings
-      const config = {
-        api_url:          window.location.origin,
-        api_token:        "PEGA_AQUI_TU_TOKEN_DESDE_AJUSTES",
-        session_date:     sessionDate,
-        session_type:     sessionType,
-        folder_path:      folderPath || "C:\\Ruta\\A\\Grabaciones",
-        period_defs:      periodDefs,
-        gps_assignments:  blockGpsMapping,
-      };
-      const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `wimu_config_${sessionDate}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setErrorMsg("Error generando el archivo de configuración.");
-    }
-  };
-
-  // ─── Agent output.json upload ─────────────────────────────────────────────
-
-  const handleOutputJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed: AgentOutput = JSON.parse(ev.target?.result as string);
-        if (!parsed.trimmer || !Array.isArray(parsed.trimmer.periods)) {
-          setErrorMsg("El archivo no tiene el formato esperado de wimu_output.json.");
-          return;
-        }
-        setAgentOutput(parsed);
-        // Prefill session fields from agent output
-        if (parsed.session_date) setSessionDate(parsed.session_date);
-        if (parsed.session_type) setSessionType(parsed.session_type as any);
-        if (parsed.folder_path) setFolderPath(parsed.folder_path);
-        setErrorMsg("");
-      } catch {
-        setErrorMsg("El archivo JSON no es válido. Verifica que es el wimu_output.json generado por el agente.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // ─── Step 1 → Step 2 ─────────────────────────────────────────────────────
+  // ─── Step 1 → Step 2: Analyze ──────────────────────────────────────────────
 
   const handleAnalyzeFolder = async () => {
     setErrorMsg("");
 
-    // If agent output is loaded, use it directly
-    if (agentOutput) {
-      setTrimmerData({
-        session_type:    agentOutput.session_type,
-        detection_mode:  agentOutput.trimmer.detection_mode,
-        periods:         agentOutput.trimmer.periods,
-        excluded_periods: agentOutput.trimmer.excluded_periods,
-      });
-      setStep(2);
-      return;
-    }
-
-    // Fallback: use server-side Trimmer Engine (requires folder path)
-    if (!folderPath.trim()) {
-      setErrorMsg("Indica la ruta de la carpeta o sube el wimu_output.json del agente.");
-      return;
-    }
-
     try {
       setIsParsing(true);
-      const res = await fetch("/api/performance/gps/parse", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ folderPath, sessionDate, sessionType, periodDefs, blockGpsMapping }),
+
+      const formData = new FormData();
+      formData.append("sessionType", sessionType);
+      formData.append("sessionDate", sessionDate);
+      formData.append("periodDefs", JSON.stringify(periodDefs));
+      formData.append("playerMapping", JSON.stringify(currentBlockMapping));
+
+      // Append binary .qul files if selected
+      selectedFiles.forEach(file => {
+        formData.append("files", file);
       });
+
+      const res = await fetch("/api/performance/gps/parse", {
+        method: "POST",
+        body:   formData,
+      });
+
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Error al analizar la carpeta GPS.");
+      if (!data.success) throw new Error(data.error || "Error al analizar los archivos GPS.");
+
       setTrimmerData(data.trimmerJson);
+      setDecodedPlayerMetrics(data.playerMetrics || []);
       setStep(2);
     } catch (err: any) {
-      setErrorMsg(err.message || "Error al procesar el lote GPS.");
+      setErrorMsg(err.message || "Error al procesar los archivos GPS.");
     } finally {
       setIsParsing(false);
     }
   };
-
-  // ─── Period editing (step 2) ──────────────────────────────────────────────
 
   const handlePeriodChange = (index: number, field: string, value: any) => {
     if (!trimmerData) return;
@@ -319,36 +222,23 @@ export function WimuGpsImportModal({
     setTrimmerData({ ...trimmerData, periods: updated });
   };
 
-  // ─── Step 2 → Step 3: Save ───────────────────────────────────────────────
+  // ─── Step 2 → Step 3: Save to Supabase ─────────────────────────────────────
 
   const handleSaveToSupabase = async () => {
     try {
       setIsSaving(true);
       setErrorMsg("");
 
-      // Use real agent metrics if available; otherwise no metrics saved
-      // (we no longer generate Math.random() data)
-      let playerMetrics: any[] = [];
-
-      if (agentOutput?.player_metrics && agentOutput.player_metrics.length > 0) {
-        // Real metrics from agent
-        playerMetrics = agentOutput.player_metrics;
-      } else {
-        // No agent output — we save the session + periods but no player metrics
-        // The user should run the local agent for real per-player data
-        console.warn("No agent output available. Session and periods will be saved without player metrics.");
-      }
-
       const payload = {
         sessionDate,
         sessionType,
         detectionMode: trimmerData?.detection_mode || "AUTOMATIC_KICKOFF_SIGNATURE",
-        folderPath,
-        notes:         agentOutput
-          ? `Importación vía Agente GPS Local. ${agentOutput.files_processed} archivos procesados.`
-          : `Importación manual — períodos configurados por el usuario.`,
-        periods:       trimmerData?.periods || [],
-        playerMetrics,
+        folderPath:     folderPath || "Importación Web WIMU",
+        notes:          selectedFiles.length > 0
+          ? `Importación directa web. ${selectedFiles.length} archivos .qul decodificados nativamente.`
+          : `Importación web.`,
+        periods:        trimmerData?.periods || [],
+        playerMetrics:  decodedPlayerMetrics,
       };
 
       const res = await fetch("/api/performance/gps/sessions", {
@@ -356,6 +246,7 @@ export function WimuGpsImportModal({
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
       });
+
       const resData = await res.json();
       if (!resData.success) throw new Error(resData.error || "Error al guardar en Supabase.");
 
@@ -420,69 +311,10 @@ export function WimuGpsImportModal({
           {step === 1 && (
             <div className="space-y-5">
 
-              {/* Local Agent Zone ── Primary method */}
-              <div className="rounded-2xl border border-slate-700 bg-slate-950 p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Bot className="size-4 text-slate-300 shrink-0" />
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">
-                    Agente GPS Local (Método Recomendado)
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Configura la sesión abajo, descarga el archivo de configuración y ejecuta el agente Python en tu PC.
-                  El agente procesa los archivos `.qul` localmente y genera un `wimu_output.json` con los datos tratados.
-                </p>
-
-                {/* Upload output.json */}
-                <div
-                  onClick={() => outputJsonRef.current?.click()}
-                  className={cn(
-                    "border-2 border-dashed rounded-xl p-4 flex flex-col items-center gap-2 cursor-pointer transition-all",
-                    agentOutput
-                      ? "border-slate-600 bg-slate-800/30"
-                      : "border-slate-700 hover:border-slate-600 hover:bg-slate-800/20"
-                  )}
-                >
-                  <input
-                    ref={outputJsonRef}
-                    type="file"
-                    accept=".json"
-                    onChange={handleOutputJsonUpload}
-                    className="hidden"
-                  />
-                  {agentOutput ? (
-                    <>
-                      <Check className="size-5 text-white" />
-                      <div className="text-center">
-                        <span className="text-xs font-bold text-white block">wimu_output.json cargado</span>
-                        <span className="text-[10px] text-slate-400">
-                          {agentOutput.files_processed} archivos · {agentOutput.trimmer.periods.length} periodos · {agentOutput.player_metrics.length} jugadores
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <FileJson className="size-5 text-slate-400" />
-                      <div className="text-center">
-                        <span className="text-xs font-bold text-slate-200 block">Subir wimu_output.json</span>
-                        <span className="text-[10px] text-slate-500">Generado por el agente GPS local</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Separator */}
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-slate-800" />
-                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Configuración de Sesión</span>
-                <div className="h-px flex-1 bg-slate-800" />
-              </div>
-
-              {/* Folder path */}
+              {/* Folder Selector */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Ruta de la Carpeta GPS (.qul)
+                  Seleccionar Carpeta con Grabaciones GPS (.qul)
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
@@ -491,26 +323,33 @@ export function WimuGpsImportModal({
                       type="file"
                       ref={folderInputRef}
                       onChange={handleFolderSelect}
-                      {...({ webkitdirectory: "", directory: "" } as any)}
+                      {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
                       className="hidden"
                     />
                     <input
                       type="text"
-                      value={folderPath}
-                      onChange={e => setFolderPath(e.target.value)}
-                      placeholder="C:\Ruta\A\Grabaciones_Del_Dia"
-                      className="w-full text-xs rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2 text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-slate-600"
+                      readOnly
+                      value={folderPath || (selectedFiles.length > 0 ? `${selectedFiles.length} archivos .qul seleccionados` : "")}
+                      placeholder="Haz clic en Examinar para seleccionar la carpeta de los chalecos..."
+                      onClick={() => folderInputRef.current?.click()}
+                      className="w-full text-xs rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2 text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-600 cursor-pointer"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={() => folderInputRef.current?.click()}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
                   >
                     <FolderOpen className="size-3.5" />
                     <span>Examinar</span>
                   </button>
                 </div>
+                {selectedFiles.length > 0 && (
+                  <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-1">
+                    <FileCheck className="size-3.5 text-slate-300" />
+                    <span>{selectedFiles.length} archivos `.qul` listos para decodificar nativamente.</span>
+                  </p>
+                )}
               </div>
 
               {/* Date & Session Type */}
@@ -551,7 +390,7 @@ export function WimuGpsImportModal({
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-bold text-white uppercase tracking-wider block">Partes / Bloques</span>
-                    <span className="text-[11px] text-slate-400">La duración esperada mejora la precisión del Trimmer Engine.</span>
+                    <span className="text-[11px] text-slate-400">Indica la duración de cada parte si deseas ayudar al Trimmer Engine.</span>
                   </div>
                   <button
                     type="button"
@@ -607,7 +446,7 @@ export function WimuGpsImportModal({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <span className="text-xs font-bold text-white uppercase tracking-wider block">Asignación de Dispositivos GPS</span>
-                    <span className="text-[11px] text-slate-400">GPS asignado a cada futbolista (global o por parte).</span>
+                    <span className="text-[11px] text-slate-400">Asigna cada número de GPS al futbolista correspondiente.</span>
                   </div>
                   <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
                     {(["global", "by_period"] as const).map(mode => (
@@ -691,19 +530,10 @@ export function WimuGpsImportModal({
                   </div>
                 </div>
               </div>
-
-              {/* Config download tip */}
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-800/40 border border-slate-700">
-                <Info className="size-4 text-slate-400 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Descarga el archivo de configuración con el botón de abajo y ejecútalo con el agente instalado en tu PC.
-                  El token de API lo encuentras en <strong>Rendimiento → Ajustes → Agente GPS Local</strong>.
-                </p>
-              </div>
             </div>
           )}
 
-          {/* ── STEP 2: Trimmer Engine Validation ──────────────────────── */}
+          {/* ── STEP 2: Validation ──────────────────────────────────────── */}
           {step === 2 && trimmerData && (
             <div className="space-y-5">
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between flex-wrap gap-3">
@@ -712,9 +542,9 @@ export function WimuGpsImportModal({
                     Modo: {trimmerData.session_type}
                   </span>
                   <h3 className="text-xs font-bold text-white mt-1">Firma: {trimmerData.detection_mode}</h3>
-                  {agentOutput && (
+                  {trimmerData.parsed_files && trimmerData.parsed_files.length > 0 && (
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      {agentOutput.files_processed} archivos .qul procesados · {agentOutput.player_metrics.length} jugadores
+                      {trimmerData.parsed_files.length} archivos .qul WIMU decodificados nativamente
                     </p>
                   )}
                 </div>
@@ -723,9 +553,27 @@ export function WimuGpsImportModal({
                 </span>
               </div>
 
+              {/* Decoded .qul files list */}
+              {trimmerData.parsed_files && trimmerData.parsed_files.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Archivos GPS Decodificados</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {trimmerData.parsed_files.map((f, i) => (
+                      <div key={i} className="bg-slate-950 p-2 rounded-xl border border-slate-800 text-[11px] font-mono">
+                        <span className="text-white font-bold block truncate">{f.filename}</span>
+                        <span className="text-slate-400 text-[10px]">
+                          {f.deviceNumber ? `GPS #${f.deviceNumber}` : "Dispositivo"} · {f.durationMin} min
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Periods List */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Periodos Detectados — Edición Manual Activa</span>
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Periodos Detectados — Edición Manual</span>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {trimmerData.periods.map((period, idx) => (
                     <div key={idx} className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
@@ -770,16 +618,6 @@ export function WimuGpsImportModal({
                   {trimmerData.excluded_periods.map((ex, i) => <li key={i}>{ex}</li>)}
                 </ul>
               </div>
-
-              {!agentOutput && (
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-800/40 border border-slate-700">
-                  <Info className="size-4 text-slate-400 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-slate-300">
-                    <strong>Sin agente:</strong> Los periodos son estimaciones del Trimmer Engine basadas en las duraciones configuradas.
-                    Para datos locomotores reales por jugador (distancia, HSR, velocidad, etc.) utiliza el Agente GPS Local.
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
@@ -791,9 +629,9 @@ export function WimuGpsImportModal({
               </div>
               <h3 className="text-lg font-bold text-white">¡Sesión GPS Guardada!</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                {agentOutput
-                  ? `${agentOutput.player_metrics.length} jugadores con datos reales guardados en la base de datos.`
-                  : "Periodos de sesión guardados. Ejecuta el Agente GPS Local para añadir métricas individuales."}
+                {decodedPlayerMetrics.length > 0
+                  ? `${decodedPlayerMetrics.length} jugadores con datos reales decodificados del chaleco guardados en la base de datos.`
+                  : "Periodos de sesión guardados en Supabase."}
               </p>
             </div>
           )}
@@ -810,30 +648,18 @@ export function WimuGpsImportModal({
           </button>
 
           {step === 1 && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleDownloadConfig}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <Download className="size-4" />
-                <span>Descargar Config</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleAnalyzeFolder}
-                disabled={isParsing}
-                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all flex items-center gap-2 cursor-pointer"
-              >
-                {isParsing ? (
-                  <><Sliders className="size-4 animate-spin" /><span>Analizando...</span></>
-                ) : agentOutput ? (
-                  <><ChevronRight className="size-4" /><span>Continuar con datos del Agente</span></>
-                ) : (
-                  <><Sparkles className="size-4" /><span>Analizar Archivos GPS</span></>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleAnalyzeFolder}
+              disabled={isParsing}
+              className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all flex items-center gap-2 cursor-pointer"
+            >
+              {isParsing ? (
+                <><Sliders className="size-4 animate-spin" /><span>Decodificando WIMU...</span></>
+              ) : (
+                <><Sparkles className="size-4" /><span>Analizar Archivos GPS</span></>
+              )}
+            </button>
           )}
 
           {step === 2 && (
