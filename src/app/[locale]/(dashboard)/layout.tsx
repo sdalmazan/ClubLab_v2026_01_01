@@ -148,17 +148,34 @@ export default async function DashboardLayout({
         teamsQuery = teamsQuery.eq("organization_id", orgRole.organization_id);
       }
 
-      const { data: teamsData } = await teamsQuery;
+      // Auto-update Senior A -> Primera Plantilla in DB
+      try {
+        await sb.from("teams").update({ name: "Primera Plantilla" }).eq("name", "Senior A");
+      } catch (e) {}
 
-      if ((!teamsData || teamsData.length === 0) && orgRole.organization_id) {
+      const { data: teamsData } = await teamsQuery;
+      let rawTeams = teamsData ?? [];
+
+      if (rawTeams.length === 0 && orgRole.organization_id) {
         const { data: fallbackTeams } = await sb
           .from("teams")
           .select("id, name, category, season_id")
           .order("created_at", { ascending: true });
-        teams = fallbackTeams ?? [];
-      } else {
-        teams = teamsData ?? [];
+        rawTeams = fallbackTeams ?? [];
       }
+
+      const seenTeamNames = new Set<string>();
+      teams = rawTeams
+        .map((t: any) => ({
+          ...t,
+          name: t.name === "Senior A" ? "Primera Plantilla" : t.name,
+        }))
+        .filter((t: any) => {
+          const cleanName = (t.name || "").trim().toLowerCase();
+          if (seenTeamNames.has(cleanName)) return false;
+          seenTeamNames.add(cleanName);
+          return true;
+        });
 
       let seasonsQuery = sb
         .from("seasons")

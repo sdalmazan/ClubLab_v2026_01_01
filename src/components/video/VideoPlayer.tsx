@@ -1625,177 +1625,79 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
     const renderToolbar = () => {
       if (!isBoardActive || readOnly) return null;
 
-      let containerClass = "";
-      let flexClass = "";
-      let isVertical = false;
-
-      if (toolbarPosition === "left" || toolbarPosition === "right") {
-        containerClass = "relative w-14 h-full flex-col justify-start rounded-2xl p-2.5";
-        flexClass = "flex-col items-center gap-4 w-full h-full";
-        isVertical = true;
-      } else if (toolbarPosition === "top" || toolbarPosition === "bottom") {
-        containerClass = "relative w-full h-14 flex-row justify-between rounded-2xl px-4 py-2";
-        flexClass = "flex-row items-center gap-4 h-full w-full";
-      } else {
-        containerClass = "absolute top-14 left-4 w-72 flex-col justify-start rounded-2xl p-3 shadow-2xl border-indigo-500/25";
-        flexClass = "flex-col items-stretch gap-3 w-full h-full";
-      }
-
       return (
-        <div className={`z-30 bg-slate-950/90 border border-white/10 shadow-2xl backdrop-blur flex text-white text-[10px] ${containerClass}`}>
-          <div className={`flex ${flexClass} overflow-y-auto overflow-x-hidden scrollbar-none`}>
-            <div className={`flex ${isVertical ? "flex-col items-center gap-1.5" : "items-center gap-2"} justify-between pb-1.5 border-b border-white/5 w-full`}>
-              <span className="font-extrabold text-indigo-400 text-[9px] uppercase tracking-wider">Edición</span>
-              <select
-                value={toolbarPosition}
-                onChange={(e) => setToolbarPosition(e.target.value as any)}
-                className="bg-slate-900 border border-white/10 rounded px-1 py-0.5 text-[8px] text-slate-350 focus:outline-none cursor-pointer"
-              >
-                <option value="bottom">Abajo</option>
-                <option value="top">Arriba</option>
-                <option value="left">Izq</option>
-                <option value="right">Der</option>
-                <option value="floating">Flotante</option>
-              </select>
-            </div>
-
-            <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1 flex-wrap justify-center`}>
-              {[
-                {
-                  key: "pointer",
-                  title: "Seleccionar / Mover",
-                  icon: <MousePointer className="h-4 w-4" />
-                },
-                {
-                  key: "pencil",
-                  title: "Lápiz Trazo Libre",
-                  icon: <Pencil className="h-4 w-4" />
-                },
-                {
-                  key: "arrow",
-                  title: "Flecha Desmarque",
-                  icon: <MoveRight className="h-4 w-4" />
-                },
-                {
-                  key: "circle",
-                  title: "Zona Círculo",
-                  icon: <Circle className="h-4 w-4" />
-                },
-                {
-                  key: "spotlight",
-                  title: "Foco Jugador",
-                  icon: <Target className="h-4 w-4" />
-                },
-                {
-                  key: "link",
-                  title: "Línea Conexión",
-                  icon: <Minus className="h-4 w-4" />
-                },
-                {
-                  key: "offside",
-                  title: "Línea Fuera de Juego",
-                  icon: <Flag className="h-4 w-4 text-rose-400" />
-                },
-                {
-                  key: "text",
-                  title: "Anotación Texto",
-                  icon: <MessageSquare className="h-4 w-4" />
-                },
-                {
-                  key: "header",
-                  title: "Título / Cabecera",
-                  icon: <Type className="h-4 w-4" />
-                },
-                {
-                  key: "sticker",
-                  title: "Icono / Sticker",
-                  icon: <Tag className="h-4 w-4" />
-                },
-                {
-                  key: "magnifier",
-                  title: "Lupa Ampliación",
-                  icon: <ZoomIn className="h-4 w-4" />
-                },
-              ].map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  title={t.title}
-                  onClick={() => {
-                    setActiveTool(t.key as any);
-                    if (t.key !== "pointer") setSelectedId(null);
-                  }}
-                  className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm ${
-                    activeTool === t.key
-                      ? "bg-indigo-600 text-white border border-indigo-400/50 ring-2 ring-indigo-500/40 shadow-indigo-500/30 scale-105"
-                      : "bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  {t.icon}
-                </button>
-              ))}
-            </div>
-
-            {activeTool === "sticker" && !isVertical && (
-              <div className="flex items-center gap-1 bg-slate-900 border border-white/10 rounded-xl p-1 text-[11px] font-bold text-slate-200">
-                {[
-                  { key: "ball", label: "Balón" },
-                  { key: "cone", label: "Cono" },
-                  { key: "card_yellow", label: "Tarjeta 🟨" },
-                  { key: "card_red", label: "Tarjeta 🟥" },
-                  { key: "shield", label: "Escudo" }
-                ].map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => setStickerType(s.key as any)}
-                    className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
-                      stickerType === s.key ? "bg-indigo-600 text-white shadow-sm font-black" : "hover:bg-white/5 opacity-70 hover:opacity-100"
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1.5 justify-center`}>
+        <div className="absolute top-3 left-3 right-28 z-30 bg-slate-950/95 border border-white/15 shadow-2xl backdrop-blur-md flex items-center justify-between text-white text-[10px] px-3 py-1.5 rounded-xl animate-fade-in">
+          {/* Whiteboard Tools */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            <span className="font-extrabold text-indigo-400 text-[9px] uppercase tracking-wider shrink-0 mr-1">Pizarra</span>
+            {[
+              {
+                key: "pointer",
+                title: "Seleccionar / Mover",
+                icon: <MousePointer className="h-3.5 w-3.5" />
+              },
+              {
+                key: "pencil",
+                title: "Lápiz Trazo Libre",
+                icon: <Pencil className="h-3.5 w-3.5" />
+              },
+              {
+                key: "arrow",
+                title: "Flecha Desmarque",
+                icon: <MoveRight className="h-3.5 w-3.5" />
+              },
+              {
+                key: "circle",
+                title: "Zona Círculo",
+                icon: <Circle className="h-3.5 w-3.5" />
+              },
+              {
+                key: "spotlight",
+                title: "Foco Jugador",
+                icon: <Target className="h-3.5 w-3.5" />
+              },
+              {
+                key: "link",
+                title: "Línea Conexión",
+                icon: <Minus className="h-3.5 w-3.5" />
+              },
+              {
+                key: "offside",
+                title: "Línea Fuera de Juego",
+                icon: <Flag className="h-3.5 w-3.5 text-rose-400" />
+              },
+              {
+                key: "text",
+                title: "Anotación de Texto / Comentario",
+                icon: <MessageSquare className="h-3.5 w-3.5" />
+              },
+              {
+                key: "magnifier",
+                title: "Lupa de Ampliación",
+                icon: <ZoomIn className="h-3.5 w-3.5" />
+              },
+            ].map((t) => (
               <button
+                key={t.key}
                 type="button"
+                title={t.title}
                 onClick={() => {
-                  if (isCutting) {
-                    onStopCut?.();
-                  } else {
-                    onStartCut?.();
-                  }
+                  setActiveTool(t.key as any);
+                  if (t.key !== "pointer") setSelectedId(null);
                 }}
-                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer ${
-                  isCutting
-                    ? "bg-rose-600 text-white animate-pulse shadow-md shadow-rose-500/30"
-                    : "bg-slate-900 border border-rose-500/30 text-rose-300 hover:bg-rose-950/40"
+                className={`p-1.5 rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-sm ${
+                  activeTool === t.key
+                    ? "bg-indigo-600 text-white border border-indigo-400/50 ring-2 ring-indigo-500/40 shadow-indigo-500/30 scale-105"
+                    : "bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white hover:bg-slate-800"
                 }`}
               >
-                {isCutting ? <Square className="h-3 w-3" /> : <Scissors className="h-3 w-3" />}
-                <span>{isCutting ? "Parar" : "Cortar"}</span>
+                {t.icon}
               </button>
-              <button
-                type="button"
-                onClick={() => onRetroactiveCut?.(10)}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/10 text-[10px] font-bold transition-all cursor-pointer"
-              >
-                −10s
-              </button>
-              <button
-                type="button"
-                onClick={() => onRetroactiveCut?.(30)}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/10 text-[10px] font-bold transition-all cursor-pointer"
-              >
-                −30s
-              </button>
-            </div>
+            ))}
 
+            {/* Colors */}
             {activeTool !== "pointer" && (
-              <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1.5 justify-center px-1 border-x border-white/10`}>
+              <div className="flex items-center gap-1 px-2 border-l border-white/10 ml-1">
                 {[
                   { color: "#ef4444", title: "Rojo" },
                   { color: "#eab308", title: "Amarillo" },
@@ -1811,7 +1713,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                       setDrawColor(c.color);
                       if (selectedId) handleUpdateSelectedProperty("color", c.color);
                     }}
-                    className={`w-4 h-4 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                    className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                       drawColor === c.color ? "ring-2 ring-white scale-110 shadow-md" : "opacity-70 hover:opacity-100"
                     }`}
                     style={{ backgroundColor: c.color }}
@@ -1819,35 +1721,36 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
                 ))}
               </div>
             )}
+          </div>
 
-            <div className={`flex ${isVertical ? "flex-col" : "items-center"} gap-1.5 justify-center ${!isVertical ? "ml-auto" : "mt-auto"}`}>
-              <button
-                type="button"
-                title="Deshacer trazo"
-                onClick={handleUndo}
-                disabled={undoStack.length === 0}
-                className="p-1.5 rounded-xl bg-slate-900 border border-white/10 hover:bg-slate-800 disabled:opacity-20 text-slate-300 transition-all cursor-pointer"
-              >
-                <Undo className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                title="Rehacer trazo"
-                onClick={handleRedo}
-                disabled={redoStack.length === 0}
-                className="p-1.5 rounded-xl bg-slate-900 border border-white/10 hover:bg-slate-800 disabled:opacity-20 text-slate-300 transition-all cursor-pointer"
-              >
-                <Redo className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                title="Cerrar Pizarra"
-                onClick={() => setIsBoardActive(false)}
-                className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
+          {/* Right Action Controls: Undo, Redo, Close */}
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <button
+              type="button"
+              title="Deshacer trazo (Ctrl+Z)"
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              className="p-1.5 rounded-lg bg-slate-900 border border-white/10 hover:bg-slate-800 disabled:opacity-20 text-slate-300 transition-all cursor-pointer"
+            >
+              <Undo className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Rehacer trazo (Ctrl+Y)"
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              className="p-1.5 rounded-lg bg-slate-900 border border-white/10 hover:bg-slate-800 disabled:opacity-20 text-slate-300 transition-all cursor-pointer"
+            >
+              <Redo className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Cerrar Pizarra Táctica"
+              onClick={() => setIsBoardActive(false)}
+              className="p-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-500/30 transition-all cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       );

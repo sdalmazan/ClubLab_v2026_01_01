@@ -8,6 +8,7 @@ import { User, Key, Building2, UserCog, CheckCircle2, AlertTriangle, ChevronDown
 import ImageAdjusterModal from "@/components/settings/ImageAdjusterModal";
 import { PerformanceSettingsTab } from "@/components/settings/PerformanceSettingsTab";
 import { TeamRolesSettingsTab } from "@/components/settings/TeamRolesSettingsTab";
+import { VideoSettingsTab } from "@/components/settings/VideoSettingsTab";
 
 import { VALIDATED_COLORS, findClosestValidatedColor } from "@/lib/colors";
 
@@ -1768,18 +1769,36 @@ export function SettingsForm({
           </div>
         )}
 
-        {/* Tab 5: Video Pack & API integrations */}
+        {/* Tab 5: Video Pack & Video Settings */}
         {activeTab === 'video_pack' && canSeeVideoPack && (
-          <div className="bg-card rounded-lg border border-border p-6 shadow-xl space-y-6">
-            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-              <div className="h-10 w-10 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 text-xl shrink-0">
-                🎬
+          <div className="space-y-8">
+            <VideoSettingsTab
+              initialSettings={organizationSettings?.video_settings}
+              onSave={async (newSettings) => {
+                const supabase = createClient();
+                const updatedSettings = {
+                  ...organizationSettings,
+                  video_settings: newSettings
+                };
+                const { error } = await supabase
+                  .from("organizations")
+                  .update({ settings: updatedSettings })
+                  .eq("id", organizationId);
+                if (error) throw error;
+                router.refresh();
+              }}
+            />
+
+            <div className="bg-card rounded-lg border border-border p-6 shadow-xl space-y-6">
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                <div className="h-10 w-10 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 text-xl shrink-0">
+                  🎬
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Paquetes de Videoanálisis Local</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Herramientas auxiliares de captura, reproducción y edición local offline.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Paquetes de Videoanálisis Local</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Herramientas auxiliares de captura, reproducción y edición local offline.</p>
-              </div>
-            </div>
 
             <div className="text-xs text-slate-400 leading-relaxed bg-slate-950/40 p-4 border border-white/5 rounded-2xl">
               Si el cuerpo técnico o los analistas necesitan realizar el etiquetado y cortes de vídeo directamente en sus ordenadores o iPads sin conexión a internet, deben descargar los siguientes paquetes de software local. Los clips se guardarán temporalmente en el almacenamiento del dispositivo y se sincronizarán con la nube al recuperar la conexión.
@@ -1841,7 +1860,8 @@ export function SettingsForm({
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* Tab 6: Rendimiento & Tests */}
         {activeTab === 'performance' && (

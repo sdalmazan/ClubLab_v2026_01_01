@@ -196,7 +196,7 @@ export async function GET(request: Request) {
     // 3. Query FEDERATION DATABASE for matches involving the team in the targetSeason
     const cleanTeamName = (name: string) => {
       const lower = name.toLowerCase();
-      if (lower.includes("almaz") || lower === "senior a" || lower === "primer equipo" || lower === "senior") {
+      if (lower.includes("almaz") || lower === "senior a" || lower === "primera plantilla" || lower === "primer equipo" || lower === "senior") {
         return "C.D. Almazán";
       }
       return name;

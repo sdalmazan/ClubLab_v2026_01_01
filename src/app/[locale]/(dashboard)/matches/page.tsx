@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ClipExplorer } from "./ClipExplorer";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { formatToDDMMAAAA } from "@/lib/utils";
@@ -66,7 +67,7 @@ export default function MatchesPage() {
   const [matchdayFilter, setMatchdayFilter] = useState("all");
 
   // Tab control: "squad" (Partidos propios) vs "stats" (Ranking Plantilla) vs "rival" (Análisis de rival) vs "standings" (Calendario y Clasificación)
-  const [activeTab, setActiveTab] = useState<"squad" | "stats" | "rival" | "standings">("squad");
+  const [activeTab, setActiveTab] = useState<"squad" | "stats" | "rival" | "standings" | "clips">("squad");
   const [selectedRival, setSelectedRival] = useState("");
 
   // Standings and matchday navigation state
@@ -758,7 +759,25 @@ export default function MatchesPage() {
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
           )}
         </button>
+        <button
+          onClick={() => {
+            setActiveTab("clips");
+          }}
+          className={`pb-2.5 px-4 text-xs font-black uppercase tracking-wider relative transition-colors cursor-pointer shrink-0 ${
+            activeTab === "clips" ? "text-indigo-400 font-extrabold" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          🎬 Historial de Cortes
+          {activeTab === "clips" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" />
+          )}
+        </button>
       </div>
+
+      {/* CLIPS EXPLORER PANEL */}
+      {activeTab === "clips" && (
+        <ClipExplorer allMatches={matches} squadPlayers={squadPlayers} />
+      )}
 
       {/* SQUAD STATS (GOALS & ASSISTS RANKING) PANEL */}
       {activeTab === "stats" && (

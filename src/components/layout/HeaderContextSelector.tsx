@@ -54,22 +54,41 @@ export function HeaderContextSelector({
     userRole === "sporting_director" ||
     userRole === "super_admin";
 
+  // Normalize team names and deduplicate
+  const seenTeamNames = new Set<string>();
+  const normalizedTeams = (teams || [])
+    .map((t) => ({
+      ...t,
+      name: t.name === "Senior A" ? "Primera Plantilla" : t.name,
+    }))
+    .filter((t) => {
+      const cleanName = (t.name || "").trim().toLowerCase();
+      if (seenTeamNames.has(cleanName)) return false;
+      seenTeamNames.add(cleanName);
+      return true;
+    });
+
+  const activeTeamName =
+    normalizedTeams.find((t) => t.id === activeTeamId)?.name ||
+    normalizedTeams[0]?.name ||
+    "Primera Plantilla";
+
   return (
     <div className="flex items-center gap-2.5">
       {/* Team Context Selector (Academy mode only) */}
-      {showTeamSelector && teams.length > 0 && (
+      {showTeamSelector && normalizedTeams.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-1.5 sm:gap-2.5 rounded-md px-2.5 py-1.5 sm:px-3.5 sm:py-2 transition-all text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer focus:outline-none">
             <Users className="h-3.5 w-3.5 text-primary shrink-0" />
             <span className="hidden sm:inline text-muted-foreground font-bold uppercase text-[9px] tracking-wider leading-none mr-0.5">Equipo:</span>
             <span className="text-foreground font-bold leading-none truncate max-w-[80px] sm:max-w-none">
-              {teams.find((t) => t.id === activeTeamId)?.name || "Seleccionar"}
+              {activeTeamName}
             </span>
             <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-50" />
           </DropdownMenuTrigger>
           
           <DropdownMenuContent align="start" className="w-56">
-            {teams.map((t) => (
+            {normalizedTeams.map((t) => (
               <DropdownMenuItem
                 key={t.id}
                 onSelect={() => handleTeamChange(t.id)}

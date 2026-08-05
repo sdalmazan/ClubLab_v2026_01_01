@@ -367,6 +367,14 @@ export async function updatePlayer(
  */
 export async function getOrgTeams() {
   const supabase = await createClient();
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const adminSb = createAdminClient();
+
+  // Auto-update Senior A -> Primera Plantilla in DB
+  try {
+    await adminSb.from("teams").update({ name: "Primera Plantilla" }).eq("name", "Senior A");
+  } catch (e) {}
+
   let { data } = await supabase
     .from("teams")
     .select("id, name, category, season_id, seasons(name, is_active)")
@@ -374,8 +382,6 @@ export async function getOrgTeams() {
 
   if (!data || data.length === 0) {
     try {
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const adminSb = createAdminClient();
       const { data: adminData } = await adminSb
         .from("teams")
         .select("id, name, category, season_id, seasons(name, is_active)")
@@ -386,7 +392,21 @@ export async function getOrgTeams() {
     } catch (e) {}
   }
 
-  return data ?? [];
+  const raw = data ?? [];
+  const seenNames = new Set<string>();
+  const normalized = raw
+    .map((t: any) => ({
+      ...t,
+      name: t.name === "Senior A" ? "Primera Plantilla" : t.name,
+    }))
+    .filter((t: any) => {
+      const cleanName = (t.name || "").trim().toLowerCase();
+      if (seenNames.has(cleanName)) return false;
+      seenNames.add(cleanName);
+      return true;
+    });
+
+  return normalized;
 }
 
 /**

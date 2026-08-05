@@ -99,7 +99,7 @@ export function OnboardingWizard() {
             setOrgType("independent_coach");
             setOrgName(`Cantera de ${user.user_metadata?.full_name || "Entrenador"}`);
             setClubName(`Club de ${user.user_metadata?.full_name || "Entrenador"}`);
-            setTeamName("Senior A");
+            setTeamName("Primera Plantilla");
           }
         }
       } catch (err) {

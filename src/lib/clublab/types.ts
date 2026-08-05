@@ -206,6 +206,21 @@ export interface VideoAnnotation {
   freezeDuration?: number; // duración de la congelación del frame en segundos
 }
 
+export interface ClipNotesOverlay {
+  text: string;
+  showInVideo: boolean;
+  position: "bottom" | "top" | "left" | "right" | "center";
+}
+
+export interface ClipScoreboardOverlay {
+  show: boolean;
+  homeTeam?: string;
+  awayTeam?: string;
+  minute?: number;
+  score?: string;
+  matchDate?: string;
+}
+
 export interface VideoClip {
   id: string;
   title: string;
@@ -213,12 +228,19 @@ export interface VideoClip {
   end: number; // en segundos
   comment: string;
   category?: string; // e.g. "Ataque", "Defensa", "Transición", "Balón Parado"
+  categoryColor?: string; // Hex color for badge
+  descriptors?: string[]; // e.g. ["Bien", "Mal"], ["Gol a favor"]
   tagged_players: string[]; // player_id
   stats: ClipPlayerStat[];
   annotations?: VideoAnnotation[]; // Anotaciones tácticas de vídeo
   videoUrl?: string;
+  matchId?: string;
+  matchTitle?: string;
   tacticalConcepts?: string[];
   isSavedInBank?: boolean;
+  notesOverlay?: ClipNotesOverlay;
+  playbackSpeed?: number; // 0.5, 0.75, 1, 1.25, 1.5, 2
+  scoreboardOverlay?: ClipScoreboardOverlay;
 }
 
 export interface VideoItem {
@@ -240,9 +262,17 @@ export interface VideoMontageItem {
   subtitle?: string;
   duration?: number;
   bgColor?: string;
+  bgImage?: string;
+  textColor?: string;
+  fontSize?: string;
+  position?: "center" | "left" | "right" | "top" | "bottom";
+  showBadge?: boolean;
   videoUrl?: string;
   start?: number;
   end?: number;
+  playbackSpeed?: number;
+  notesOverlay?: ClipNotesOverlay;
+  showScoreboard?: boolean;
 }
 
 export interface VideoMontage {
@@ -253,11 +283,56 @@ export interface VideoMontage {
   createdAt: string;
 }
 
+export interface ActionTypeSetting {
+  name: string;
+  color: string;
+}
+
+export interface DescriptorSetting {
+  name: string;
+  isDefault?: boolean;
+}
+
+export interface VideoAnalysisSettings {
+  actionTypes: ActionTypeSetting[];
+  descriptors: DescriptorSetting[];
+  defaultCutMode: "manual" | "auto_10s";
+  exportSettings: {
+    includeSound: boolean;
+    resolution: "1080p" | "720p";
+  };
+}
+
+export const DEFAULT_VIDEO_SETTINGS: VideoAnalysisSettings = {
+  actionTypes: [
+    { name: "Ataque", color: "#3b82f6" },
+    { name: "Defensa", color: "#ef4444" },
+    { name: "Transición Ofensiva", color: "#10b981" },
+    { name: "Transición Defensiva", color: "#f59e0b" },
+    { name: "Balón Parado", color: "#8b5cf6" },
+    { name: "Presión", color: "#ec4899" },
+    { name: "Salida de Balón", color: "#06b6d4" },
+    { name: "Jugada relevante", color: "#6366f1" },
+  ],
+  descriptors: [
+    { name: "Bien", isDefault: true },
+    { name: "Mal", isDefault: true },
+    { name: "Gol a favor", isDefault: true },
+    { name: "Gol en contra", isDefault: true },
+  ],
+  defaultCutMode: "manual",
+  exportSettings: {
+    includeSound: true,
+    resolution: "1080p",
+  },
+};
+
 export interface SessionVideoData {
   general_notes: string;
   videos: VideoItem[];
   montages?: VideoMontage[];
   cut_bank?: VideoClip[];
+  settings?: VideoAnalysisSettings;
 }
 
 export type PositionKey =
