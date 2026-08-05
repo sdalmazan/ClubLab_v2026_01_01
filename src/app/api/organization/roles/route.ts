@@ -362,3 +362,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: err.message || "Error al invitar/vincular miembro" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const supabaseAdmin = createAdminClient();
+    const supabase = await createServerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+    const organizationId = searchParams.get("organizationId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "Falta userId" }, { status: 400 });
+    }
+
+    if (userId.startsWith("invitation_")) {
+      const invId = userId.replace("invitation_", "");
+      await supabaseAdmin.from("player_invitations").delete().eq("id", invId);
+    } else {
+      let query = supabaseAdmin.from("user_organization_roles").delete().eq("user_id", userId);
+      if (organizationId) {
+        query = query.eq("organization_id", organizationId);
+      }
+      await query;
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error("DELETE /api/organization/roles error:", err);
+    return NextResponse.json({ error: err.message || "Error al eliminar miembro" }, { status: 500 });
+  }
+}
