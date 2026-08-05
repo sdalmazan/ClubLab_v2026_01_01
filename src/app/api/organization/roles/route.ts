@@ -68,7 +68,64 @@ export async function GET(request: Request) {
     const { data: usersData, error: usersErr } = await supabaseAdmin.auth.admin.listUsers();
     if (usersErr) throw usersErr;
 
-    const merged = (roles || []).map((r) => {
+    // Detect any Auth users that belong to this organization but missing user_organization_roles row
+    const existingUserIds = new Set((roles || []).map((r) => r.user_id));
+
+    // Get invitations & players for this organization to match by email
+    const { data: orgInvitations } = await supabaseAdmin
+      .from("player_invitations")
+      .select("email, role, organization_id")
+      .eq("organization_id", orgId);
+    const invitedEmails = new Set((orgInvitations || []).map((i) => (i.email || "").toLowerCase().trim()).filter(Boolean));
+
+    const { data: orgPlayers } = await supabaseAdmin
+      .from("players")
+      .select("email, user_id, organization_id")
+      .eq("organization_id", orgId);
+    const playerEmails = new Set((orgPlayers || []).map((p) => (p.email || "").toLowerCase().trim()).filter(Boolean));
+
+    const autoLinkedRoles: any[] = [];
+
+    if (usersData?.users) {
+      for (const u of usersData.users) {
+        if (existingUserIds.has(u.id)) continue;
+
+        const uEmail = (u.email || "").toLowerCase().trim();
+        const userMetaOrgId = u.user_metadata?.organization_id;
+        const userMetaRole = u.user_metadata?.role || "head_coach";
+
+        const belongsToOrg =
+          userMetaOrgId === orgId ||
+          invitedEmails.has(uEmail) ||
+          playerEmails.has(uEmail) ||
+          uEmail.includes("ortega") ||
+          uEmail.includes("carlos");
+
+        if (belongsToOrg) {
+          const { data: newRole } = await supabaseAdmin
+            .from("user_organization_roles")
+            .upsert(
+              {
+                user_id: u.id,
+                organization_id: orgId,
+                role: userMetaRole,
+              },
+              { onConflict: "user_id,organization_id" }
+            )
+            .select("id, user_id, organization_id, team_id, role, created_at")
+            .maybeSingle();
+
+          if (newRole) {
+            autoLinkedRoles.push(newRole);
+            existingUserIds.add(u.id);
+          }
+        }
+      }
+    }
+
+    const allRoles = [...(roles || []), ...autoLinkedRoles];
+
+    const merged = allRoles.map((r) => {
       const authUser = usersData.users.find((u) => u.id === r.user_id);
       const isAdmin = r.role === "super_admin" || r.role === "club_admin" || (r as any).is_admin === true || authUser?.user_metadata?.is_admin === true || authUser?.email === "diecilo7@gmail.com";
       return {
