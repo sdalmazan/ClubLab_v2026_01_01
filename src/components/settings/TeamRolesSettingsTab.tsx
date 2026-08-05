@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, UserPlus, ShieldCheck, Mail, CheckCircle2, AlertCircle, RefreshCw, UserCheck, Trash2, Clock } from "lucide-react";
+import { Users, UserPlus, ShieldCheck, Mail, CheckCircle2, AlertCircle, RefreshCw, UserCheck, Trash2, Clock, Send, KeyRound } from "lucide-react";
 
 interface StaffMember {
   id: string;
@@ -33,7 +33,6 @@ const ROLE_OPTIONS = [
 
 export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabProps) {
   const [members, setMembers] = useState<StaffMember[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -130,6 +129,54 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
     }
   }
 
+  async function handleSendPasswordReset(email: string) {
+    if (!email || email === "Sin correo") return;
+    try {
+      setFeedback(null);
+      const res = await fetch("/api/admin/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_password_reset",
+          email,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al enviar recuperación de contraseña");
+
+      setFeedback({ type: "success", message: `Correo de restablecimiento de contraseña enviado a ${email}.` });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setFeedback({ type: "error", message: err.message || "Error al enviar el restablecimiento." });
+    }
+  }
+
+  async function handleSendInvitationReminder(userId: string, email: string) {
+    try {
+      setFeedback(null);
+      const res = await fetch("/api/admin/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "remind_invitation",
+          invitationId: userId,
+          email,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al enviar el recordatorio");
+
+      setFeedback({ type: "success", message: `Recordatorio de invitación reenviado a ${email}.` });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setFeedback({ type: "error", message: err.message || "Error al reenviar la invitación." });
+    }
+  }
+
   async function handleDeleteMember(userId: string, email: string) {
     if (!confirm(`¿Estás seguro de eliminar a "${email}" del equipo y la organización?`)) return;
 
@@ -207,7 +254,7 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
             Gestión de Usuarios, Roles y Permisos de Administración
           </h2>
           <p className="text-xs text-slate-400">
-            Administra las funciones del cuerpo técnico y concede o revoca permisos de Administrador del Club a cualquier perfil.
+            Administra las funciones del cuerpo técnico, concede permisos de administrador y gestiona accesos.
           </p>
         </div>
 
@@ -288,8 +335,8 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-white block">{member.full_name}</span>
                               {member.is_pending && (
-                                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                  ⏳ Pendiente
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold tracking-wider text-slate-400 bg-white/5 border border-white/10 uppercase">
+                                  Pendiente
                                 </span>
                               )}
                             </div>
@@ -336,14 +383,34 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
                       </td>
 
                       <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {member.is_pending && (
+                            <button
+                              type="button"
+                              onClick={() => handleSendInvitationReminder(member.user_id, member.email)}
+                              className="p-1.5 rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 transition-all cursor-pointer"
+                              title="Reenviar recordatorio de invitación"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleSendPasswordReset(member.email)}
+                            className="p-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all cursor-pointer"
+                            title="Mandar recuperación de contraseña"
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleDeleteMember(member.user_id, member.email)}
-                            className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-white/5 bg-white/5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/20 transition-all cursor-pointer"
                             title="Eliminar usuario del equipo"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
@@ -366,40 +433,40 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
                 <Mail className="h-4 w-4 text-emerald-400" />
-                Invitar Miembro al Club & Asignar Permisos
+                Invitar Miembro al Club
               </h3>
               <button
                 type="button"
                 onClick={() => setShowInviteModal(false)}
-                className="text-slate-400 hover:text-white font-bold text-lg cursor-pointer"
+                className="text-slate-400 hover:text-white text-xs font-bold"
               >
-                ×
+                ✕
               </button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                  Correo Electrónico *
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Correo Electrónico del Miembro *
                 </label>
                 <input
                   type="email"
                   required
-                  placeholder="ejemplo@club.com"
+                  placeholder="ejemplo@sdalmazan.es"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none"
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 text-white text-xs px-3 py-2 focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
                   Rol Principal Asignado *
                 </label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 text-white text-xs px-3 py-2 focus:border-emerald-500 focus:outline-none"
                 >
                   {ROLE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -409,34 +476,36 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
                 </select>
               </div>
 
-              <div className="pt-1">
-                <label className="flex items-center gap-2 text-xs text-slate-300 font-semibold cursor-pointer">
+              <div className="pt-2">
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={inviteIsAdmin}
                     onChange={(e) => setInviteIsAdmin(e.target.checked)}
-                    className="rounded border-white/20 text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
+                    className="rounded border-white/20 text-emerald-500 focus:ring-emerald-500/30"
                   />
-                  <span>☑ Conceder también permisos de Administrador del Club</span>
+                  <span className="text-xs text-slate-300 font-medium">
+                    Conceder permisos de Administrador del Club
+                  </span>
                 </label>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => setShowInviteModal(false)}
-                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-white/10 text-xs text-slate-300 hover:bg-white/5"
               >
                 Cancelar
               </button>
-
               <button
                 type="submit"
                 disabled={submittingInvite}
-                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 disabled:opacity-50 flex items-center gap-1.5"
               >
-                {submittingInvite ? "Guardando..." : "Enviar e Asignar Rol"}
+                {submittingInvite && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-slate-950" />}
+                Enviar Invitación / Asignar
               </button>
             </div>
           </form>

@@ -12,17 +12,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify Super Admin status (either role is super_admin OR specific email)
+    // Verify authorized manager status (super_admin, club_admin, head_coach or diecilo7)
     const { data: orgRole } = await supabase
       .from("user_organization_roles")
       .select("role")
       .eq("user_id", user.id)
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    const isSuperAdmin = orgRole?.role === "super_admin" || user.email === "diecilo7@gmail.com";
+    const isAuthorizedManager =
+      orgRole?.role === "super_admin" ||
+      orgRole?.role === "club_admin" ||
+      orgRole?.role === "head_coach" ||
+      user.email === "diecilo7@gmail.com" ||
+      user.email === "diego.ciria.lopez@gmail.com";
 
-    if (!isSuperAdmin) {
+    if (!isAuthorizedManager) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -30,6 +35,96 @@ export async function POST(req: NextRequest) {
     const { action } = body;
 
     switch (action) {
+      case "send_password_reset": {
+        const { email } = body;
+        if (!email || email === "Sin correo") {
+          return NextResponse.json({ error: "El correo electrónico es requerido." }, { status: 400 });
+        }
+
+        const cleanEmail = email.toLowerCase().trim();
+
+        // Generate password recovery link
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://v20260102-git-master-dciria-s-projects.vercel.app";
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email: cleanEmail,
+          options: {
+            redirectTo: `${appUrl}/auth/update-password`,
+          },
+        });
+
+        let actionUrl = linkData?.properties?.action_link || `${appUrl}/login`;
+
+        try {
+          const { sendEmailAlert } = await import("@/lib/email/mailer");
+          await sendEmailAlert({
+            to: cleanEmail,
+            recipientName: cleanEmail.split("@")[0],
+            title: "Restablecimiento de Contraseña — ClubLab",
+            body: `Hola,\n\nSe ha solicitado un restablecimiento de contraseña para tu cuenta en ClubLab.\n\nHaz clic en el enlace a continuación para asignar tu nueva contraseña de acceso:`,
+            actionUrl: actionUrl,
+            actionText: "Restablecer mi Contraseña",
+          });
+        } catch (e: any) {
+          console.error("Error enviando email de recuperación:", e.message);
+        }
+
+        return NextResponse.json({ success: true, message: `Instrucciones enviadas a ${cleanEmail}` });
+      }
+
+      case "remind_invitation": {
+        const { invitationId, email } = body;
+        let targetEmail = email;
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://v20260102-git-master-dciria-s-projects.vercel.app";
+
+        if (invitationId && typeof invitationId === "string") {
+          const cleanInvId = invitationId.replace("invitation_", "");
+          const { data: inv } = await supabaseAdmin
+            .from("player_invitations")
+            .select("email, token, full_name, role, organization_id, organizations(name)")
+            .eq("id", cleanInvId)
+            .maybeSingle();
+
+          if (inv) {
+            targetEmail = inv.email;
+            const invitationUrl = `${appUrl}/onboarding/player?token=${inv.token}`;
+            const { sendPlayerInvitationEmail } = await import("@/lib/email/mailer");
+            await sendPlayerInvitationEmail({
+              to: inv.email,
+              recipientName: inv.full_name || inv.email.split("@")[0],
+              invitationUrl,
+              orgName: (inv.organizations as any)?.name || "SD Almazán",
+              roleName: inv.role || "Entrenador",
+            });
+
+            return NextResponse.json({ success: true, message: `Recordatorio enviado a ${targetEmail}` });
+          }
+        }
+
+        if (targetEmail) {
+          const cleanEmail = targetEmail.toLowerCase().trim();
+          const { data: inv } = await supabaseAdmin
+            .from("player_invitations")
+            .select("email, token, full_name, role, organizations(name)")
+            .ilike("email", cleanEmail)
+            .maybeSingle();
+
+          if (inv) {
+            const invitationUrl = `${appUrl}/onboarding/player?token=${inv.token}`;
+            const { sendPlayerInvitationEmail } = await import("@/lib/email/mailer");
+            await sendPlayerInvitationEmail({
+              to: inv.email,
+              recipientName: inv.full_name || inv.email.split("@")[0],
+              invitationUrl,
+              orgName: (inv.organizations as any)?.name || "SD Almazán",
+              roleName: inv.role || "Entrenador",
+            });
+          }
+        }
+
+        return NextResponse.json({ success: true, message: `Recordatorio enviado a ${targetEmail}` });
+      }
+
       case "delete_org": {
         const { id } = body;
         const { error } = await supabaseAdmin.from("organizations").delete().eq("id", id);
