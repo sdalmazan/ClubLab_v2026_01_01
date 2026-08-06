@@ -13,6 +13,8 @@
  *   Bloque 8: Monitorización EWMA (Carga Aguda, Crónica, ACWR)
  */
 
+import { Buffer } from "buffer";
+
 export interface SprintVector {
   startX: number; // m (0-105)
   startY: number; // m (0-68)
@@ -96,7 +98,8 @@ export interface ParsedQulFile {
   sprintVectors: SprintVector[];
 }
 
-export function parseWimuQulBuffer(buffer: Buffer, filename: string): ParsedQulFile {
+export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, filename: string): ParsedQulFile {
+  const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input as any);
   let deviceName = filename.replace(/\.qul$/i, "");
   let deviceNumber: number | null = null;
 
