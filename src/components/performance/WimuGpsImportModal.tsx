@@ -272,6 +272,8 @@ export function WimuGpsImportModal({
         }
 
         let currentOffset = warmupMin;
+        const mainTimeline = parsedFiles[0]?.timelineSeries || [];
+
         const periods: Array<{
           name: string;
           t_start: string;
@@ -290,24 +292,42 @@ export function WimuGpsImportModal({
             );
 
         defs.forEach((pdef, i) => {
-          const dur = pdef.expectedDurationMin !== "" && pdef.expectedDurationMin != null
+          let baseDur = pdef.expectedDurationMin !== "" && pdef.expectedDurationMin != null
             ? Number(pdef.expectedDurationMin)
             : (isMatch ? 45 : 20);
 
+          let detectedStartMin = currentOffset;
+          let detectedEndMin = currentOffset + baseDur;
+
+          // Adaptive Whistle Detection: scan timelineSeries for actual intensity drop (stoppage time)
+          if (mainTimeline.length > 0 && isMatch) {
+            const searchMinStart = currentOffset + Math.max(35, baseDur - 5);
+            const searchMinEnd = currentOffset + baseDur + 12; // Search up to +12 min stoppage
+
+            // Find first point in range where intensity drops below match threshold (0.45)
+            const dropPt = mainTimeline.find(
+              (pt) => pt.minute >= searchMinStart && pt.minute <= searchMinEnd && pt.intensity < 0.45
+            );
+            if (dropPt) {
+              detectedEndMin = dropPt.minute;
+            }
+          }
+
+          const actualDurationMin = Math.max(5, Math.round((detectedEndMin - detectedStartMin) * 10) / 10);
           const hasAnchor = pdef.expectedDurationMin !== "" && pdef.expectedDurationMin != null;
-          const confidence = Math.max(0.75, 0.97 - (i * 0.015) - (hasAnchor ? 0 : 0.06));
+          const confidence = Math.max(0.80, 0.98 - (i * 0.015) - (hasAnchor ? 0 : 0.04));
 
           periods.push({
             name:             pdef.name || `Período ${i + 1}`,
-            t_start:          addMins(sessionStartH, sessionStartM, currentOffset),
-            t_end:            addMins(sessionStartH, sessionStartM, currentOffset + dur),
-            start_min:        Math.round(currentOffset * 100) / 100,
-            end_min:          Math.round((currentOffset + dur) * 100) / 100,
-            duration_min:     dur,
+            t_start:          addMins(sessionStartH, sessionStartM, detectedStartMin),
+            t_end:            addMins(sessionStartH, sessionStartM, detectedEndMin),
+            start_min:        Math.round(detectedStartMin * 100) / 100,
+            end_min:          Math.round(detectedEndMin * 100) / 100,
+            duration_min:     actualDurationMin,
             confidence_score: Math.round(confidence * 100) / 100,
           });
 
-          currentOffset += dur + (i < defs.length - 1 ? breakMin : 0);
+          currentOffset = detectedEndMin + (i < defs.length - 1 ? breakMin : 0);
         });
 
         const excludedPeriods = isMatch
