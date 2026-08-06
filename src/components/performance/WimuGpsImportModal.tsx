@@ -71,6 +71,7 @@ export function WimuGpsImportModal({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
   const [sessionType, setSessionType] = useState<"PARTIDO" | "ENTRENAMIENTO">("PARTIDO");
+  const [notes, setNotes] = useState("");
   const [isParsing, setIsParsing] = useState(false);
   const [parseProgressMsg, setParseProgressMsg] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -605,9 +606,9 @@ export function WimuGpsImportModal({
         sessionType,
         detectionMode: trimmerData?.detection_mode || "AUTOMATIC_KICKOFF_SIGNATURE",
         folderPath:     folderPath || "Importación Web WIMU",
-        notes:          selectedFiles.length > 0
-          ? `Importación directa web. ${selectedFiles.length} archivos .qul decodificados nativamente.`
-          : `Importación web.`,
+        notes:          notes.trim() || (selectedFiles.length > 0
+          ? `Importación directa web. ${selectedFiles.length} archivos .qul decodificados.`
+          : `Importación web.`),
         periods:        trimmerData?.periods || [],
         playerMetrics:  decodedPlayerMetrics,
       };
@@ -739,15 +740,25 @@ export function WimuGpsImportModal({
                 )}
               </div>
 
-              {/* Date & Session Type */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Date, Session Type & Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">Fecha de la Sesión</label>
                   <input
                     type="date"
                     value={sessionDate}
                     onChange={e => setSessionDate(e.target.value)}
-                    className="w-full text-xs rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-white focus:outline-none focus:border-slate-600"
+                    className="w-full text-xs rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-white focus:outline-none focus:border-slate-600 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">Rival / Nombre Partido</label>
+                  <input
+                    type="text"
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Ej. Sigüenza"
+                    className="w-full text-xs rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-600 font-bold"
                   />
                 </div>
                 <div className="space-y-1.5">

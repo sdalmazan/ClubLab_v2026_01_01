@@ -296,11 +296,16 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
               onChange={(e) => handleSessionChange(e.target.value)}
               className="bg-slate-950 text-white font-bold text-xs rounded-xl border border-slate-800 px-3 py-1.5 focus:outline-none focus:border-slate-700 max-w-xs sm:max-w-md truncate"
             >
-              {sessions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.session_date} — {s.session_type} ({s.detection_mode}) {s.notes ? `[${s.notes}]` : ""}
-                </option>
-              ))}
+              {sessions.map((s) => {
+                const title = s.notes
+                  ? `${s.notes} (${s.session_date})`
+                  : `${s.session_date} — ${s.session_type} (${s.detection_mode})`;
+                return (
+                  <option key={s.id} value={s.id}>
+                    {title}
+                  </option>
+                );
+              })}
               {sessions.length === 0 && <option value="">Sin sesiones GPS cargadas aún</option>}
             </select>
           </div>
@@ -356,6 +361,42 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
           </button>
         </div>
       </div>
+
+      {/* ── INFORME GENERAL EJECUTIVO DEL PARTIDO ── */}
+      {sessionDetail && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 inline-block">
+                Informe General GPS del Partido
+              </span>
+              <h2 className="text-base font-extrabold text-white mt-1">
+                {sessionDetail.session.notes || `Partido del ${sessionDetail.session.session_date}`}
+              </h2>
+              <p className="text-xs text-slate-400 font-mono mt-0.5">
+                Fecha: {sessionDetail.session.session_date} · Tipo: {sessionDetail.session.session_type} · {activeMetrics.length} Futbolistas analizados
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono shrink-0">
+              <Clock className="size-4 text-slate-400" />
+              <span>
+                Duración Total: <strong className="text-white">{sessionDetail.periods.reduce((acc, p) => acc + (p.duration_min || 0), 0) || 90} min</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-center justify-between flex-wrap gap-2">
+            <span className="flex items-center gap-2 font-bold text-white">
+              <Sparkles className="size-4 text-emerald-400" />
+              ¿Cómo ver el informe individual de cada jugador?
+            </span>
+            <span className="text-[11px] text-slate-400">
+              Haz clic en cualquier fila de la tabla a continuación o pulsa <strong>"Ver Dossier"</strong> para abrir el informe de calor 2D y vectores de sprint.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Highlights Destacados del Partido */}
       {activeMetrics.length > 0 && (
