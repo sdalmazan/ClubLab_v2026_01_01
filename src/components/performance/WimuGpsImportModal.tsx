@@ -225,7 +225,7 @@ export function WimuGpsImportModal({
 
         aggregatedTrimmerData = data.trimmerJson;
         aggregatedMetrics.push(...(data.playerMetrics || []));
-      if (selectedFiles.length > 0) {
+      } else {
         // ── 100% Client-Side Local Parsing in Browser JS ────────────────────
         // Decodes .qul files locally in CPU memory. ZERO bytes sent to server!
         setParseProgressMsg(`Leyendo localmente ${selectedFiles.length} grabaciones .qul...`);
