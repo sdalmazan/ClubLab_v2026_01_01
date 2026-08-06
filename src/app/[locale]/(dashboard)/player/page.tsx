@@ -98,14 +98,26 @@ export default function PlayerTodayPage() {
     const supabase = createClient();
 
     const todayStr = new Date().toISOString().split("T")[0];
-    supabase
-      .from("training_sessions")
-      .select("*")
-      .eq("date", todayStr)
-      .maybeSingle()
-      .then(({ data }: any) => {
-        if (data) setTodaySession(data);
-      });
+    Promise.all([
+      supabase.from("training_sessions").select("*").eq("date", todayStr).maybeSingle(),
+      supabase.from("matches").select("*").eq("date", todayStr).maybeSingle(),
+    ]).then(([{ data: sessData }, { data: matchData }]: any) => {
+      if (sessData) {
+        setTodaySession(sessData);
+      } else if (matchData) {
+        const rivalName = matchData.opponent || matchData.opponent_name || matchData.away_team || matchData.home_team || "Rival";
+        setTodaySession({
+          id: matchData.id,
+          date: matchData.date,
+          title: `Partido vs ${rivalName}`,
+          start_time: matchData.match_time || matchData.start_time || "18:00",
+          duration_min: 120,
+          session_type: "match",
+          is_match: true,
+          match_id: matchData.id,
+        });
+      }
+    });
 
     // Fetch dynamic organization branding AND real player profile
     supabase.auth.getUser().then(async ({ data: { user } }: any) => {
@@ -774,7 +786,9 @@ export default function PlayerTodayPage() {
         isOpen={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         onSubmitSuccess={handleCheckoutSuccess}
-        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "19:30"}h)` : "Entrenamiento de Plantilla (19:30h)"}
+        sessionTitle={todaySession?.title ? `${todaySession.title} (${todaySession.start_time?.slice(0, 5) || "18:00"}h)` : "Partido / Entrenamiento de Plantilla"}
+        sessionId={todaySession?.is_match ? undefined : todaySession?.id}
+        matchId={todaySession?.is_match ? (todaySession?.id || todaySession?.match_id) : undefined}
       />
 
       {/* Confirm Attendance Weight Modal */}

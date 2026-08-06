@@ -9,11 +9,31 @@ interface ExportOptions {
   homeTeamName?: string;
   awayTeamName?: string;
   matchDate?: string;
+  isRivalAnalysis?: boolean;
+  rivalTeamName?: string;
+  seasonName?: string;
+}
+
+function getTeamAcronym(name?: string): string {
+  if (!name) return "EQP";
+  const stopWords = new Set(["de", "del", "la", "las", "los", "el", "en", "a", "y"]);
+  const clean = name.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, " ").trim();
+  const words = clean.split(/\s+/).filter(w => w.length > 0 && !stopWords.has(w.toLowerCase()));
+  
+  if (words.length === 0) return name.substring(0, 3).toUpperCase();
+  if (words.length === 1) return words[0].substring(0, 4).toUpperCase();
+  return words.map(w => w[0].toUpperCase()).join("");
+}
+
+function secondsToMMSS(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 /**
  * Client-side video montage compilation engine using Canvas 2D & MediaRecorder API.
- * Compiles cover slides, video clips, TV scoreboards, notes overlays, and audio.
+ * Compiles cover slides, video clips, broadcast TV scoreboards, notes overlays, and audio.
  */
 export async function compileAndDownloadMontageMP4(
   montage: VideoMontage,
@@ -58,95 +78,82 @@ export async function compileAndDownloadMontageMP4(
     mimeType = "video/webm";
   }
 
-  const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
   const recordedChunks: Blob[] = [];
+  const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6000000 });
 
   mediaRecorder.ondataavailable = (e) => {
-    if (e.data.size > 0) recordedChunks.push(e.data);
+    if (e.data && e.data.size > 0) {
+      recordedChunks.push(e.data);
+    }
   };
 
   mediaRecorder.start(100);
 
+  const homeAcronym = getTeamAcronym(options.homeTeamName || "LOCAL");
+  const awayAcronym = getTeamAcronym(options.awayTeamName || "VISITA");
+
   const totalItems = montage.items.length;
-  if (totalItems === 0) {
-    throw new Error("El montaje no contiene ningún elemento para exportar.");
-  }
 
   for (let i = 0; i < totalItems; i++) {
     const item = montage.items[i];
-    const itemPct = Math.round(((i) / totalItems) * 100);
-    onProgress(itemPct, `Procesando elemento ${i + 1} de ${totalItems}...`);
+    const itemPctStart = Math.floor((i / totalItems) * 90);
+    onProgress(itemPctStart, `Procesando elemento ${i + 1}/${totalItems}: ${item.title}`);
 
     if (item.type === "cover") {
-      // Render Cover Slide for specified duration
+      // Draw Cover Slide
       const durationSec = item.duration || 4;
       const totalFrames = durationSec * 30;
 
-      // Preload cover background image if provided
-      let bgImg: HTMLImageElement | null = null;
-      if (item.bgImage) {
-        try {
-          bgImg = new Image();
-          bgImg.crossOrigin = "anonymous";
-          bgImg.src = item.bgImage;
-          await new Promise((r) => {
-            if (!bgImg) return r(null);
-            bgImg.onload = () => r(null);
-            bgImg.onerror = () => r(null);
-          });
-        } catch {}
-      }
-
       for (let f = 0; f < totalFrames; f++) {
-        // Draw background
-        if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
-          ctx.drawImage(bgImg, 0, 0, width, height);
-          ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
-          ctx.fillRect(0, 0, width, height);
-        } else {
-          ctx.fillStyle = item.bgColor || "#0f172a";
-          ctx.fillRect(0, 0, width, height);
-        }
+        // Background
+        ctx.fillStyle = item.bgColor || "#0f172a";
+        ctx.fillRect(0, 0, width, height);
 
-        // Draw Team Badge Logo if enabled
-        if (item.showBadge && logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+        // Logo
+        if (item.showBadge !== false && logoImg) {
           const logoSize = height * 0.18;
-          ctx.drawImage(logoImg, width / 2 - logoSize / 2, height * 0.15, logoSize, logoSize);
+          ctx.drawImage(logoImg, (width - logoSize) / 2, height * 0.22, logoSize, logoSize);
         }
 
-        // Draw Title & Subtitle
+        // Title
         ctx.fillStyle = item.textColor || "#ffffff";
+        ctx.font = `900 ${height * 0.045}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+        ctx.fillText((item.title || "ANÁLISIS TÁCTICO").toUpperCase(), width / 2, height * 0.52);
 
-        const titleSize = item.fontSize === "lg" ? height * 0.07 : item.fontSize === "sm" ? height * 0.04 : height * 0.055;
-        ctx.font = `900 ${titleSize}px sans-serif`;
-        ctx.fillText(item.title || "MONTAJE TÁCTICO", width / 2, height * 0.52);
-
+        // Subtitle
         if (item.subtitle) {
-          ctx.font = `600 ${height * 0.03}px sans-serif`;
-          ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
-          ctx.fillText(item.subtitle, width / 2, height * 0.64);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+          ctx.font = `600 ${height * 0.025}px sans-serif`;
+          ctx.fillText(item.subtitle, width / 2, height * 0.62);
+        }
+
+        // Footer Date Badge
+        if (options.matchDate) {
+          ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+          ctx.font = `700 ${height * 0.02}px sans-serif`;
+          ctx.fillText(`📅 ${options.matchDate}`, width / 2, height * 0.88);
         }
 
         await new Promise((r) => setTimeout(r, 1000 / 30));
       }
-    } else if (item.type === "clip") {
-      // Render Video Clip item
+    } else {
+      // Draw Video Clip
       const clipObj = allClips.find((c) => c.id === item.clipId);
       const videoUrl = item.videoUrl || clipObj?.videoUrl;
 
       if (!videoUrl) continue;
 
       const hiddenVideo = document.createElement("video");
-      hiddenVideo.src = videoUrl;
       hiddenVideo.crossOrigin = "anonymous";
+      hiddenVideo.src = videoUrl;
       hiddenVideo.muted = !options.includeSound;
-      hiddenVideo.playbackRate = item.playbackSpeed || clipObj?.playbackSpeed || 1.0;
+      hiddenVideo.playsInline = true;
 
-      await new Promise<void>((resolve, reject) => {
-        hiddenVideo.onloadedmetadata = () => resolve();
-        hiddenVideo.onerror = () => resolve();
+      await new Promise((resolve) => {
+        hiddenVideo.onloadedmetadata = () => resolve(null);
+        hiddenVideo.onerror = () => resolve(null);
         setTimeout(resolve, 3000);
       });
 
@@ -160,50 +167,97 @@ export async function compileAndDownloadMontageMP4(
       } catch {}
 
       while (!hiddenVideo.paused && !hiddenVideo.ended && hiddenVideo.currentTime < endTime) {
-        // Draw video frame to canvas
+        // 1. Draw video frame to canvas
         ctx.drawImage(hiddenVideo, 0, 0, width, height);
 
-        // 1. Draw TV Scoreboard Overlay (top-left badge)
-        if (item.showScoreboard || clipObj?.scoreboardOverlay?.show) {
-          const sbWidth = width * 0.28;
-          const sbHeight = height * 0.07;
+        // 2. Broadcast TV Scoreboard Overlay (Pro TV style based on reference screenshot)
+        if (item.showScoreboard !== false && (clipObj?.scoreboardOverlay?.show !== false)) {
+          const sbWidth = width * 0.26;
+          const sbHeight = height * 0.065;
           const sbX = width * 0.03;
           const sbY = height * 0.04;
 
-          ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+          // Scoreboard Main Pill (White background with black score boxes)
+          ctx.fillStyle = "#ffffff";
           ctx.beginPath();
-          ctx.roundRect(sbX, sbY, sbWidth, sbHeight, 10);
+          ctx.roundRect(sbX, sbY, sbWidth, sbHeight, 8);
           ctx.fill();
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+          ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
           ctx.lineWidth = 2;
           ctx.stroke();
 
+          // Left Score Box
+          const scoreBoxWidth = sbHeight;
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(sbX, sbY, scoreBoxWidth, sbHeight);
+
+          // Right Score Box
+          ctx.fillRect(sbX + sbWidth - scoreBoxWidth, sbY, scoreBoxWidth, sbHeight);
+
+          // Scores (0 - 0 default fallback)
           ctx.fillStyle = "#ffffff";
-          ctx.font = `800 ${height * 0.022}px sans-serif`;
-          ctx.textAlign = "left";
+          ctx.font = `900 ${height * 0.032}px sans-serif`;
+          ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const matchTitleStr = `${options.homeTeamName || "LOCAL"} vs ${options.awayTeamName || "VISITANTE"}`;
-          ctx.fillText(matchTitleStr.toUpperCase(), sbX + 15, sbY + sbHeight * 0.35);
+          ctx.fillText("0", sbX + scoreBoxWidth / 2, sbY + sbHeight / 2);
+          ctx.fillText("0", sbX + sbWidth - scoreBoxWidth / 2, sbY + sbHeight / 2);
 
-          const currentMin = Math.floor(hiddenVideo.currentTime / 60);
-          ctx.fillStyle = "#6366f1";
-          ctx.font = `700 ${height * 0.018}px sans-serif`;
-          ctx.fillText(`MIN ${currentMin}'`, sbX + 15, sbY + sbHeight * 0.72);
+          // Team Acronyms (SDA vs UDSMT)
+          ctx.fillStyle = "#0f172a";
+          ctx.font = `900 ${height * 0.024}px sans-serif`;
+          ctx.textAlign = "left";
+          ctx.fillText(homeAcronym, sbX + scoreBoxWidth + 12, sbY + sbHeight / 2);
 
-          // Match Date at bottom-left
-          if (options.matchDate) {
-            ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-            ctx.font = `600 ${height * 0.018}px sans-serif`;
-            ctx.fillText(`📅 ${options.matchDate}`, width * 0.03, height * 0.94);
-          }
+          ctx.textAlign = "right";
+          ctx.fillText(awayAcronym, sbX + sbWidth - scoreBoxWidth - 12, sbY + sbHeight / 2);
+
+          // Dynamic Clock Pill (Sub-bar right below main scoreboard)
+          const clockPillWidth = sbWidth * 0.45;
+          const clockPillHeight = sbHeight * 0.65;
+          const clockX = sbX;
+          const clockY = sbY + sbHeight + 4;
+
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.roundRect(clockX, clockY, clockPillWidth, clockPillHeight, 6);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(0,0,0,0.15)";
+          ctx.stroke();
+
+          // Dynamic Running Clock (MM:SS)
+          const runningClockStr = secondsToMMSS(hiddenVideo.currentTime);
+          ctx.fillStyle = "#1e3a8a"; // Deep navy blue text
+          ctx.font = `900 ${height * 0.022}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(runningClockStr, clockX + clockPillWidth / 2, clockY + clockPillHeight / 2);
         }
 
-        // 2. Draw Notes Overlay if configured
+        // 3. Subtle Match Date Overlay (Bottom-left disimulada)
+        if (options.matchDate) {
+          const dateWidth = width * 0.14;
+          const dateHeight = height * 0.04;
+          const dateX = width * 0.03;
+          const dateY = height * 0.92;
+
+          ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
+          ctx.beginPath();
+          ctx.roundRect(dateX, dateY, dateWidth, dateHeight, 6);
+          ctx.fill();
+
+          ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+          ctx.font = `700 ${height * 0.016}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`📅 ${options.matchDate}`, dateX + dateWidth / 2, dateY + dateHeight / 2);
+        }
+
+        // 4. Draw Action Notes Overlay (Without notebook icon `📝`)
         const notesObj = item.notesOverlay || clipObj?.notesOverlay;
         if (notesObj?.showInVideo && notesObj.text) {
-          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-          const noteWidth = width * 0.6;
-          const noteHeight = height * 0.08;
+          ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
+          const noteWidth = width * 0.55;
+          const noteHeight = height * 0.07;
 
           let nX = (width - noteWidth) / 2;
           let nY = height * 0.88;
@@ -211,17 +265,20 @@ export async function compileAndDownloadMontageMP4(
           if (notesObj.position === "top") nY = height * 0.06;
           else if (notesObj.position === "center") nY = (height - noteHeight) / 2;
           else if (notesObj.position === "left") { nX = width * 0.04; nY = height * 0.4; }
-          else if (notesObj.position === "right") { nX = width * 0.36; nY = height * 0.4; }
+          else if (notesObj.position === "right") { nX = width * 0.41; nY = height * 0.4; }
 
           ctx.beginPath();
           ctx.roundRect(nX, nY, noteWidth, noteHeight, 8);
           ctx.fill();
+          ctx.strokeStyle = "rgba(250, 204, 21, 0.4)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
 
-          ctx.fillStyle = "#facc15"; // Neon accent text
+          ctx.fillStyle = "#facc15"; // Neon yellow accent text
           ctx.font = `800 ${height * 0.022}px sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(`📝 ${notesObj.text}`, nX + noteWidth / 2, nY + noteHeight / 2);
+          ctx.fillText(notesObj.text, nX + noteWidth / 2, nY + noteHeight / 2);
         }
 
         await new Promise((r) => setTimeout(r, 1000 / 30));
@@ -243,7 +300,22 @@ export async function compileAndDownloadMontageMP4(
   const a = document.createElement("a");
   a.href = downloadUrl;
   const extension = mimeType.includes("mp4") ? "mp4" : "webm";
-  a.download = `${montage.title.replace(/[^a-z0-9]/gi, "_")}_clublab.${extension}`;
+  
+  if (options.isRivalAnalysis) {
+    const rival = options.rivalTeamName || options.awayTeamName || "Rival";
+    const seasonClean = (options.seasonName || "2025-2026").replace(/\//g, "-");
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, "0");
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const yyyy = today.getFullYear();
+    const todayStr = `${dd}${mm}${yyyy}`;
+    a.download = `Análisis ${rival}_${seasonClean}_${todayStr}.${extension}`;
+  } else {
+    const rawDateStr = (options.matchDate || "").replace(/[^0-9]/g, "");
+    const home = options.homeTeamName || "Equipo1";
+    const away = options.awayTeamName || "Equipo2";
+    a.download = `Análisis ${home} vs ${away}_${rawDateStr}.${extension}`;
+  }
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

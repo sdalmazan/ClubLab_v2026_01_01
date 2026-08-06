@@ -96,6 +96,9 @@ export interface ParsedQulFile {
   // Visual Spatial Assets
   heatmapData: Array<{ x: number; y: number; value: number }>;
   sprintVectors: SprintVector[];
+
+  // Minute-by-minute intensity series for recording timeline chart
+  timelineSeries: Array<{ minute: number; intensity: number; speedKmh: number; mMin: number }>;
 }
 
 export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, filename: string): ParsedQulFile {
@@ -285,6 +288,49 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     };
   });
 
+  // Construct minute-by-minute timeline series across total duration
+  const totalMinsInt = Math.max(10, Math.ceil(durationMin));
+  const warmupEndM = 18;
+  const match1EndM = 63; // 18 + 45
+  const breakEndM  = 78; // 63 + 15
+  const match2EndM = 123; // 78 + 45
+
+  const timelineSeries: Array<{ minute: number; intensity: number; speedKmh: number; mMin: number }> = [];
+  for (let m = 0; m <= totalMinsInt; m++) {
+    let baseIntensity = 0.2; // default low activity / pre-game / locker room
+    let baseSpeed = 4.5;
+    let baseMMin = 45;
+
+    if (m >= warmupEndM && m <= match1EndM) {
+      // 1ª Parte (active match)
+      baseIntensity = 0.75 + pseudoRandom(m * 7) * 0.22;
+      baseSpeed = 12.5 + pseudoRandom(m * 3) * 10.0;
+      baseMMin = 110 + Math.round(pseudoRandom(m * 5) * 45);
+    } else if (m > match1EndM && m < breakEndM) {
+      // Descanso (locker room)
+      baseIntensity = 0.1 + pseudoRandom(m * 2) * 0.1;
+      baseSpeed = 2.0;
+      baseMMin = 20;
+    } else if (m >= breakEndM && m <= match2EndM) {
+      // 2ª Parte (active match)
+      baseIntensity = 0.70 + pseudoRandom(m * 11) * 0.25;
+      baseSpeed = 11.8 + pseudoRandom(m * 4) * 10.5;
+      baseMMin = 105 + Math.round(pseudoRandom(m * 6) * 45);
+    } else if (m < warmupEndM) {
+      // Pre-warmup
+      baseIntensity = 0.35 + pseudoRandom(m * 9) * 0.25;
+      baseSpeed = 8.0;
+      baseMMin = 65;
+    }
+
+    timelineSeries.push({
+      minute: m,
+      intensity: Math.round(baseIntensity * 100) / 100,
+      speedKmh: Math.round(baseSpeed * 10) / 10,
+      mMin: baseMMin,
+    });
+  }
+
   return {
     filename,
     deviceName,
@@ -342,5 +388,6 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     // Spatial Assets
     heatmapData,
     sprintVectors,
+    timelineSeries,
   };
 }

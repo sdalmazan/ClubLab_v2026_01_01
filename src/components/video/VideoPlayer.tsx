@@ -1613,7 +1613,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
         <button
           type="button"
           onClick={toggleFullscreen}
-          className="absolute top-3 right-3 z-20 bg-slate-950/80 hover:bg-slate-900 border border-white/10 text-slate-200 hover:text-white px-2.5 py-1.5 rounded-xl text-[10px] font-bold shadow-lg backdrop-blur-xs flex items-center gap-1.5 cursor-pointer transition-all"
+          className="absolute bottom-3 right-3 z-20 bg-slate-950/90 hover:bg-slate-900 border border-white/15 text-slate-200 hover:text-white px-2.5 py-1.5 rounded-xl text-[10px] font-bold shadow-2xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all"
           title="Pantalla Completa"
         >
           <span>{isFullscreen ? "🗖" : "⛶"}</span>

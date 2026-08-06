@@ -177,6 +177,16 @@ export async function POST(req: Request) {
       .select()
       .single();
 
+function safeNum(val: any, fallback = 0, minVal?: number, maxVal?: number): number {
+  if (val === null || val === undefined) return fallback;
+  const num = Number(val);
+  if (!Number.isFinite(num) || Number.isNaN(num)) return fallback;
+  let res = num;
+  if (minVal !== undefined && res < minVal) res = minVal;
+  if (maxVal !== undefined && res > maxVal) res = maxVal;
+  return Math.round(res * 1000) / 1000;
+}
+
     if (sessionErr) throw sessionErr;
     const sessionId = sessionData.id;
 
@@ -184,13 +194,13 @@ export async function POST(req: Request) {
     if (Array.isArray(periods) && periods.length > 0) {
       const periodsToInsert = periods.map((p: any) => ({
         session_id:       sessionId,
-        period_name:      p.name || p.period_name,
-        t_start:          p.t_start,
-        t_end:            p.t_end,
-        start_min:        p.start_min ?? 0,
-        end_min:          p.end_min ?? 0,
-        duration_min:     p.duration_min ?? 0,
-        confidence_score: p.confidence_score ?? 0.95,
+        period_name:      p.name || p.period_name || "Período",
+        t_start:          p.t_start || "00:00:00",
+        t_end:            p.t_end || "00:00:00",
+        start_min:        safeNum(p.start_min, 0, 0, 9999),
+        end_min:          safeNum(p.end_min, 0, 0, 9999),
+        duration_min:     safeNum(p.duration_min, 0, 0, 9999),
+        confidence_score: safeNum(p.confidence_score, 0.95, 0, 1),
       }));
 
       const { error: pErr } = await supabase
@@ -198,7 +208,6 @@ export async function POST(req: Request) {
         .insert(periodsToInsert);
 
       if (pErr) {
-        // Escalate: periods failure should surface to user
         throw new Error(`Error guardando periodos: ${pErr.message}`);
       }
     }
@@ -211,42 +220,46 @@ export async function POST(req: Request) {
           session_id:             sessionId,
           player_id:              m.player_id,
           // Bloque 1: Kinematics
-          distance_km:            m.distance_km ?? 0,
-          distance_m:             m.distance_m ?? 0,
-          relative_distance_mmin: m.relative_distance_mmin ?? 0,
-          hsr_m:                  m.hsr_m ?? 0,
-          sprints_count:          m.sprints_count ?? 0,
-          max_speed_kmh:          m.max_speed_kmh ?? 0,
+          distance_km:            safeNum(m.distance_km, 0, 0, 999),
+          distance_m:             Math.round(safeNum(m.distance_m, 0, 0, 999000)),
+          relative_distance_mmin: safeNum(m.relative_distance_mmin, 0, 0, 9999),
+          hsr_m:                  safeNum(m.hsr_m, 0, 0, 99999),
+          sprints_count:          Math.round(safeNum(m.sprints_count, 0, 0, 999)),
+          max_speed_kmh:          safeNum(m.max_speed_kmh, 0, 0, 99),
           speed_bands:            m.speed_bands ?? {},
           // Bloque 2: Acc/Dec & COD
-          accelerations:          m.accelerations ?? 0,
-          decelerations:          m.decelerations ?? 0,
-          explosive_distance_m:   m.explosive_distance_m ?? 0,
+          accelerations:          Math.round(safeNum(m.accelerations, 0, 0, 9999)),
+          decelerations:          Math.round(safeNum(m.decelerations, 0, 0, 9999)),
+          explosive_distance_m:   safeNum(m.explosive_distance_m, 0, 0, 99999),
           acc_bands:              m.accel_bands ?? {},
           dec_bands:              m.decel_bands ?? {},
-          acc_dec_ratio:          m.acc_dec_ratio ?? 0,
+          acc_dec_ratio:          safeNum(m.acc_dec_ratio, 0, 0, 99),
           cod_count:              m.codCount ?? {},
           // Bloque 3: Neuromuscular
-          player_load:            m.player_load ?? 0,
-          player_load_min:        m.player_load_min ?? 0,
+          player_load:            safeNum(m.player_load, 0, 0, 9999),
+          player_load_min:        safeNum(m.player_load_min, 0, 0, 999),
           impacts_count:          m.impacts_count ?? {},
           jumps:                  m.jumps ?? {},
           // Bloque 4: Metabolic Power
-          metabolic_power_wkg:    m.metabolic_power_wkg ?? 0,
-          hmld_m:                 m.hmld_m ?? 0,
-          equivalent_distance_m:  m.equivalentDistanceM ?? 0,
-          total_kcal:             m.totalKcal ?? 0,
+          metabolic_power_wkg:    safeNum(m.metabolic_power_wkg, 0, 0, 999),
+          hmld_m:                 safeNum(m.hmld_m, 0, 0, 99999),
+          equivalent_distance_m:  safeNum(m.equivalentDistanceM ?? m.equivalent_distance_m, 0, 0, 99999),
+          total_kcal:             safeNum(m.totalKcal ?? m.total_kcal, 0, 0, 99999),
           // Bloque 5: Biomechanics & Fatigue
-          efficiency_ratio_pl_m:  m.efficiencyRatioPLm ?? 0,
-          stride_asymmetry_lr:    m.strideAsymmetryLR ?? 50,
-          dynamic_asymmetry_shift:m.dynamicAsymmetryShiftPct ?? 0,
-          eccentric_decay_pct:    m.eccentricDecayPct ?? 0,
+          efficiency_ratio_pl_m:  safeNum(m.efficiencyRatioPLm ?? m.efficiency_ratio_pl_m, 0, 0, 99),
+          stride_asymmetry_lr:    safeNum(m.strideAsymmetryLR ?? m.stride_asymmetry_lr, 50, 0, 100),
+          dynamic_asymmetry_shift:safeNum(m.dynamicAsymmetryShiftPct ?? m.dynamic_asymmetry_shift, 0, -100, 100),
+          eccentric_decay_pct:    safeNum(m.eccentricDecayPct ?? m.eccentric_decay_pct, 0, -100, 100),
           // Bloque 6: Worst-Case Scenarios
           worst_case_scenarios:   m.worst_case_scenarios ?? {},
           // Bloque 7: HR Zones
           hr_metrics:             m.hrMetrics ?? {},
           // Bloque 8: ACWR
-          acwr_ratio:             m.acwr_ratio ?? 0,
+          acwr_ratio:             safeNum(m.acwr_ratio, 0, 0, 99),
+          // Sustituciones / Ventana de juego individual
+          player_start_min:       m.player_start_min != null ? safeNum(m.player_start_min, 0, 0, 999) : null,
+          player_end_min:         m.player_end_min != null ? safeNum(m.player_end_min, 0, 0, 999) : null,
+          played_minutes:         m.played_minutes != null ? safeNum(m.played_minutes, 0, 0, 999) : null,
           // Spatial Assets
           heatmap_data:           m.heatmap_data ?? [],
           sprint_vectors:         m.sprint_vectors ?? [],

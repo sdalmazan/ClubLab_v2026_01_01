@@ -182,6 +182,13 @@ export default async function DashboardPage({
       .order("date", { ascending: false })
       .limit(30);
 
+    const { data: dbMatches } = await supabase
+      .from("matches")
+      .select("id, opponent, date, home_score, away_score, competition, session_id")
+      .or(`team_id.eq.${resolvedTeamId},organization_id.eq.${orgRole?.organization_id || ""}`)
+      .order("date", { ascending: false })
+      .limit(20);
+
     const { data: wellnessCheckins } = await supabase
       .from("player_wellness_checkins")
       .select("*")
@@ -194,10 +201,26 @@ export default async function DashboardPage({
       .order("date", { ascending: false })
       .limit(100);
 
-    dbSessions = (data || []).map((s: any) => ({
+    const sessionDates = new Set((data || []).map((s: any) => s.date));
+    const matchSessions = (dbMatches || [])
+      .filter((m: any) => !sessionDates.has(m.date))
+      .map((m: any) => ({
+        id: m.session_id || m.id,
+        match_id: m.id,
+        title: `Partido vs ${m.opponent || "Rival"}`,
+        date: m.date,
+        session_type: "match",
+        notes: m.competition || "Partido de Competición / Amistoso",
+        session_attendance: [],
+        session_exercises: [],
+      }));
+
+    const combined = [...(data || []), ...matchSessions].sort((a: any, b: any) => b.date.localeCompare(a.date));
+
+    dbSessions = combined.map((s: any) => ({
       ...s,
       wellness_checkins: (wellnessCheckins || []).filter((w: any) => w.session_id === s.id || w.date === s.date),
-      rpe_entries: (rpeEntries || []).filter((r: any) => r.session_id === s.id || r.date === s.date),
+      rpe_entries: (rpeEntries || []).filter((r: any) => r.session_id === s.id || (s.match_id && r.match_id === s.match_id) || r.date === s.date),
     }));
   }
 

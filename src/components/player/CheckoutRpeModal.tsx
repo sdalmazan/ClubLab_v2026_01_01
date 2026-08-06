@@ -8,6 +8,8 @@ interface CheckoutRpeModalProps {
   onClose: () => void;
   onSubmitSuccess: () => void;
   sessionTitle?: string;
+  sessionId?: string;
+  matchId?: string;
 }
 
 export function CheckoutRpeModal({
@@ -15,6 +17,8 @@ export function CheckoutRpeModal({
   onClose,
   onSubmitSuccess,
   sessionTitle = "Entrenamiento de Plantilla (19:30h)",
+  sessionId,
+  matchId,
 }: CheckoutRpeModalProps) {
   const [rpe, setRpe] = useState<number>(7);
   const [postFeeling, setPostFeeling] = useState<"very_good" | "good" | "loaded" | "very_loaded">("good");
@@ -32,6 +36,8 @@ export function CheckoutRpeModal({
         body: JSON.stringify({
           rpe,
           postFeeling,
+          sessionId,
+          matchId,
         }),
       });
     } catch (err) {

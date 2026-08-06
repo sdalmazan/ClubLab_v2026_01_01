@@ -72,7 +72,7 @@ export function InteractiveCheckinList({
         ? { rpe: sAtt.rpe, notes: sAtt.notes, status: sAtt.status }
         : sRpe?.rpe != null
         ? { rpe: sRpe.rpe, notes: sRpe.notes }
-        : null;
+        : (selectedSession.date === todayStr ? player.latest_rpe : null);
     }
 
     const hasCheckin = !!w;

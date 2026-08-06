@@ -33,6 +33,7 @@ const ROLE_OPTIONS = [
 
 export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabProps) {
   const [members, setMembers] = useState<StaffMember[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -44,6 +45,10 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
   const [inviteIsAdmin, setInviteIsAdmin] = useState(false);
   const [submittingInvite, setSubmittingInvite] = useState(false);
 
+  const availableRoleOptions = isSuperAdmin
+    ? ROLE_OPTIONS
+    : ROLE_OPTIONS.filter((opt) => opt.value !== "super_admin");
+
   useEffect(() => {
     loadData();
   }, [organizationId]);
@@ -54,7 +59,13 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
       const res = await fetch("/api/organization/roles");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al cargar equipo");
-      setMembers(data || []);
+      if (Array.isArray(data)) {
+        setMembers(data);
+        setIsSuperAdmin(data.some((m: any) => m.role === "super_admin"));
+      } else {
+        setMembers(data.members || []);
+        setIsSuperAdmin(Boolean(data.isSuperAdmin));
+      }
     } catch (err: any) {
       console.error(err);
       setFeedback({ type: "error", message: err.message || "Error al cargar la lista de personal." });
@@ -355,7 +366,7 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
                             onChange={(e) => handleRoleChange(member.user_id, e.target.value)}
                             className="rounded-xl bg-slate-950 border border-white/10 text-white text-xs font-semibold px-3 py-1.5 focus:border-emerald-500 focus:outline-none cursor-pointer disabled:opacity-50"
                           >
-                            {ROLE_OPTIONS.map((opt) => (
+                            {availableRoleOptions.map((opt) => (
                               <option key={opt.value} value={opt.value}>
                                 {opt.label}
                               </option>
@@ -468,7 +479,7 @@ export function TeamRolesSettingsTab({ organizationId }: TeamRolesSettingsTabPro
                   onChange={(e) => setInviteRole(e.target.value)}
                   className="w-full rounded-xl bg-slate-950 border border-white/10 text-white text-xs px-3 py-2 focus:border-emerald-500 focus:outline-none"
                 >
-                  {ROLE_OPTIONS.map((opt) => (
+                  {availableRoleOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>

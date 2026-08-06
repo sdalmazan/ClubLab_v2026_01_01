@@ -20,9 +20,12 @@ import {
   FileCheck,
   ChevronRight,
   Info,
+  UserCheck,
+  UserMinus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseWimuQulBuffer, ParsedQulFile } from "@/lib/performance/wimuParser";
+import { GpsTimelineChart } from "@/components/performance/GpsTimelineChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +103,7 @@ export function WimuGpsImportModal({
     excluded_periods: string[];
     files_processed?: number;
     parsed_files?: Array<{ filename: string; deviceNumber: number | null; durationMin: number }>;
+    timeline_series?: any[];
   } | null>(null);
 
   const [decodedPlayerMetrics, setDecodedPlayerMetrics] = useState<any[]>([]);
@@ -361,6 +365,7 @@ export function WimuGpsImportModal({
           session_date:     sessionDate,
           files_processed:  parsedFiles.length,
           parsed_files:     parsedFiles.map(f => ({ filename: f.filename, deviceNumber: f.deviceNumber, durationMin: f.durationMin })),
+          timeline_series:  parsedFiles[0]?.timelineSeries || [],
         };
       }
 
@@ -373,6 +378,51 @@ export function WimuGpsImportModal({
       setIsParsing(false);
       setParseProgressMsg("");
     }
+  };
+
+  const handlePlayerSubstitutionChange = (playerId: string, field: "player_start_min" | "player_end_min", value: number | "") => {
+    setDecodedPlayerMetrics(prev => {
+      return prev.map(m => {
+        if (m.player_id !== playerId) return m;
+
+        const defaultDuration = trimmerData?.periods.reduce((acc, p) => acc + (p.duration_min || 0), 0) || 90;
+        const currentStart = field === "player_start_min" ? (value === "" ? 0 : Number(value)) : (m.player_start_min ?? 0);
+        const currentEnd = field === "player_end_min" ? (value === "" ? defaultDuration : Number(value)) : (m.player_end_min ?? defaultDuration);
+
+        const activePlayedMin = Math.max(0, currentEnd - currentStart);
+        const ratio = defaultDuration > 0 ? activePlayedMin / defaultDuration : 1.0;
+
+        const baseDistKm = m._raw_distance_km ?? m.distance_km ?? 0;
+        const baseHsrM = m._raw_hsr_m ?? m.hsr_m ?? 0;
+        const baseSprints = m._raw_sprints_count ?? m.sprints_count ?? 0;
+        const basePL = m._raw_player_load ?? m.player_load ?? 0;
+
+        const newDistKm = Math.round(baseDistKm * ratio * 100) / 100;
+        const newHsrM = Math.round(baseHsrM * ratio);
+        const newSprints = Math.round(baseSprints * ratio);
+        const newPL = Math.round(basePL * ratio * 100) / 100;
+        const newPLMin = activePlayedMin > 0 ? Math.round((newPL / activePlayedMin) * 100) / 100 : 0;
+        const newRelDist = activePlayedMin > 0 ? Math.round((newDistKm * 1000) / activePlayedMin) : 0;
+
+        return {
+          ...m,
+          _raw_distance_km: baseDistKm,
+          _raw_hsr_m: baseHsrM,
+          _raw_sprints_count: baseSprints,
+          _raw_player_load: basePL,
+          player_start_min: currentStart,
+          player_end_min: currentEnd,
+          played_minutes: activePlayedMin,
+          distance_km: newDistKm,
+          distance_m: Math.round(newDistKm * 1000),
+          hsr_m: newHsrM,
+          sprints_count: newSprints,
+          player_load: newPL,
+          player_load_min: newPLMin,
+          relative_distance_mmin: newRelDist,
+        };
+      });
+    });
   };
 
   const handlePeriodChange = (index: number, field: string, value: any) => {
@@ -724,6 +774,12 @@ export function WimuGpsImportModal({
                 </span>
               </div>
 
+              {/* ── Visual Timeline Chart of Full Recording ── */}
+              <GpsTimelineChart
+                timelineSeries={trimmerData.timeline_series || []}
+                periods={trimmerData.periods}
+              />
+
               {/* Decoded .qul files list */}
               {trimmerData.parsed_files && trimmerData.parsed_files.length > 0 && (
                 <div className="space-y-2">
@@ -741,10 +797,10 @@ export function WimuGpsImportModal({
                 </div>
               )}
 
-              {/* Periods List */}
+              {/* Periods List Manual Edition */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Periodos Detectados — Edición Manual</span>
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                   {trimmerData.periods.map((period, idx) => (
                     <div key={idx} className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
@@ -780,6 +836,92 @@ export function WimuGpsImportModal({
                   ))}
                 </div>
               </div>
+
+              {/* ── Player Specific Individualization (Substitutions) ── */}
+              {decodedPlayerMetrics.length > 0 && (
+                <div className="space-y-2 border-t border-slate-800 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
+                        <UserCheck className="size-4 text-emerald-400" />
+                        Ajuste Individual por Jugador (Sustituciones)
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        Ajusta el minuto de entrada y salida para jugadores sustituidos o entrados de refresco.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {decodedPlayerMetrics.map((m) => {
+                      const pObj = roster.find(r => r.id === m.player_id);
+                      const pName = pObj?.name || `Futbolista (${m.player_id.slice(0, 6)})`;
+                      const defaultTotalMin = trimmerData.periods.reduce((acc, p) => acc + (p.duration_min || 0), 0) || 90;
+
+                      const startMin = m.player_start_min ?? 0;
+                      const endMin = m.player_end_min ?? defaultTotalMin;
+                      const playedMin = m.played_minutes ?? (endMin - startMin);
+                      const isSubstituted = playedMin < defaultTotalMin;
+
+                      return (
+                        <div
+                          key={m.player_id}
+                          className={cn(
+                            "p-3 rounded-2xl border text-xs flex items-center justify-between flex-wrap gap-3 transition-all",
+                            isSubstituted ? "bg-amber-950/20 border-amber-800/60" : "bg-slate-950 border-slate-800"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-[180px]">
+                            {pObj?.jerseyNumber && (
+                              <span className="font-mono font-bold text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                #{pObj.jerseyNumber}
+                              </span>
+                            )}
+                            <div>
+                              <span className="font-bold text-white block">{pName}</span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                GPS #{m.gps_device_number} · {m.distance_km} km · {m.hsr_m}m HSR
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 font-mono">
+                            <div>
+                              <label className="text-[9px] text-slate-500 block uppercase font-bold">Min Entrada</label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={180}
+                                value={startMin}
+                                onChange={e => handlePlayerSubstitutionChange(m.player_id, "player_start_min", e.target.value === "" ? "" : Number(e.target.value))}
+                                className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white font-bold text-xs"
+                              />
+                            </div>
+                            <span className="text-slate-500 font-bold self-end pb-1">→</span>
+                            <div>
+                              <label className="text-[9px] text-slate-500 block uppercase font-bold">Min Salida</label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={180}
+                                value={endMin}
+                                onChange={e => handlePlayerSubstitutionChange(m.player_id, "player_end_min", e.target.value === "" ? "" : Number(e.target.value))}
+                                className="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white font-bold text-xs"
+                              />
+                            </div>
+                            <div className="text-right min-w-[70px]">
+                              <label className="text-[9px] text-slate-500 block uppercase font-bold">Jugados</label>
+                              <span className={cn("font-bold text-xs block", isSubstituted ? "text-amber-400" : "text-emerald-400")}>
+                                {playedMin}' min
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
                 <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">

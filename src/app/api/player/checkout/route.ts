@@ -11,7 +11,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { rpe, postFeeling, notes, playerId: inputPlayerId, sessionId } = body;
+    const { rpe, postFeeling, notes, playerId: inputPlayerId, sessionId, matchId } = body;
 
     const { data: orgRole } = await supabase
       .from("user_organization_roles")
@@ -19,37 +19,67 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    const organizationId = orgRole?.organization_id;
+    let organizationId = orgRole?.organization_id;
 
     let playerId = inputPlayerId;
-    if (!playerId) {
-      const { data: playerRow } = await supabase
-        .from("players")
-        .select("id")
-        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
-        .maybeSingle();
+    const { data: playerRow } = await supabase
+      .from("players")
+      .select("id, organization_id")
+      .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+      .maybeSingle();
 
-      playerId = playerRow?.id;
+    if (playerRow) {
+      if (!playerId) playerId = playerRow.id;
+      if (!organizationId) organizationId = playerRow.organization_id;
     }
 
     if (!organizationId || !playerId) {
-      return NextResponse.json({ success: true, message: "Check-out registrado" });
+      return NextResponse.json(
+        { error: "No se encontró la ficha del jugador ni la organización asociada a esta cuenta." },
+        { status: 400 }
+      );
     }
 
     const todayStr = new Date().toISOString().split("T")[0];
 
-    await supabase.from("rpe_entries").upsert({
+    // Find session_id if matchId was provided and has an associated session_id
+    let resolvedSessionId = sessionId || null;
+    if (!resolvedSessionId && matchId) {
+      const { data: matchRow } = await supabase
+        .from("matches")
+        .select("session_id")
+        .eq("id", matchId)
+        .maybeSingle();
+      if (matchRow?.session_id) {
+        resolvedSessionId = matchRow.session_id;
+      }
+    }
+
+    // Insert/Upsert into rpe_entries
+    const rpePayload: any = {
       organization_id: organizationId,
       player_id: playerId,
       date: todayStr,
       rpe: rpe ?? 7,
       post_feeling: postFeeling || "good",
-      notes: notes || null,
-      session_id: sessionId || null,
-    }, { onConflict: "player_id,date" });
+      notes: notes || (matchId ? `Check-out Partido (Match ID: ${matchId})` : null),
+    };
+    if (resolvedSessionId) {
+      rpePayload.session_id = resolvedSessionId;
+    }
+
+    const { error: upsertErr } = await supabase
+      .from("rpe_entries")
+      .upsert(rpePayload, { onConflict: "player_id,date" });
+
+    if (upsertErr) {
+      console.error("Error saving RPE entry:", upsertErr);
+      return NextResponse.json({ error: upsertErr.message }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+

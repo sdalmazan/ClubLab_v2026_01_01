@@ -293,6 +293,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
             <thead className="bg-slate-950 border-b border-slate-800 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
               <tr>
                 <th className="p-3">Futbolista</th>
+                <th className="p-3">Min. Jugados</th>
                 <th className="p-3">Distancia (km)</th>
                 <th className="p-3">HSR (&gt;19.8 km/h)</th>
                 <th className="p-3">Sprints (&gt;25.2 km/h)</th>
@@ -312,6 +313,9 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
                 const distDiff = seasonAvgDist > 0 ? (((m.distance_km - seasonAvgDist) / seasonAvgDist) * 100).toFixed(1) : 0;
                 const isDistHigher = Number(distDiff) >= 0;
 
+                const playedMin = m.played_minutes ?? 90;
+                const hasCustomMin = m.player_start_min != null || m.player_end_min != null;
+
                 return (
                   <tr
                     key={m.id}
@@ -325,8 +329,20 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
                             #{pNum}
                           </span>
                         )}
-                        <span className="font-bold text-white block">{pName}</span>
+                        <div>
+                          <span className="font-bold text-white block">{pName}</span>
+                        </div>
                       </div>
+                    </td>
+
+                    <td className="p-3 font-mono">
+                      <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded border inline-block",
+                        hasCustomMin ? "bg-amber-950/40 border-amber-800/60 text-amber-300" : "bg-slate-800 border-slate-700 text-slate-300"
+                      )}>
+                        {playedMin}' min
+                        {hasCustomMin && ` (${m.player_start_min ?? 0}' - ${m.player_end_min ?? playedMin}')`}
+                      </span>
                     </td>
 
                     <td className="p-3 font-mono">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isSuperAdminUser, SUPER_ADMIN_EMAILS } from "@/lib/permissions/roleOverride";
 
 export async function GET(request: Request) {
   try {
@@ -165,7 +166,24 @@ export async function GET(request: Request) {
       });
     });
 
-    return NextResponse.json(merged);
+    // Determine if requester is Super Admin
+    const { data: requesterRoles } = await supabaseAdmin
+      .from("user_organization_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    const isRequesterSuperAdmin =
+      isSuperAdminUser(user.user_metadata?.role as any, user.email) ||
+      Boolean(requesterRoles?.some((r) => r.role === "super_admin"));
+
+    const filteredMerged = isRequesterSuperAdmin
+      ? merged
+      : merged.filter((m) => {
+          const isSuper = m.role === "super_admin" || (m.email && SUPER_ADMIN_EMAILS.includes(m.email.toLowerCase().trim()));
+          return !isSuper;
+        });
+
+    return NextResponse.json({ members: filteredMerged, isSuperAdmin: isRequesterSuperAdmin });
   } catch (err: any) {
     console.error("GET /api/organization/roles error:", err);
     return NextResponse.json({ error: err.message || "Error al obtener miembros" }, { status: 500 });
@@ -186,6 +204,33 @@ export async function PUT(request: Request) {
 
     if (!userId || !role) {
       return NextResponse.json({ error: "Faltan campos requeridos: userId y role" }, { status: 400 });
+    }
+
+    // Check requester permissions
+    const { data: requesterRoles } = await supabaseAdmin
+      .from("user_organization_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    const isRequesterSuperAdmin =
+      isSuperAdminUser(user.user_metadata?.role as any, user.email) ||
+      Boolean(requesterRoles?.some((r) => r.role === "super_admin"));
+
+    if (!isRequesterSuperAdmin) {
+      if (role === "super_admin") {
+        return NextResponse.json({ error: "No tienes permisos para asignar el rol de Super Administrador" }, { status: 403 });
+      }
+
+      if (typeof userId === "string" && !userId.startsWith("invitation_")) {
+        const { data: targetAuthUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+        if (
+          targetAuthUser?.user &&
+          (targetAuthUser.user.user_metadata?.role === "super_admin" ||
+            (targetAuthUser.user.email && SUPER_ADMIN_EMAILS.includes(targetAuthUser.user.email.toLowerCase().trim())))
+        ) {
+          return NextResponse.json({ error: "No tienes permisos para modificar a un Super Administrador" }, { status: 403 });
+        }
+      }
     }
 
     let targetOrgId = organizationId;
@@ -296,6 +341,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "El correo es obligatorio" }, { status: 400 });
     }
 
+    if (role === "super_admin") {
+      const { data: requesterRoles } = await supabaseAdmin
+        .from("user_organization_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const isRequesterSuperAdmin =
+        isSuperAdminUser(user.user_metadata?.role as any, user.email) ||
+        Boolean(requesterRoles?.some((r) => r.role === "super_admin"));
+
+      if (!isRequesterSuperAdmin) {
+        return NextResponse.json({ error: "No tienes permisos para asignar el rol de Super Administrador" }, { status: 403 });
+      }
+    }
+
     let targetOrgId = organizationId;
     if (!targetOrgId) {
       const { data: userRole } = await supabaseAdmin
@@ -379,6 +439,28 @@ export async function DELETE(request: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: "Falta userId" }, { status: 400 });
+    }
+
+    if (userId && !userId.startsWith("invitation_")) {
+      const { data: targetAuthUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+      if (
+        targetAuthUser?.user &&
+        (targetAuthUser.user.user_metadata?.role === "super_admin" ||
+          (targetAuthUser.user.email && SUPER_ADMIN_EMAILS.includes(targetAuthUser.user.email.toLowerCase().trim())))
+      ) {
+        const { data: requesterRoles } = await supabaseAdmin
+          .from("user_organization_roles")
+          .select("role")
+          .eq("user_id", user.id);
+
+        const isRequesterSuperAdmin =
+          isSuperAdminUser(user.user_metadata?.role as any, user.email) ||
+          Boolean(requesterRoles?.some((r) => r.role === "super_admin"));
+
+        if (!isRequesterSuperAdmin) {
+          return NextResponse.json({ error: "No tienes permisos para eliminar a un Super Administrador" }, { status: 403 });
+        }
+      }
     }
 
     if (userId.startsWith("invitation_")) {
