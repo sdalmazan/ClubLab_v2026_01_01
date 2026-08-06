@@ -68,6 +68,7 @@ export function WimuGpsImportModal({
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
   const [sessionType, setSessionType] = useState<"PARTIDO" | "ENTRENAMIENTO">("PARTIDO");
   const [isParsing, setIsParsing] = useState(false);
+  const [parseProgressMsg, setParseProgressMsg] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -186,32 +187,121 @@ export function WimuGpsImportModal({
     try {
       setIsParsing(true);
 
-      const formData = new FormData();
-      formData.append("sessionType", sessionType);
-      formData.append("sessionDate", sessionDate);
-      formData.append("periodDefs", JSON.stringify(periodDefs));
-      formData.append("playerMapping", JSON.stringify(currentBlockMapping));
+      let aggregatedTrimmerData: any = null;
+      const aggregatedMetrics: any[] = [];
 
-      // Append binary .qul files if selected
-      selectedFiles.forEach(file => {
-        formData.append("files", file);
-      });
+      if (selectedFiles.length === 0) {
+        // No files selected directly, send folder path request
+        setParseProgressMsg("Analizando sesión...");
+        const formData = new FormData();
+        formData.append("sessionType", sessionType);
+        formData.append("sessionDate", sessionDate);
+        formData.append("periodDefs", JSON.stringify(periodDefs));
+        formData.append("playerMapping", JSON.stringify(currentBlockMapping));
 
-      const res = await fetch("/api/performance/gps/parse", {
-        method: "POST",
-        body:   formData,
-      });
+        const res = await fetch("/api/performance/gps/parse", {
+          method: "POST",
+          body: formData,
+        });
 
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Error al analizar los archivos GPS.");
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(
+            res.status === 413
+              ? "El tamaño del lote excede el límite del servidor. Selecciona menos archivos."
+              : `Error del servidor (${res.status}): ${text.slice(0, 150) || "Respuesta no válida."}`
+          );
+        }
 
-      setTrimmerData(data.trimmerJson);
-      setDecodedPlayerMetrics(data.playerMetrics || []);
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`Respuesta no esperada del servidor: ${text.slice(0, 150)}`);
+        }
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Error al analizar los archivos GPS.");
+
+        aggregatedTrimmerData = data.trimmerJson;
+        aggregatedMetrics.push(...(data.playerMetrics || []));
+      } else {
+        // Batch upload 2 files per request to prevent HTTP 413 Payload Too Large
+        const BATCH_SIZE = 2;
+        const totalFiles = selectedFiles.length;
+        const totalBatches = Math.ceil(totalFiles / BATCH_SIZE);
+
+        for (let i = 0; i < totalFiles; i += BATCH_SIZE) {
+          const batchFiles = selectedFiles.slice(i, i + BATCH_SIZE);
+          const currentBatchNum = Math.floor(i / BATCH_SIZE) + 1;
+
+          setParseProgressMsg(
+            `Decodificando lote ${currentBatchNum}/${totalBatches} (${Math.min(i + BATCH_SIZE, totalFiles)}/${totalFiles} grabaciones .qul)...`
+          );
+
+          const formData = new FormData();
+          formData.append("sessionType", sessionType);
+          formData.append("sessionDate", sessionDate);
+          formData.append("periodDefs", JSON.stringify(periodDefs));
+          formData.append("playerMapping", JSON.stringify(currentBlockMapping));
+
+          batchFiles.forEach((file) => {
+            formData.append("files", file);
+          });
+
+          const res = await fetch("/api/performance/gps/parse", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            let msg = `Error en servidor (${res.status})`;
+            if (res.status === 413 || text.includes("Request Entity")) {
+              msg = "El tamaño de los archivos excede el límite del servidor.";
+            } else if (text) {
+              msg += `: ${text.slice(0, 150)}`;
+            }
+            throw new Error(msg);
+          }
+
+          const contentType = res.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            const text = await res.text().catch(() => "");
+            throw new Error(`Respuesta del servidor no es JSON: ${text.slice(0, 150)}`);
+          }
+
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || "Error al analizar los archivos GPS.");
+
+          if (!aggregatedTrimmerData) {
+            aggregatedTrimmerData = data.trimmerJson;
+          } else if (data.trimmerJson?.parsed_files) {
+            aggregatedTrimmerData.parsed_files = [
+              ...(aggregatedTrimmerData.parsed_files || []),
+              ...data.trimmerJson.parsed_files,
+            ];
+            aggregatedTrimmerData.files_processed =
+              (aggregatedTrimmerData.files_processed || 0) + (data.trimmerJson.files_processed || 0);
+          }
+
+          if (Array.isArray(data.playerMetrics)) {
+            data.playerMetrics.forEach((m: any) => {
+              if (!aggregatedMetrics.some((exist) => exist.player_id === m.player_id)) {
+                aggregatedMetrics.push(m);
+              }
+            });
+          }
+        }
+      }
+
+      setTrimmerData(aggregatedTrimmerData);
+      setDecodedPlayerMetrics(aggregatedMetrics);
       setStep(2);
     } catch (err: any) {
       setErrorMsg(err.message || "Error al procesar los archivos GPS.");
     } finally {
       setIsParsing(false);
+      setParseProgressMsg("");
     }
   };
 
@@ -246,6 +336,17 @@ export function WimuGpsImportModal({
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Error (${res.status}) al guardar en la base de datos: ${text.slice(0, 150) || "Error interno."}`);
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Respuesta no válida del servidor: ${text.slice(0, 150)}`);
+      }
 
       const resData = await res.json();
       if (!resData.success) throw new Error(resData.error || "Error al guardar en Supabase.");
@@ -655,7 +756,7 @@ export function WimuGpsImportModal({
               className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all flex items-center gap-2 cursor-pointer"
             >
               {isParsing ? (
-                <><Sliders className="size-4 animate-spin" /><span>Decodificando WIMU...</span></>
+                <><Sliders className="size-4 animate-spin" /><span>{parseProgressMsg || "Decodificando WIMU..."}</span></>
               ) : (
                 <><Sparkles className="size-4" /><span>Analizar Archivos GPS</span></>
               )}

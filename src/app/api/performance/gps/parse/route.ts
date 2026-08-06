@@ -11,6 +11,9 @@ import { parseWimuQulBuffer, ParsedQulFile } from "@/lib/performance/wimuParser"
  * Decodes native WIMU binary files (.qul) and runs Trimmer Engine.
  */
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get("content-type") || "";
