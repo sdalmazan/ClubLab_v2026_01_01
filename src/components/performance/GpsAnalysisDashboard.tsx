@@ -318,23 +318,6 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
         </div>
       </div>
 
-      {/* Periodos Trimmer Engine */}
-      {sessionDetail?.periods && sessionDetail.periods.length > 0 && (
-        <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 space-y-2">
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-            <Clock className="size-4 text-slate-400" />
-            Periodos Delimitados por Trimmer Engine:
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {sessionDetail.periods.map((p, i) => (
-              <div key={i} className="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-mono flex items-center gap-2">
-                <span className="font-bold text-white">{p.period_name}</span>
-                <span className="text-slate-400 text-[10px]">({p.t_start} - {p.t_end} | {p.duration_min} min)</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Tabla de Rendimiento Individual con Ordenación Interactivas */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-3 p-4">
