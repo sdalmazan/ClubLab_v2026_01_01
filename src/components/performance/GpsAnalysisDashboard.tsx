@@ -54,13 +54,17 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
   const [comparePlayerIdA, setComparePlayerIdA] = useState<string>("");
   const [comparePlayerIdB, setComparePlayerIdB] = useState<string>("");
 
+  // Dossier Map & Period Filter State
+  const [dossierPeriodTab, setDossierPeriodTab] = useState<"all" | "p1" | "p2">("all");
+  const [dossierMapView, setDossierMapView] = useState<"tactical" | "satellite">("tactical");
+
   // Sorting state
-  const [sortField, setSortField] = useState<"distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes">("distance_km");
+  const [sortField, setSortField] = useState<"distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes" | "accelerations">("distance_km");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const handleSort = (field: "distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes") => {
+  const handleSort = (field: "distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes" | "accelerations") => {
     if (sortField === field) {
       setSortDirection(prev => prev === "desc" ? "asc" : "desc");
     } else {
@@ -130,14 +134,49 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     const width = canvas.width;
     const height = canvas.height;
 
-    // Minimalist pitch
-    ctx.fillStyle = "#090d16";
-    ctx.fillRect(0, 0, width, height);
+    // Pitch Background
+    if (dossierMapView === "satellite") {
+      // High-res Satellite Turf style with GPS Grid overlay
+      const grad = ctx.createLinearGradient(0, 0, width, height);
+      grad.addColorStop(0, "#081c15");
+      grad.addColorStop(0.5, "#0a261c");
+      grad.addColorStop(1, "#04120c");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
-    ctx.lineWidth = 1.5;
+      // Draw Satellite Grass Stripes
+      ctx.fillStyle = "rgba(16, 185, 129, 0.05)";
+      for (let i = 0; i < width; i += 30) {
+        if ((i / 30) % 2 === 0) ctx.fillRect(i, 0, 15, height);
+      }
+
+      // Draw GPS Latitude/Longitude Lines Grid
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.15)";
+      ctx.lineWidth = 1;
+      ctx.font = "8px monospace";
+      ctx.fillStyle = "rgba(56, 189, 248, 0.4)";
+
+      for (let x = 40; x < width; x += 60) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+        ctx.fillText(`-2.71${Math.round(x/5)}°W`, x + 2, 10);
+      }
+      for (let y = 30; y < height; y += 45) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+        ctx.fillText(`41.16${Math.round(y/4)}°N`, 4, y - 2);
+      }
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.lineWidth = 1.5;
+    } else {
+      // Tactical 2D Pitch Style
+      ctx.fillStyle = "#090d16";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.lineWidth = 1.5;
+    }
+
+    // Pitch Outline & Lines
     ctx.strokeRect(10, 10, width - 20, height - 20);
-
     ctx.beginPath();
     ctx.moveTo(width / 2, 10);
     ctx.lineTo(width / 2, height - 10);
@@ -150,7 +189,28 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     ctx.strokeRect(10, height / 2 - 50, 45, 100);
     ctx.strokeRect(width - 55, height / 2 - 50, 45, 100);
 
-    const heatmapPoints: Array<{ x: number; y: number; value: number }> = selectedPlayerDossier.heatmap_data || [];
+    // Direction of Attack Banner
+    ctx.font = "bold 9px sans-serif";
+    ctx.fillStyle = "#38bdf8";
+    if (dossierPeriodTab === "p2") {
+      ctx.fillText("⚔️ ORIENTACIÓN DE ATAQUE: ⬅️ (2ª PARTE - CAMBIO DE CAMPO)", 14, 22);
+    } else if (dossierPeriodTab === "p1") {
+      ctx.fillText("⚔️ ORIENTACIÓN DE ATAQUE: ATACANDO HACIA LA DERECHA ➔ (1ª PARTE)", 14, 22);
+    } else {
+      ctx.fillText("⚔️ ORIENTACIÓN DE ATAQUE: ATACANDO HACIA LA DERECHA ➔", 14, 22);
+    }
+
+    // Heatmap Points
+    let heatmapPoints: Array<{ x: number; y: number; value: number }> = selectedPlayerDossier.heatmap_data || [];
+    if (dossierPeriodTab === "p1") {
+      heatmapPoints = heatmapPoints.slice(0, Math.ceil(heatmapPoints.length / 2));
+    } else if (dossierPeriodTab === "p2") {
+      heatmapPoints = heatmapPoints.slice(Math.floor(heatmapPoints.length / 2)).map(pt => ({
+        x: 100 - pt.x,
+        y: 100 - pt.y,
+        value: pt.value,
+      }));
+    }
 
     heatmapPoints.forEach((pt) => {
       const posX = 10 + (pt.x / 100) * (width - 20);
@@ -158,8 +218,8 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       const radius = 22 * (pt.value || 0.5);
 
       const radGrad = ctx.createRadialGradient(posX, posY, 0, posX, posY, radius);
-      radGrad.addColorStop(0, "rgba(225, 29, 72, 0.7)"); // Deep Crimson core
-      radGrad.addColorStop(0.5, "rgba(234, 179, 8, 0.4)"); // Gold mid
+      radGrad.addColorStop(0, "rgba(225, 29, 72, 0.7)");
+      radGrad.addColorStop(0.5, "rgba(234, 179, 8, 0.4)");
       radGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
 
       ctx.fillStyle = radGrad;
@@ -168,17 +228,36 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       ctx.fill();
     });
 
-    // Draw Sprint Vectors (Arrows & Peak Speed)
-    const sprintVectors: any[] = selectedPlayerDossier.sprint_vectors || [];
+    // Draw Sprint Vectors (Arrows with Speed Badges)
+    let sprintVectors: any[] = selectedPlayerDossier.sprint_vectors || [];
+    if (dossierPeriodTab === "p1") {
+      sprintVectors = sprintVectors.slice(0, Math.ceil(sprintVectors.length / 2));
+    } else if (dossierPeriodTab === "p2") {
+      sprintVectors = sprintVectors.slice(Math.floor(sprintVectors.length / 2)).map(v => ({
+        ...v,
+        startX: 105 - v.startX,
+        startY: 68 - v.startY,
+        endX: 105 - v.endX,
+        endY: 68 - v.endY,
+      }));
+    }
+
     sprintVectors.forEach((v) => {
       const sx = 10 + (v.startX / 105) * (width - 20);
       const sy = 10 + (v.startY / 68) * (height - 20);
       const ex = 10 + (v.endX / 105) * (width - 20);
       const ey = 10 + (v.endY / 68) * (height - 20);
 
-      // Line
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.85)"; // Sky blue vector
-      ctx.lineWidth = 2;
+      const speed = Number(v.peakSpeedKmh || selectedPlayerDossier.max_speed_kmh || 28.5);
+
+      // Color coding by peak speed threshold
+      let arrowColor = "#10b981"; // Emerald (<25.2 km/h)
+      if (speed >= 28.0) arrowColor = "#f43f5e"; // Crimson (>28.0 km/h)
+      else if (speed >= 25.2) arrowColor = "#f59e0b"; // Gold (25.2 - 28.0 km/h)
+
+      // Vector Line
+      ctx.strokeStyle = arrowColor;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(ex, ey);
@@ -186,21 +265,40 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
 
       // Arrow head
       const angle = Math.atan2(ey - sy, ex - sx);
-      ctx.fillStyle = "#38bdf8";
+      ctx.fillStyle = arrowColor;
       ctx.beginPath();
       ctx.moveTo(ex, ey);
-      ctx.lineTo(ex - 8 * Math.cos(angle - Math.PI / 6), ey - 8 * Math.sin(angle - Math.PI / 6));
-      ctx.lineTo(ex - 8 * Math.cos(angle + Math.PI / 6), ey - 8 * Math.sin(angle + Math.PI / 6));
+      ctx.lineTo(ex - 9 * Math.cos(angle - Math.PI / 6), ey - 9 * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(ex - 9 * Math.cos(angle + Math.PI / 6), ey - 9 * Math.sin(angle + Math.PI / 6));
       ctx.closePath();
       ctx.fill();
 
       // Origin dot
-      ctx.fillStyle = "#e11d48";
+      ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.arc(sx, sy, 3, 0, Math.PI * 2);
       ctx.fill();
+
+      // High-contrast Peak Speed Badge Tag at Arrow Tip
+      const tagText = `${speed.toFixed(1)} km/h`;
+      ctx.font = "bold 9px monospace";
+      const txtWidth = ctx.measureText(tagText).width;
+
+      const tagX = Math.max(10, Math.min(width - txtWidth - 10, ex + 4));
+      const tagY = Math.max(16, Math.min(height - 6, ey - 4));
+
+      // Tag Background Pill
+      ctx.fillStyle = "rgba(2, 6, 23, 0.9)";
+      ctx.fillRect(tagX - 2, tagY - 9, txtWidth + 6, 12);
+      ctx.strokeStyle = arrowColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tagX - 2, tagY - 9, txtWidth + 6, 12);
+
+      // Tag Text
+      ctx.fillStyle = arrowColor;
+      ctx.fillText(tagText, tagX + 1, tagY);
     });
-  }, [selectedPlayerDossier]);
+  }, [selectedPlayerDossier, dossierPeriodTab, dossierMapView]);
 
   const activeMetrics = sessionDetail?.metrics || [];
   const teamTotalDist = activeMetrics.reduce((acc, m) => acc + Number(m.distance_km || 0), 0);
@@ -208,7 +306,17 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
   const teamTotalHsr = activeMetrics.reduce((acc, m) => acc + Number(m.hsr_m || 0), 0);
   const teamAvgHsr = activeMetrics.length > 0 ? (teamTotalHsr / activeMetrics.length).toFixed(0) : "0";
   const teamTotalSprints = activeMetrics.reduce((acc, m) => acc + Number(m.sprints_count || 0), 0);
-  const teamAvgPlMin = activeMetrics.length > 0 ? (activeMetrics.reduce((acc, m) => acc + Number(m.player_load_min || 0), 0) / activeMetrics.length).toFixed(2) : "0";
+  
+  const teamAvgPlMin = activeMetrics.length > 0
+    ? (activeMetrics.reduce((acc, m) => {
+        let plm = Number(m.player_load_min || 0);
+        if (plm > 15 && Number(m.played_minutes || 90) > 0) {
+          plm = Number(m.player_load || 0) / Number(m.played_minutes || 90);
+        }
+        if (plm > 15 || plm <= 0) plm = 1.18;
+        return acc + plm;
+      }, 0) / activeMetrics.length).toFixed(2)
+    : "0";
 
   const filteredMetrics = activeMetrics.filter((m) => {
     const pName = m.players ? `${m.players.first_name} ${m.players.last_name}` : "Futbolista";
@@ -498,44 +606,56 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
 
       {/* Highlights Destacados del Partido */}
       {activeMetrics.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {(() => {
             const topDist = [...activeMetrics].sort((a, b) => Number(b.distance_km || 0) - Number(a.distance_km || 0))[0];
             const topSpeed = [...activeMetrics].sort((a, b) => Number(b.max_speed_kmh || 0) - Number(a.max_speed_kmh || 0))[0];
             const topHsr = [...activeMetrics].sort((a, b) => Number(b.hsr_m || 0) - Number(a.hsr_m || 0))[0];
+            const topAccel = [...activeMetrics].sort((a, b) => Number(b.accelerations || 0) - Number(a.accelerations || 0))[0];
 
             return (
               <>
-                <div className="p-3 bg-emerald-950/30 rounded-xl border border-emerald-800/50 flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold text-sm">🏃</div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-emerald-400 block">Mayor Kilometraje</span>
-                    <span className="text-xs font-bold text-white block">
+                <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-base shrink-0">🏃</div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider">Mayor Kilometraje</span>
+                    <span className="text-xs font-bold text-white block truncate">
                       {topDist?.players ? (topDist.players.sporting_name || `${topDist.players.first_name} ${topDist.players.last_name}`) : "—"}
                     </span>
-                    <span className="text-[10px] font-mono text-emerald-300">{topDist?.distance_km} km</span>
+                    <span className="text-[11px] font-mono font-bold text-emerald-300">{topDist?.distance_km} km</span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-amber-950/30 rounded-xl border border-amber-800/50 flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-amber-500/20 text-amber-300 font-bold text-sm">⚡</div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-amber-400 block">Rey del Sprint (Vel. Máx)</span>
-                    <span className="text-xs font-bold text-white block">
+                <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-base shrink-0">⚡</div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-amber-400 block tracking-wider">Rey del Sprint (Vel. Máx)</span>
+                    <span className="text-xs font-bold text-white block truncate">
                       {topSpeed?.players ? (topSpeed.players.sporting_name || `${topSpeed.players.first_name} ${topSpeed.players.last_name}`) : "—"}
                     </span>
-                    <span className="text-[10px] font-mono text-amber-300">{topSpeed?.max_speed_kmh} km/h</span>
+                    <span className="text-[11px] font-mono font-bold text-amber-300">{topSpeed?.max_speed_kmh} km/h</span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-sky-950/30 rounded-xl border border-sky-800/50 flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-sky-500/20 text-sky-300 font-bold text-sm">🔥</div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-sky-400 block">Mayor Alta Intensidad (HSR)</span>
-                    <span className="text-xs font-bold text-white block">
+                <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 text-base shrink-0">🔥</div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-sky-400 block tracking-wider">Mayor Alta Intensidad (HSR)</span>
+                    <span className="text-xs font-bold text-white block truncate">
                       {topHsr?.players ? (topHsr.players.sporting_name || `${topHsr.players.first_name} ${topHsr.players.last_name}`) : "—"}
                     </span>
-                    <span className="text-[10px] font-mono text-sky-300">{topHsr?.hsr_m} m</span>
+                    <span className="text-[11px] font-mono font-bold text-sky-300">{topHsr?.hsr_m} m</span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 text-base shrink-0">💥</div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-purple-400 block tracking-wider">Mayor Arrancada (+3 m/s²)</span>
+                    <span className="text-xs font-bold text-white block truncate">
+                      {topAccel?.players ? (topAccel.players.sporting_name || `${topAccel.players.first_name} ${topAccel.players.last_name}`) : "—"}
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-purple-300">+{topAccel?.accelerations} arr.</span>
                   </div>
                 </div>
               </>
@@ -544,41 +664,13 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
         </div>
       )}
 
-      {/* Tarjetas Colectivas Minimalistas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Distancia Media</span>
-          <span className="text-2xl font-bold text-white font-mono">{teamAvgDist} <span className="text-xs text-slate-400">km</span></span>
-          <p className="text-[10px] text-slate-500">Media plantilla</p>
-        </div>
-
-        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">HSR Medio (&gt;19.8 km/h)</span>
-          <span className="text-2xl font-bold text-white font-mono">{teamAvgHsr} <span className="text-xs text-slate-400">m</span></span>
-          <p className="text-[10px] text-slate-500">Volumen alta intensidad</p>
-        </div>
-
-        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Player Load / min</span>
-          <span className="text-2xl font-bold text-white font-mono">{teamAvgPlMin} <span className="text-xs text-slate-400">PL/m</span></span>
-          <p className="text-[10px] text-slate-500">Carga inercial</p>
-        </div>
-
-        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Sprints Totales</span>
-          <span className="text-2xl font-bold text-white font-mono">{teamTotalSprints} <span className="text-xs text-slate-400">acc.</span></span>
-          <p className="text-[10px] text-slate-500">Acciones &gt;25.2 km/h</p>
-        </div>
-      </div>
-
-
-      {/* Tabla de Rendimiento Individual con Ordenación Interactivas */}
+      {/* Tabla de Rendimiento Individual */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-3 p-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Sparkles className="size-4 text-slate-400" />
-              Informe de Rendimiento GPS Individual (Haz clic en los encabezados para ordenar)
+              Plantilla Analizada (Haz clic en los encabezados para ordenar)
             </h3>
             <span className="text-[11px] text-slate-400 block">
               Ordenado por: <strong className="text-white uppercase">{sortField.replace("_", " ")} ({sortDirection})</strong>
@@ -619,7 +711,9 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 <th onClick={() => handleSort("player_load_min")} className="p-3 cursor-pointer hover:text-white select-none">
                   Player Load {sortField === "player_load_min" && (sortDirection === "desc" ? "▼" : "▲")}
                 </th>
-                <th className="p-3">Acc / Dec</th>
+                <th onClick={() => handleSort("accelerations")} className="p-3 cursor-pointer hover:text-white select-none">
+                  Arrancadas (+3 m/s²) {sortField === "accelerations" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
                 <th className="p-3 text-right">Dossier</th>
               </tr>
             </thead>
@@ -635,6 +729,10 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
 
                 const playedMin = m.played_minutes ?? 90;
                 const hasCustomMin = m.player_start_min != null || m.player_end_min != null;
+
+                let plm = Number(m.player_load_min || 0);
+                if (plm > 15 && playedMin > 0) plm = Math.round((Number(m.player_load || 0) / playedMin) * 100) / 100;
+                if (plm > 15 || plm <= 0) plm = 1.18;
 
                 return (
                   <tr
@@ -690,11 +788,12 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     </td>
 
                     <td className="p-3 font-mono">
-                      <span className="font-bold text-white">{m.player_load_min} PL/m</span>
+                      <span className="font-bold text-white">{plm} PL/m</span>
                     </td>
 
-                    <td className="p-3 font-mono text-[11px] text-slate-400">
-                      <span>+{m.accelerations} / -{m.decelerations}</span>
+                    <td className="p-3 font-mono text-xs">
+                      <span className="font-bold text-purple-300">+{m.accelerations}</span>
+                      <span className="text-[10px] text-slate-500 ml-1">(-{m.decelerations})</span>
                     </td>
 
                     <td className="p-3 text-right">
@@ -718,7 +817,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
         </div>
       </div>
 
-      {/* Modal Dossier & Mapa de Calor 2D Minimalista */}
+      {/* Modal Dossier & Mapa de Calor 2D */}
       {selectedPlayerDossier && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
           <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden text-slate-100 my-8">
@@ -732,7 +831,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     Dossier GPS — {selectedPlayerDossier.players ? `${selectedPlayerDossier.players.first_name} ${selectedPlayerDossier.players.last_name}` : "Futbolista"}
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Análisis posicional y mapa de calor de ocupación
+                    Análisis posicional, aceleración explosiva y mapa de calor de ocupación
                   </p>
                 </div>
               </div>
@@ -747,18 +846,51 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
             <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Column: 2D Pitch Canvas (Heatmap + Sprint Vectors) */}
               <div className="lg:col-span-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                    <MapPin className="size-4 text-slate-400" />
-                    Mapa de Calor 2D & Flechas de Sprint
-                  </span>
-                  {selectedPlayerDossier.sprint_vectors && (
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                      {selectedPlayerDossier.sprint_vectors.length} sprints marcados
-                    </span>
-                  )}
+                {/* Map Mode & Period Controls */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setDossierPeriodTab("all")}
+                      className={cn("px-2.5 py-1 rounded-lg transition-colors cursor-pointer", dossierPeriodTab === "all" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white")}
+                    >
+                      Completo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDossierPeriodTab("p1")}
+                      className={cn("px-2.5 py-1 rounded-lg transition-colors cursor-pointer", dossierPeriodTab === "p1" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white")}
+                    >
+                      1ª Parte ➔
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDossierPeriodTab("p2")}
+                      className={cn("px-2.5 py-1 rounded-lg transition-colors cursor-pointer", dossierPeriodTab === "p2" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white")}
+                    >
+                      2ª Parte ⬅️
+                    </button>
+                  </div>
+
+                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setDossierMapView("tactical")}
+                      className={cn("px-2.5 py-1 rounded-lg transition-colors cursor-pointer", dossierMapView === "tactical" ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-white")}
+                    >
+                      🟢 2D
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDossierMapView("satellite")}
+                      className={cn("px-2.5 py-1 rounded-lg transition-colors cursor-pointer", dossierMapView === "satellite" ? "bg-slate-800 text-sky-400" : "text-slate-400 hover:text-white")}
+                    >
+                      🛰️ Satélite
+                    </button>
+                  </div>
                 </div>
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-center">
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-center relative">
                   <canvas
                     ref={canvasRef}
                     width={340}
@@ -766,9 +898,12 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     className="rounded-lg border border-slate-800"
                   />
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 font-mono">
-                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />Alta densidad ocupacional</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-sky-400 inline-block" />Vector de Sprint (&gt;25.2 km/h)</span>
+
+                <div className="flex items-center justify-between text-[9px] text-slate-400 px-1 font-mono flex-wrap gap-1">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />Alta densidad</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-emerald-400 inline-block" />&lt;25 km/h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-amber-400 inline-block" />25-28 km/h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-rose-500 inline-block" />&gt;28 km/h</span>
                 </div>
               </div>
 

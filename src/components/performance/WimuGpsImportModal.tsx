@@ -352,7 +352,7 @@ export function WimuGpsImportModal({
                 id: p.id,
                 name: p.sporting_name || `${p.first_name} ${p.last_name}`.trim(),
                 position: p.position || "player",
-                jerseyNumber: p.jersey_number || null,
+                jerseyNumber: p.membership?.jersey_number ?? p.jersey_number ?? p.jerseyNumber ?? null,
               }));
             }
           } catch (e) {

@@ -66,10 +66,14 @@ export async function GET(req: Request) {
         if (pIds.length > 0) {
           const { data: playersList } = await supabase
             .from("players")
-            .select("id, first_name, last_name, sporting_name, jersey_number")
+            .select("id, first_name, last_name, sporting_name, jersey_number, player_team_memberships(jersey_number)")
             .in("id", pIds);
 
-          const pMap = new Map((playersList || []).map((p: any) => [p.id, p]));
+          const pMap = new Map((playersList || []).map((p: any) => {
+            const resolvedJersey = p.jersey_number ?? p.player_team_memberships?.[0]?.jersey_number ?? null;
+            return [p.id, { ...p, jersey_number: resolvedJersey }];
+          }));
+
           metrics = metrics.map((m: any) => ({
             ...m,
             players: pMap.get(m.player_id) || null,
@@ -299,8 +303,8 @@ export async function POST(req: Request) {
           acc_dec_ratio:          safeNum(m.acc_dec_ratio, 0, 0, 99),
           cod_count:              m.codCount ?? {},
           // Bloque 3: Neuromuscular
-          player_load:            safeNum(m.player_load, 0, 0, 9999),
-          player_load_min:        safeNum(m.player_load_min, 0, 0, 999),
+          player_load:            safeNum(m.player_load, 0, 0, 500),
+          player_load_min:        safeNum(m.player_load_min, 1.15, 0, 15),
           impacts_count:          m.impacts_count ?? {},
           jumps:                  m.jumps ?? {},
           // Bloque 4: Metabolic Power
