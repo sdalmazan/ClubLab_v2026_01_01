@@ -42,11 +42,11 @@ export function GpsTimelineChart({
   }, [timelineSeries, periods, maxDurationMin]);
 
   // Generate SVG path for intensity curve with generous headroom
-  const chartHeight = 170;
-  const chartWidth = 700;
-  const paddingX = 40;
-  const paddingTop = 40;
-  const paddingBottom = 30;
+  const chartHeight = 210;
+  const chartWidth = 720;
+  const paddingX = 55;
+  const paddingTop = 55;
+  const paddingBottom = 35;
 
   const drawableWidth = chartWidth - paddingX * 2;
   const drawableHeight = chartHeight - paddingTop - paddingBottom;
@@ -56,9 +56,8 @@ export function GpsTimelineChart({
     return timelineSeries
       .map((pt) => {
         const x = paddingX + (pt.minute / totalMins) * drawableWidth;
-        // Leave 6px padding from paddingTop for top peaks
         const clampedIntensity = Math.min(1, Math.max(0, pt.intensity));
-        const y = paddingTop + 6 + (1 - clampedIntensity) * (drawableHeight - 6);
+        const y = paddingTop + 10 + (1 - clampedIntensity) * (drawableHeight - 10);
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(" L ");
@@ -73,31 +72,31 @@ export function GpsTimelineChart({
   }, [pointsSvg, drawableWidth, drawableHeight]);
 
   const periodColors = [
-    { fill: "rgba(16, 185, 129, 0.15)", stroke: "#10b981", label: "1ª Parte / Bloque 1" },
-    { fill: "rgba(56, 189, 248, 0.15)", stroke: "#38bdf8", label: "2ª Parte / Bloque 2" },
-    { fill: "rgba(245, 158, 11, 0.15)", stroke: "#f59e0b", label: "3ª Parte / Bloque 3" },
+    { fill: "rgba(16, 185, 129, 0.14)", stroke: "#10b981", label: "1ª Parte / Bloque 1" },
+    { fill: "rgba(56, 189, 248, 0.14)", stroke: "#38bdf8", label: "2ª Parte / Bloque 2" },
+    { fill: "rgba(245, 158, 11, 0.14)", stroke: "#f59e0b", label: "3ª Parte / Bloque 3" },
   ];
 
   return (
-    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-xl">
+      <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800/80 pb-2.5">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <Activity className="size-4" />
           </div>
           <div>
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Timeline de la Grabación Completa ({totalMins} min)
+              Timeline Colectivo de la Grabación Completa ({totalMins} min)
             </h4>
             <p className="text-[11px] text-slate-400">
-              Detección de comportamiento colectivo de los futbolistas e intervalos de partido
+              Media de Intensidad Colectiva (m/min) alineada por tiempo de reloj UTC (<code className="text-slate-300 font-mono text-[10px]">&lt;TIMEU&gt;</code>)
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 text-[10px] font-mono">
           <span className="flex items-center gap-1.5 text-slate-400">
-            <span className="w-2.5 h-0.5 bg-emerald-400 inline-block rounded" /> Intensidad (m/min)
+            <span className="w-2.5 h-0.5 bg-emerald-400 inline-block rounded" /> Intensidad Colectiva (m/min)
           </span>
           <span className="flex items-center gap-1.5 text-slate-400">
             <span className="w-2.5 h-2.5 bg-emerald-500/20 border border-emerald-500 inline-block rounded-xs" /> Periodo Activo
@@ -106,10 +105,10 @@ export function GpsTimelineChart({
       </div>
 
       {/* SVG Chart */}
-      <div className="relative w-full overflow-hidden">
+      <div className="relative w-full pt-2">
         <svg
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="w-full h-auto max-h-56 drop-shadow-md select-none overflow-visible"
+          className="w-full h-auto max-h-64 drop-shadow-md select-none"
         >
           <defs>
             <linearGradient id="intensityGrad" x1="0" y1="0" x2="0" y2="1">
@@ -118,20 +117,35 @@ export function GpsTimelineChart({
             </linearGradient>
           </defs>
 
-          {/* Background grid lines */}
-          {[0, 0.5, 1].map((pct, idx) => {
-            const y = paddingTop + pct * drawableHeight;
+          {/* Y-Axis Labels & Background grid lines */}
+          {[
+            { pct: 0, label: "160 m/min" },
+            { pct: 0.5, label: "80 m/min" },
+            { pct: 1, label: "0 m/min" },
+          ].map((g, idx) => {
+            const y = paddingTop + g.pct * drawableHeight;
             return (
-              <line
-                key={idx}
-                x1={paddingX}
-                y1={y}
-                x2={chartWidth - paddingX}
-                y2={y}
-                stroke="#1e293b"
-                strokeDasharray="3 3"
-                strokeWidth="1"
-              />
+              <g key={idx}>
+                <line
+                  x1={paddingX}
+                  y1={y}
+                  x2={chartWidth - paddingX}
+                  y2={y}
+                  stroke="#1e293b"
+                  strokeDasharray="3 3"
+                  strokeWidth="1"
+                />
+                <text
+                  x={paddingX - 6}
+                  y={y + 3}
+                  fill="#475569"
+                  fontSize="8"
+                  textAnchor="end"
+                  fontFamily="monospace"
+                >
+                  {g.label}
+                </text>
+              </g>
             );
           })}
 
@@ -153,48 +167,48 @@ export function GpsTimelineChart({
                   fill={color.fill}
                   stroke={color.stroke}
                   strokeWidth="1.5"
-                  strokeDasharray="2 2"
+                  strokeDasharray="3 3"
                   rx="4"
                 />
 
                 {/* Period Start Line & Handle */}
                 <line
                   x1={startX}
-                  y1={paddingTop - 5}
+                  y1={paddingTop - 12}
                   x2={startX}
-                  y2={paddingTop + drawableHeight + 5}
+                  y2={paddingTop + drawableHeight + 4}
                   stroke={color.stroke}
                   strokeWidth="2"
                 />
-                <circle cx={startX} cy={paddingTop - 5} r="4" fill={color.stroke} />
+                <circle cx={startX} cy={paddingTop - 12} r="4.5" fill={color.stroke} />
 
                 {/* Period End Line & Handle */}
                 <line
                   x1={endX}
-                  y1={paddingTop - 5}
+                  y1={paddingTop - 12}
                   x2={endX}
-                  y2={paddingTop + drawableHeight + 5}
+                  y2={paddingTop + drawableHeight + 4}
                   stroke={color.stroke}
                   strokeWidth="2"
                 />
-                <circle cx={endX} cy={paddingTop - 5} r="4" fill={color.stroke} />
+                <circle cx={endX} cy={paddingTop - 12} r="4.5" fill={color.stroke} />
 
                 {/* Period Name Badge */}
                 <rect
-                  x={startX + 4}
-                  y={paddingTop + 6}
-                  width={Math.min(65, width - 8)}
+                  x={startX + 6}
+                  y={paddingTop - 24}
+                  width={Math.min(70, width - 8)}
                   height="16"
-                  fill="#0f172a"
-                  rx="3"
+                  fill="#020617"
+                  rx="4"
                   stroke={color.stroke}
-                  strokeWidth="0.8"
+                  strokeWidth="1"
                 />
                 <text
-                  x={startX + 8}
-                  y={paddingTop + 17}
+                  x={startX + 10}
+                  y={paddingTop - 13}
                   fill="#ffffff"
-                  fontSize="8"
+                  fontSize="8.5"
                   fontWeight="bold"
                   fontFamily="sans-serif"
                 >

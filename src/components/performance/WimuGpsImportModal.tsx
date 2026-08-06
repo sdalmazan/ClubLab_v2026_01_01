@@ -45,7 +45,7 @@ interface WimuGpsImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   roster: PlayerRosterItem[];
-  onSuccess: () => void;
+  onSuccess: (sessionId?: string) => void;
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -540,7 +540,12 @@ export function WimuGpsImportModal({
       if (!resData.success) throw new Error(resData.error || "Error al guardar en Supabase.");
 
       setStep(3);
-      setTimeout(() => { onSuccess(); onClose(); }, 1200);
+      const newSessionId = resData.sessionId;
+      setTimeout(() => {
+        onSuccess(newSessionId);
+        onClose();
+        setStep(1);
+      }, 1000);
     } catch (err: any) {
       setErrorMsg(err.message || "Error al insertar en la base de datos.");
     } finally {

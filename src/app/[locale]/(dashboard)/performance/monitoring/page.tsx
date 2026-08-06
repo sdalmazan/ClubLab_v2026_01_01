@@ -83,6 +83,7 @@ export default function PerformanceMonitoringPage() {
   const [activeTab, setActiveTab] = useState<"matrix360" | "wellness_weight" | "gps_analysis">("matrix360");
   const [isGpsEnabled, setIsGpsEnabled] = useState(true);
   const [gpsRefreshKey, setGpsRefreshKey] = useState(0);
+  const [selectedGpsSessionId, setSelectedGpsSessionId] = useState<string | undefined>(undefined);
   const [roster, setRoster] = useState<HolisticPlayerRecord[]>(INITIAL_HOLISTIC_ROSTER);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -274,6 +275,7 @@ export default function PerformanceMonitoringPage() {
             <GpsAnalysisDashboard
               onOpenImportModal={() => setIsGpsModalOpen(true)}
               refreshKey={gpsRefreshKey}
+              initialSessionId={selectedGpsSessionId}
             />
           ) : (
             <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-8 text-center space-y-4 max-w-xl mx-auto shadow-2xl">
@@ -657,7 +659,8 @@ export default function PerformanceMonitoringPage() {
           position: p.position,
           jerseyNumber: p.jerseyNumber,
         }))}
-        onSuccess={() => {
+        onSuccess={(savedSessionId) => {
+          if (savedSessionId) setSelectedGpsSessionId(savedSessionId);
           setGpsRefreshKey(k => k + 1);
           setActiveTab("gps_analysis");
         }}

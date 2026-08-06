@@ -23,9 +23,10 @@ import { cn } from "@/lib/utils";
 interface GpsAnalysisDashboardProps {
   onOpenImportModal: () => void;
   refreshKey?: number;
+  initialSessionId?: string;
 }
 
-export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsAnalysisDashboardProps) {
+export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initialSessionId }: GpsAnalysisDashboardProps) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [sessionDetail, setSessionDetail] = useState<{
@@ -38,7 +39,20 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
   const [search, setSearch] = useState("");
   const [selectedPlayerDossier, setSelectedPlayerDossier] = useState<any | null>(null);
 
+  // Sorting state
+  const [sortField, setSortField] = useState<"distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes">("distance_km");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const handleSort = (field: "distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes") => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "desc" ? "asc" : "desc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
 
   // Load sessions list and season averages
   const loadSessionsData = async (targetSessionId?: string) => {
@@ -51,7 +65,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
         setSessions(data.sessions);
         setSeasonStats(data.playerSeasonStats || {});
 
-        const activeId = targetSessionId || (data.sessions.length > 0 ? data.sessions[0].id : "");
+        const activeId = targetSessionId || initialSessionId || (data.sessions.length > 0 ? data.sessions[0].id : "");
         if (activeId) {
           setSelectedSessionId(activeId);
           await loadSessionDetail(activeId);
@@ -81,10 +95,9 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
   };
 
   useEffect(() => {
-    loadSessionsData();
+    loadSessionsData(initialSessionId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
-
+  }, [refreshKey, initialSessionId]);
 
   const handleSessionChange = (id: string) => {
     setSelectedSessionId(id);
@@ -187,6 +200,12 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
     return pName.toLowerCase().includes(search.toLowerCase());
   });
 
+  const sortedMetrics = [...filteredMetrics].sort((a, b) => {
+    const valA = Number(a[sortField] ?? 0);
+    const valB = Number(b[sortField] ?? 0);
+    return sortDirection === "desc" ? valB - valA : valA - valB;
+  });
+
   return (
     <div className="space-y-6 text-slate-100">
       {/* Top Session Bar & CTA Minimalista */}
@@ -206,7 +225,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
             >
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.session_date} — {s.session_type} ({s.detection_mode})
+                  {s.session_date} — {s.session_type} ({s.detection_mode}) {s.notes ? `[${s.notes}]` : ""}
                 </option>
               ))}
               {sessions.length === 0 && <option value="">Sin sesiones GPS cargadas aún</option>}
@@ -223,6 +242,54 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
           <span>+ Importar Datos GPS</span>
         </button>
       </div>
+
+      {/* Highlights Destacados del Partido */}
+      {activeMetrics.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+          {(() => {
+            const topDist = [...activeMetrics].sort((a, b) => Number(b.distance_km || 0) - Number(a.distance_km || 0))[0];
+            const topSpeed = [...activeMetrics].sort((a, b) => Number(b.max_speed_kmh || 0) - Number(a.max_speed_kmh || 0))[0];
+            const topHsr = [...activeMetrics].sort((a, b) => Number(b.hsr_m || 0) - Number(a.hsr_m || 0))[0];
+
+            return (
+              <>
+                <div className="p-3 bg-emerald-950/30 rounded-xl border border-emerald-800/50 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold text-sm">🏃</div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 block">Mayor Kilometraje</span>
+                    <span className="text-xs font-bold text-white block">
+                      {topDist?.players ? (topDist.players.sporting_name || `${topDist.players.first_name} ${topDist.players.last_name}`) : "—"}
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-300">{topDist?.distance_km} km</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-950/30 rounded-xl border border-amber-800/50 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/20 text-amber-300 font-bold text-sm">⚡</div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-amber-400 block">Rey del Sprint (Vel. Máx)</span>
+                    <span className="text-xs font-bold text-white block">
+                      {topSpeed?.players ? (topSpeed.players.sporting_name || `${topSpeed.players.first_name} ${topSpeed.players.last_name}`) : "—"}
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-300">{topSpeed?.max_speed_kmh} km/h</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-sky-950/30 rounded-xl border border-sky-800/50 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-sky-500/20 text-sky-300 font-bold text-sm">🔥</div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-sky-400 block">Mayor Alta Intensidad (HSR)</span>
+                    <span className="text-xs font-bold text-white block">
+                      {topHsr?.players ? (topHsr.players.sporting_name || `${topHsr.players.first_name} ${topHsr.players.last_name}`) : "—"}
+                    </span>
+                    <span className="text-[10px] font-mono text-sky-300">{topHsr?.hsr_m} m</span>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Tarjetas Colectivas Minimalistas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -269,13 +336,18 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
         </div>
       )}
 
-      {/* Tabla de Rendimiento Individual Minimalista */}
+      {/* Tabla de Rendimiento Individual con Ordenación Interactivas */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-3 p-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <Sparkles className="size-4 text-slate-400" />
-            Rendimiento GPS Individual vs. Media de la Temporada
-          </h3>
+          <div>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="size-4 text-slate-400" />
+              Informe de Rendimiento GPS Individual (Haz clic en los encabezados para ordenar)
+            </h3>
+            <span className="text-[11px] text-slate-400 block">
+              Ordenado por: <strong className="text-white uppercase">{sortField.replace("_", " ")} ({sortDirection})</strong>
+            </span>
+          </div>
           <div className="relative w-full sm:w-64">
             <Search className="size-3.5 text-slate-500 absolute left-3 top-2.5" />
             <input
@@ -293,18 +365,30 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0 }: GpsA
             <thead className="bg-slate-950 border-b border-slate-800 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
               <tr>
                 <th className="p-3">Futbolista</th>
-                <th className="p-3">Min. Jugados</th>
-                <th className="p-3">Distancia (km)</th>
-                <th className="p-3">HSR (&gt;19.8 km/h)</th>
-                <th className="p-3">Sprints (&gt;25.2 km/h)</th>
-                <th className="p-3">Vel. Máx (km/h)</th>
-                <th className="p-3">Player Load</th>
+                <th onClick={() => handleSort("played_minutes")} className="p-3 cursor-pointer hover:text-white select-none">
+                  Min. Jugados {sortField === "played_minutes" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
+                <th onClick={() => handleSort("distance_km")} className="p-3 cursor-pointer hover:text-white select-none">
+                  Distancia (km) {sortField === "distance_km" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
+                <th onClick={() => handleSort("hsr_m")} className="p-3 cursor-pointer hover:text-white select-none">
+                  HSR (&gt;19.8 km/h) {sortField === "hsr_m" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
+                <th onClick={() => handleSort("sprints_count")} className="p-3 cursor-pointer hover:text-white select-none">
+                  Sprints (&gt;25.2 km/h) {sortField === "sprints_count" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
+                <th onClick={() => handleSort("max_speed_kmh")} className="p-3 cursor-pointer hover:text-white select-none">
+                  Vel. Máx (km/h) {sortField === "max_speed_kmh" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
+                <th onClick={() => handleSort("player_load_min")} className="p-3 cursor-pointer hover:text-white select-none">
+                  Player Load {sortField === "player_load_min" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
                 <th className="p-3">Acc / Dec</th>
                 <th className="p-3 text-right">Dossier</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {filteredMetrics.map((m) => {
+              {sortedMetrics.map((m) => {
                 const pName = m.players ? (m.players.sporting_name || `${m.players.first_name} ${m.players.last_name}`.trim()) : "Futbolista";
                 const pNum = m.players?.jersey_number;
 
