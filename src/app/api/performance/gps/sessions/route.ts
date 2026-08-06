@@ -163,16 +163,37 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { sessionDate, sessionType, detectionMode, folderPath, notes, periods, playerMetrics } = body;
 
+    const targetDate = sessionDate || new Date().toISOString().split("T")[0];
+    let matchId: string | null = null;
+    let finalNotes = notes || "";
+
+    // Auto-link match on the specified date
+    const { data: matchRecord } = await supabase
+      .from("matches")
+      .select("id, match_opponent")
+      .eq("organization_id", orgId)
+      .eq("match_date", targetDate)
+      .maybeSingle();
+
+    if (matchRecord) {
+      matchId = matchRecord.id;
+      const opp = matchRecord.match_opponent || "Rival";
+      if (!finalNotes.includes(opp)) {
+        finalNotes = finalNotes ? `${finalNotes} · Vinculado a Partido vs ${opp}` : `Partido vs ${opp}`;
+      }
+    }
+
     // ── 1. Insert session ──────────────────────────────────────
     const { data: sessionData, error: sessionErr } = await supabase
       .from("wimu_sessions")
       .insert({
         organization_id: orgId,
-        session_date:    sessionDate || new Date().toISOString().split("T")[0],
+        match_id:        matchId,
+        session_date:    targetDate,
         session_type:    sessionType || "PARTIDO",
         detection_mode:  detectionMode || "AUTOMATIC_KICKOFF_SIGNATURE",
         folder_path:     folderPath || "",
-        notes:           notes || "",
+        notes:           finalNotes,
       })
       .select()
       .single();

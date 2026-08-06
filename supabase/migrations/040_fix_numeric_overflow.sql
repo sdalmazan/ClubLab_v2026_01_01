@@ -33,3 +33,8 @@ ALTER TABLE wimu_player_session_metrics
   ADD COLUMN IF NOT EXISTS player_start_min NUMERIC DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS player_end_min   NUMERIC DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS played_minutes   NUMERIC DEFAULT NULL;
+
+-- 4. Add match_id reference to wimu_sessions for automatic match linking
+ALTER TABLE wimu_sessions
+  ADD COLUMN IF NOT EXISTS match_id UUID REFERENCES matches(id) ON DELETE SET NULL;
+

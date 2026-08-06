@@ -320,28 +320,96 @@ export function WimuGpsImportModal({
               `Pausas entre bloques (~${breakMin.toFixed(1)} min c/u)`,
             ];
 
-        // Build player metrics array from decoded files and mapping
-        if (parsedFiles.length > 0 && Object.keys(currentBlockMapping).length > 0) {
-          Object.entries(currentBlockMapping).forEach(([pid, gpsNumStr]) => {
+        // Build player metrics array from decoded files and mapping across all periods
+        const totalSessionDuration = periods.reduce((sum, p) => sum + (p.duration_min || 0), 0) || 90;
+
+        // Map of playerId -> { gpsNum, assignedPeriods: Period[] }
+        const playerAssignments: Record<string, { devNum: number; activeStart: number; activeEnd: number; playedMin: number }> = {};
+
+        if (assignmentMode === "global") {
+          const globalMap = blockGpsMapping["Global"] || blockGpsMapping[Object.keys(blockGpsMapping)[0]] || {};
+          Object.entries(globalMap).forEach(([pid, gpsNumStr]) => {
             const devNum = parseInt(String(gpsNumStr).trim(), 10);
             if (isNaN(devNum)) return;
+            playerAssignments[pid] = {
+              devNum,
+              activeStart: 0,
+              activeEnd: Math.round(totalSessionDuration),
+              playedMin: Math.round(totalSessionDuration),
+            };
+          });
+        } else {
+          // By Period mode: aggregate active periods for each player
+          const allPids = new Set<string>();
+          Object.values(blockGpsMapping).forEach(map => {
+            Object.keys(map).forEach(pid => allPids.add(pid));
+          });
 
-            const qul = parsedFiles.find(f => f.deviceNumber === devNum) || parsedFiles[0];
+          allPids.forEach(pid => {
+            let firstStart: number | null = null;
+            let lastEnd: number | null = null;
+            let totalPlayed = 0;
+            let assignedDevNum: number | null = null;
+
+            periods.forEach((p) => {
+              const blkMap = blockGpsMapping[p.name] || {};
+              const gpsNumStr = blkMap[pid];
+              if (gpsNumStr) {
+                const devNum = parseInt(String(gpsNumStr).trim(), 10);
+                if (!isNaN(devNum)) {
+                  assignedDevNum = devNum;
+                  if (firstStart === null || p.start_min < firstStart) firstStart = p.start_min;
+                  if (lastEnd === null || p.end_min > lastEnd) lastEnd = p.end_min;
+                  totalPlayed += p.duration_min;
+                }
+              }
+            });
+
+            if (assignedDevNum !== null && firstStart !== null && lastEnd !== null) {
+              playerAssignments[pid] = {
+                devNum: assignedDevNum,
+                activeStart: Math.round(firstStart),
+                activeEnd: Math.round(lastEnd),
+                playedMin: Math.round(totalPlayed),
+              };
+            }
+          });
+        }
+
+        if (parsedFiles.length > 0 && Object.keys(playerAssignments).length > 0) {
+          Object.entries(playerAssignments).forEach(([pid, info]) => {
+            const qul = parsedFiles.find(f => f.deviceNumber === info.devNum) || parsedFiles[0];
+            const ratio = totalSessionDuration > 0 ? info.playedMin / totalSessionDuration : 1.0;
+
+            const distKm = Math.round(qul.estimatedDistanceKm * ratio * 100) / 100;
+            const hsrM = Math.round(qul.estimatedHsrM * ratio);
+            const sprintsCount = Math.round(qul.estimatedSprints * ratio);
+            const pl = Math.round(qul.playerLoad * ratio * 100) / 100;
+            const plMin = info.playedMin > 0 ? Math.round((pl / info.playedMin) * 100) / 100 : 0;
+            const relDist = info.playedMin > 0 ? Math.round((distKm * 1000) / info.playedMin) : 0;
+
             aggregatedMetrics.push({
               player_id:             pid,
-              gps_device_number:     devNum,
-              distance_km:           qul.estimatedDistanceKm,
-              distance_m:            qul.distanceM,
-              relative_distance_mmin: qul.relativeDistanceMMin,
-              hsr_m:                 qul.estimatedHsrM,
-              sprints_count:         qul.estimatedSprints,
+              gps_device_number:     info.devNum,
+              player_start_min:       info.activeStart,
+              player_end_min:         info.activeEnd,
+              played_minutes:         info.playedMin,
+              _raw_distance_km:      qul.estimatedDistanceKm,
+              _raw_hsr_m:            qul.estimatedHsrM,
+              _raw_sprints_count:    qul.estimatedSprints,
+              _raw_player_load:      qul.playerLoad,
+              distance_km:           distKm,
+              distance_m:            Math.round(distKm * 1000),
+              relative_distance_mmin: relDist,
+              hsr_m:                 hsrM,
+              sprints_count:         sprintsCount,
               max_speed_kmh:         qul.maxSpeedKmh,
-              player_load:           qul.playerLoad,
-              player_load_min:       qul.playerLoadMin,
-              accelerations:         qul.accelBands.high + qul.accelBands.mid,
-              decelerations:         qul.decelBands.high + qul.decelBands.mid,
-              explosive_distance_m:  qul.explosiveDistanceM,
-              hmld_m:                 qul.hmldM,
+              player_load:           pl,
+              player_load_min:       plMin,
+              accelerations:         Math.round((qul.accelBands.high + qul.accelBands.mid) * ratio),
+              decelerations:         Math.round((qul.decelBands.high + qul.decelBands.mid) * ratio),
+              explosive_distance_m:  Math.round(qul.explosiveDistanceM * ratio),
+              hmld_m:                 Math.round(qul.hmldM * ratio),
               metabolic_power_wkg:   qul.metabolicPowerWkg,
               acc_dec_ratio:         qul.accDecRatio,
               impacts_count:         qul.impactsCount,

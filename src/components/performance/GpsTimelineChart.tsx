@@ -41,12 +41,12 @@ export function GpsTimelineChart({
     return Math.max(120, maxPeriodEnd + 15);
   }, [timelineSeries, periods, maxDurationMin]);
 
-  // Generate SVG path for intensity curve
-  const chartHeight = 110;
+  // Generate SVG path for intensity curve with generous headroom
+  const chartHeight = 170;
   const chartWidth = 700;
   const paddingX = 40;
-  const paddingTop = 20;
-  const paddingBottom = 25;
+  const paddingTop = 40;
+  const paddingBottom = 30;
 
   const drawableWidth = chartWidth - paddingX * 2;
   const drawableHeight = chartHeight - paddingTop - paddingBottom;
@@ -56,7 +56,9 @@ export function GpsTimelineChart({
     return timelineSeries
       .map((pt) => {
         const x = paddingX + (pt.minute / totalMins) * drawableWidth;
-        const y = paddingTop + (1 - Math.min(1, Math.max(0, pt.intensity))) * drawableHeight;
+        // Leave 6px padding from paddingTop for top peaks
+        const clampedIntensity = Math.min(1, Math.max(0, pt.intensity));
+        const y = paddingTop + 6 + (1 - clampedIntensity) * (drawableHeight - 6);
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(" L ");
@@ -107,7 +109,7 @@ export function GpsTimelineChart({
       <div className="relative w-full overflow-hidden">
         <svg
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="w-full h-auto max-h-36 drop-shadow-md select-none"
+          className="w-full h-auto max-h-56 drop-shadow-md select-none overflow-visible"
         >
           <defs>
             <linearGradient id="intensityGrad" x1="0" y1="0" x2="0" y2="1">
