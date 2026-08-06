@@ -184,7 +184,11 @@ export async function POST(req: Request) {
     }
 
     // ── 1. Insert session ──────────────────────────────────────
-    const { data: sessionData, error: sessionErr } = await supabase
+    let sessionData: any = null;
+    let sessionErr: any = null;
+
+    // Try insert with match_id
+    const res1 = await supabase
       .from("wimu_sessions")
       .insert({
         organization_id: orgId,
@@ -198,17 +202,38 @@ export async function POST(req: Request) {
       .select()
       .single();
 
-function safeNum(val: any, fallback = 0, minVal?: number, maxVal?: number): number {
-  if (val === null || val === undefined) return fallback;
-  const num = Number(val);
-  if (!Number.isFinite(num) || Number.isNaN(num)) return fallback;
-  let res = num;
-  if (minVal !== undefined && res < minVal) res = minVal;
-  if (maxVal !== undefined && res > maxVal) res = maxVal;
-  return Math.round(res * 1000) / 1000;
-}
+    sessionData = res1.data;
+    sessionErr = res1.error;
 
-    if (sessionErr) throw sessionErr;
+    // Fallback if match_id column does not exist on target DB
+    if (sessionErr && (sessionErr.code === "42703" || sessionErr.message?.includes("match_id"))) {
+      const resFallback = await supabase
+        .from("wimu_sessions")
+        .insert({
+          organization_id: orgId,
+          session_date:    targetDate,
+          session_type:    sessionType || "PARTIDO",
+          detection_mode:  detectionMode || "AUTOMATIC_KICKOFF_SIGNATURE",
+          folder_path:     folderPath || "",
+          notes:           finalNotes,
+        })
+        .select()
+        .single();
+      sessionData = resFallback.data;
+      sessionErr = resFallback.error;
+    }
+
+    function safeNum(val: any, fallback = 0, minVal?: number, maxVal?: number): number {
+      if (val === null || val === undefined) return fallback;
+      const num = Number(val);
+      if (!Number.isFinite(num) || Number.isNaN(num)) return fallback;
+      let res = num;
+      if (minVal !== undefined && res < minVal) res = minVal;
+      if (maxVal !== undefined && res > maxVal) res = maxVal;
+      return Math.round(res * 1000) / 1000;
+    }
+
+    if (sessionErr) throw new Error(`Error creando la sesión: ${sessionErr.message || JSON.stringify(sessionErr)}`);
     const sessionId = sessionData.id;
 
     // ── 2. Insert trimmed periods ──────────────────────────────
@@ -229,15 +254,14 @@ function safeNum(val: any, fallback = 0, minVal?: number, maxVal?: number): numb
         .insert(periodsToInsert);
 
       if (pErr) {
-        throw new Error(`Error guardando periodos: ${pErr.message}`);
+        console.warn("Could not insert trimmed periods:", pErr.message);
       }
     }
 
     // ── 3. Insert player metrics ───────────────────────────────
     if (Array.isArray(playerMetrics) && playerMetrics.length > 0) {
-      const metricsToInsert = playerMetrics
-        .filter((m: any) => !!m.player_id)
-        .map((m: any) => ({
+      const buildMetricObj = (m: any, includeSubstitutions = true) => {
+        const obj: any = {
           session_id:             sessionId,
           player_id:              m.player_id,
           // Bloque 1: Kinematics
@@ -277,20 +301,41 @@ function safeNum(val: any, fallback = 0, minVal?: number, maxVal?: number): numb
           hr_metrics:             m.hrMetrics ?? {},
           // Bloque 8: ACWR
           acwr_ratio:             safeNum(m.acwr_ratio, 0, 0, 99),
-          // Sustituciones / Ventana de juego individual
-          player_start_min:       m.player_start_min != null ? safeNum(m.player_start_min, 0, 0, 999) : null,
-          player_end_min:         m.player_end_min != null ? safeNum(m.player_end_min, 0, 0, 999) : null,
-          played_minutes:         m.played_minutes != null ? safeNum(m.played_minutes, 0, 0, 999) : null,
           // Spatial Assets
           heatmap_data:           m.heatmap_data ?? [],
           sprint_vectors:         m.sprint_vectors ?? [],
-        }));
+        };
+
+        if (includeSubstitutions) {
+          obj.player_start_min = m.player_start_min != null ? safeNum(m.player_start_min, 0, 0, 999) : null;
+          obj.player_end_min   = m.player_end_min != null ? safeNum(m.player_end_min, 0, 0, 999) : null;
+          obj.played_minutes   = m.played_minutes != null ? safeNum(m.played_minutes, 0, 0, 999) : null;
+        }
+
+        return obj;
+      };
+
+      const metricsToInsert = playerMetrics
+        .filter((m: any) => !!m.player_id)
+        .map((m: any) => buildMetricObj(m, true));
 
       const { error: mErr } = await supabase
         .from("wimu_player_session_metrics")
         .insert(metricsToInsert);
 
-      if (mErr) throw mErr;
+      // Fallback if substitution columns do not exist on DB
+      if (mErr) {
+        console.warn("Retrying player metrics insert without substitution columns:", mErr.message);
+        const fallbackMetrics = playerMetrics
+          .filter((m: any) => !!m.player_id)
+          .map((m: any) => buildMetricObj(m, false));
+
+        const { error: mErrFallback } = await supabase
+          .from("wimu_player_session_metrics")
+          .insert(fallbackMetrics);
+
+        if (mErrFallback) throw new Error(`Error guardando métricas de jugadores: ${mErrFallback.message}`);
+      }
     }
 
     return NextResponse.json({
