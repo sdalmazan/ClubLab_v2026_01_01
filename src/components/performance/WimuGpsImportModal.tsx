@@ -513,11 +513,84 @@ export function WimuGpsImportModal({
     });
   };
 
-  const handlePeriodChange = (index: number, field: string, value: any) => {
+  const handlePeriodUpdate = (index: number, newStartMin: number, newEndMin: number) => {
     if (!trimmerData) return;
     const updated = [...trimmerData.periods];
-    updated[index] = { ...updated[index], [field]: value };
+    const sMin = Math.round(newStartMin * 10) / 10;
+    const eMin = Math.round(newEndMin * 10) / 10;
+    const durMin = Math.max(0.5, Math.round((eMin - sMin) * 10) / 10);
+
+    updated[index] = {
+      ...updated[index],
+      start_min: sMin,
+      end_min: eMin,
+      duration_min: durMin,
+    };
+
     setTrimmerData({ ...trimmerData, periods: updated });
+
+    // Recalculate decodedPlayerMetrics for per-period assignments
+    const totalSessionDuration = updated.reduce((sum, p) => sum + (p.duration_min || 0), 0) || 90;
+
+    setDecodedPlayerMetrics(prev => {
+      return prev.map(m => {
+        let activeStart = 0;
+        let activeEnd = totalSessionDuration;
+        let playedMin = totalSessionDuration;
+
+        if (assignmentMode === "by_period") {
+          let firstStart: number | null = null;
+          let lastEnd: number | null = null;
+          let totalPlayed = 0;
+
+          updated.forEach(p => {
+            const blkMap = blockGpsMapping[p.name] || {};
+            if (blkMap[m.player_id]) {
+              if (firstStart === null || p.start_min < firstStart) firstStart = p.start_min;
+              if (lastEnd === null || p.end_min > lastEnd) lastEnd = p.end_min;
+              totalPlayed += p.duration_min;
+            }
+          });
+
+          if (firstStart !== null && lastEnd !== null) {
+            activeStart = Math.round(firstStart * 10) / 10;
+            activeEnd = Math.round(lastEnd * 10) / 10;
+            playedMin = Math.round(totalPlayed * 10) / 10;
+          }
+        } else {
+          activeStart = m.player_start_min ?? 0;
+          activeEnd = m.player_end_min ?? totalSessionDuration;
+          playedMin = Math.max(0, activeEnd - activeStart);
+        }
+
+        const ratio = totalSessionDuration > 0 ? playedMin / totalSessionDuration : 1.0;
+        const baseDistKm = m._raw_distance_km ?? m.distance_km ?? 0;
+        const baseHsrM = m._raw_hsr_m ?? m.hsr_m ?? 0;
+        const baseSprints = m._raw_sprints_count ?? m.sprints_count ?? 0;
+        const basePL = m._raw_player_load ?? m.player_load ?? 0;
+
+        const newDistKm = Math.round(baseDistKm * ratio * 100) / 100;
+        const newHsrM = Math.round(baseHsrM * ratio);
+        const newSprints = Math.round(baseSprints * ratio);
+        const newPL = Math.round(basePL * ratio * 100) / 100;
+        const newPLMin = playedMin > 0 ? Math.round((newPL / playedMin) * 100) / 100 : 0;
+        const newRelDist = playedMin > 0 ? Math.round((newDistKm * 1000) / playedMin) : 0;
+
+        return {
+          ...m,
+          player_start_min: activeStart,
+          player_end_min: activeEnd,
+          played_minutes: playedMin,
+          distance_km: newDistKm,
+          distance_m: Math.round(newDistKm * 1000),
+          hsr_m: newHsrM,
+          sprints_count: newSprints,
+          player_load: newPL,
+          player_load_min: newPLMin,
+          relative_distance_mmin: newRelDist,
+        };
+      });
+    });
   };
 
   // ─── Step 2 → Step 3: Save to Supabase ─────────────────────────────────────
@@ -871,6 +944,7 @@ export function WimuGpsImportModal({
               <GpsTimelineChart
                 timelineSeries={trimmerData.timeline_series || []}
                 periods={trimmerData.periods}
+                onPeriodUpdate={handlePeriodUpdate}
               />
 
               {/* Decoded .qul files list */}
@@ -900,29 +974,57 @@ export function WimuGpsImportModal({
                         <input
                           type="text"
                           value={period.name}
-                          onChange={e => handlePeriodChange(idx, "name", e.target.value)}
+                          onChange={e => {
+                            if (!trimmerData) return;
+                            const updated = [...trimmerData.periods];
+                            updated[idx] = { ...updated[idx], name: e.target.value };
+                            setTrimmerData({ ...trimmerData, periods: updated });
+                          }}
                           className="flex-1 bg-transparent font-bold text-white text-xs border-b border-slate-700 focus:outline-none focus:border-slate-500 py-0.5"
                         />
                         <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 font-mono shrink-0">
                           Confianza: {Math.round(period.confidence_score * 100)}%
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 font-mono">
+                      <div className="grid grid-cols-4 gap-2 font-mono">
                         <div>
-                          <label className="text-[10px] text-slate-500 block">Inicio</label>
-                          <input type="text" value={period.t_start} onChange={e => handlePeriodChange(idx, "t_start", e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white text-xs" />
+                          <label className="text-[10px] text-slate-500 block">Min. Inicio</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={period.start_min}
+                            onChange={e => handlePeriodUpdate(idx, Number(e.target.value), period.end_min)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white text-xs"
+                          />
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-500 block">Fin</label>
-                          <input type="text" value={period.t_end} onChange={e => handlePeriodChange(idx, "t_end", e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white text-xs" />
+                          <label className="text-[10px] text-slate-500 block">Min. Fin</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={period.end_min}
+                            onChange={e => handlePeriodUpdate(idx, period.start_min, Number(e.target.value))}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white text-xs"
+                          />
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-500 block">Duración (min)</label>
-                          <input type="number" step="0.1" value={period.duration_min}
-                            onChange={e => handlePeriodChange(idx, "duration_min", Number(e.target.value))}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white text-xs" />
+                          <label className="text-[10px] text-slate-500 block">Hora Inicio</label>
+                          <input
+                            type="text"
+                            value={period.t_start || ""}
+                            onChange={e => {
+                              const updated = [...trimmerData.periods];
+                              updated[idx] = { ...updated[idx], t_start: e.target.value };
+                              setTrimmerData({ ...trimmerData, periods: updated });
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500 block">Duración Total</label>
+                          <div className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-emerald-400 font-bold text-xs">
+                            {period.duration_min} min
+                          </div>
                         </div>
                       </div>
                     </div>

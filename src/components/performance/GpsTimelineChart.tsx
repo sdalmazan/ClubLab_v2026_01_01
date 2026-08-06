@@ -77,8 +77,60 @@ export function GpsTimelineChart({
     { fill: "rgba(245, 158, 11, 0.14)", stroke: "#f59e0b", label: "3ª Parte / Bloque 3" },
   ];
 
+  const [draggingHandle, setDraggingHandle] = React.useState<{ periodIndex: number; handleType: "start" | "end" } | null>(null);
+  const svgRef = React.useRef<SVGSVGElement | null>(null);
+
+  const getMinuteFromPointer = (clientX: number) => {
+    if (!svgRef.current) return 0;
+    const rect = svgRef.current.getBoundingClientRect();
+    const svgX = (clientX - rect.left) * (chartWidth / rect.width);
+    const clampedX = Math.max(paddingX, Math.min(chartWidth - paddingX, svgX));
+    const minVal = ((clampedX - paddingX) / drawableWidth) * totalMins;
+    return Math.round(minVal * 10) / 10;
+  };
+
+  const handlePointerMove = (clientX: number) => {
+    if (!draggingHandle || !onPeriodUpdate) return;
+    const { periodIndex, handleType } = draggingHandle;
+    const targetPeriod = periods[periodIndex];
+    if (!targetPeriod) return;
+
+    const newMin = getMinuteFromPointer(clientX);
+
+    if (handleType === "start") {
+      const clampedStart = Math.max(0, Math.min(targetPeriod.end_min - 1, newMin));
+      onPeriodUpdate(periodIndex, clampedStart, targetPeriod.end_min);
+    } else {
+      const clampedEnd = Math.max(targetPeriod.start_min + 1, Math.min(totalMins, newMin));
+      onPeriodUpdate(periodIndex, targetPeriod.start_min, clampedEnd);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!draggingHandle) return;
+
+    const onMouseMove = (e: MouseEvent) => handlePointerMove(e.clientX);
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches[0]) handlePointerMove(e.touches[0].clientX);
+    };
+
+    const onUp = () => setDraggingHandle(null);
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onTouchMove);
+    window.addEventListener("touchend", onUp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onUp);
+    };
+  }, [draggingHandle, periods, totalMins]);
+
   return (
-    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-xl">
+    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-xl select-none">
       <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800/80 pb-2.5">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -86,17 +138,17 @@ export function GpsTimelineChart({
           </div>
           <div>
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Timeline Colectivo de la Grabación Completa ({totalMins} min)
+              Timeline Colectivo ({totalMins} min) — ¡Arrastra las barras para ajustar!
             </h4>
             <p className="text-[11px] text-slate-400">
-              Media de Intensidad Colectiva (m/min) alineada por tiempo de reloj UTC (<code className="text-slate-300 font-mono text-[10px]">&lt;TIMEU&gt;</code>)
+              Mueve los delimitadores directamente en la gráfica para recortar el inicio y fin de cada parte.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 text-[10px] font-mono">
           <span className="flex items-center gap-1.5 text-slate-400">
-            <span className="w-2.5 h-0.5 bg-emerald-400 inline-block rounded" /> Intensidad Colectiva (m/min)
+            <span className="w-2.5 h-0.5 bg-emerald-400 inline-block rounded" /> Intensidad (m/min)
           </span>
           <span className="flex items-center gap-1.5 text-slate-400">
             <span className="w-2.5 h-2.5 bg-emerald-500/20 border border-emerald-500 inline-block rounded-xs" /> Periodo Activo
@@ -107,8 +159,9 @@ export function GpsTimelineChart({
       {/* SVG Chart */}
       <div className="relative w-full pt-2">
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          className="w-full h-auto max-h-64 drop-shadow-md select-none"
+          className="w-full h-auto max-h-64 drop-shadow-md select-none touch-none"
         >
           <defs>
             <linearGradient id="intensityGrad" x1="0" y1="0" x2="0" y2="1">
@@ -156,6 +209,9 @@ export function GpsTimelineChart({
             const endX = paddingX + (Math.min(totalMins, p.end_min) / totalMins) * drawableWidth;
             const width = Math.max(2, endX - startX);
 
+            const isDraggingStart = draggingHandle?.periodIndex === idx && draggingHandle?.handleType === "start";
+            const isDraggingEnd = draggingHandle?.periodIndex === idx && draggingHandle?.handleType === "end";
+
             return (
               <g key={idx}>
                 {/* Highlighted active period region */}
@@ -171,33 +227,91 @@ export function GpsTimelineChart({
                   rx="4"
                 />
 
-                {/* Period Start Line & Handle */}
-                <line
-                  x1={startX}
-                  y1={paddingTop - 12}
-                  x2={startX}
-                  y2={paddingTop + drawableHeight + 4}
-                  stroke={color.stroke}
-                  strokeWidth="2"
-                />
-                <circle cx={startX} cy={paddingTop - 12} r="4.5" fill={color.stroke} />
+                {/* Period Start Line & Draggable Handle */}
+                <g
+                  className="cursor-ew-resize group"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setDraggingHandle({ periodIndex: idx, handleType: "start" });
+                  }}
+                  onTouchStart={() => {
+                    setDraggingHandle({ periodIndex: idx, handleType: "start" });
+                  }}
+                >
+                  <line
+                    x1={startX}
+                    y1={paddingTop - 14}
+                    x2={startX}
+                    y2={paddingTop + drawableHeight + 4}
+                    stroke={color.stroke}
+                    strokeWidth={isDraggingStart ? "3.5" : "2.5"}
+                  />
+                  <circle
+                    cx={startX}
+                    cy={paddingTop - 14}
+                    r={isDraggingStart ? "6.5" : "5"}
+                    fill={color.stroke}
+                    stroke="#ffffff"
+                    strokeWidth="1.5"
+                  />
+                  <text
+                    x={startX}
+                    y={paddingTop - 22}
+                    fill="#38bdf8"
+                    fontSize="8"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    fontFamily="monospace"
+                  >
+                    {p.start_min.toFixed(1)}'
+                  </text>
+                </g>
 
-                {/* Period End Line & Handle */}
-                <line
-                  x1={endX}
-                  y1={paddingTop - 12}
-                  x2={endX}
-                  y2={paddingTop + drawableHeight + 4}
-                  stroke={color.stroke}
-                  strokeWidth="2"
-                />
-                <circle cx={endX} cy={paddingTop - 12} r="4.5" fill={color.stroke} />
+                {/* Period End Line & Draggable Handle */}
+                <g
+                  className="cursor-ew-resize group"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setDraggingHandle({ periodIndex: idx, handleType: "end" });
+                  }}
+                  onTouchStart={() => {
+                    setDraggingHandle({ periodIndex: idx, handleType: "end" });
+                  }}
+                >
+                  <line
+                    x1={endX}
+                    y1={paddingTop - 14}
+                    x2={endX}
+                    y2={paddingTop + drawableHeight + 4}
+                    stroke={color.stroke}
+                    strokeWidth={isDraggingEnd ? "3.5" : "2.5"}
+                  />
+                  <circle
+                    cx={endX}
+                    cy={paddingTop - 14}
+                    r={isDraggingEnd ? "6.5" : "5"}
+                    fill={color.stroke}
+                    stroke="#ffffff"
+                    strokeWidth="1.5"
+                  />
+                  <text
+                    x={endX}
+                    y={paddingTop - 22}
+                    fill="#38bdf8"
+                    fontSize="8"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    fontFamily="monospace"
+                  >
+                    {p.end_min.toFixed(1)}'
+                  </text>
+                </g>
 
                 {/* Period Name Badge */}
                 <rect
-                  x={startX + 6}
-                  y={paddingTop - 24}
-                  width={Math.min(70, width - 8)}
+                  x={startX + (width > 80 ? 6 : (width - 70) / 2)}
+                  y={paddingTop + 6}
+                  width={Math.min(70, Math.max(10, width - 8))}
                   height="16"
                   fill="#020617"
                   rx="4"
@@ -205,14 +319,15 @@ export function GpsTimelineChart({
                   strokeWidth="1"
                 />
                 <text
-                  x={startX + 10}
-                  y={paddingTop - 13}
+                  x={startX + (width > 80 ? 10 : width / 2)}
+                  y={paddingTop + 17}
                   fill="#ffffff"
                   fontSize="8.5"
                   fontWeight="bold"
+                  textAnchor={width > 80 ? "start" : "middle"}
                   fontFamily="sans-serif"
                 >
-                  {p.name}
+                  {p.name} ({(p.end_min - p.start_min).toFixed(0)} min)
                 </text>
               </g>
             );

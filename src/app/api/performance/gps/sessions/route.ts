@@ -351,3 +351,87 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const serverClient = await createServerClient();
+    const { data: { user } } = await serverClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
+    }
+
+    const orgId = await getOrgId(serverClient, user.id);
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: "Organización no encontrada" }, { status: 404 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const sessionId = searchParams.get("sessionId");
+    if (!sessionId) {
+      return NextResponse.json({ success: false, error: "sessionId es requerido" }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+
+    // Delete metrics and periods
+    await supabase.from("wimu_player_session_metrics").delete().eq("session_id", sessionId);
+    await supabase.from("session_trimmed_periods").delete().eq("session_id", sessionId);
+
+    // Delete session
+    const { error: dErr } = await supabase
+      .from("wimu_sessions")
+      .delete()
+      .eq("id", sessionId)
+      .eq("organization_id", orgId);
+
+    if (dErr) throw dErr;
+
+    return NextResponse.json({ success: true, message: "Sesión GPS eliminada correctamente." });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message || "Error al eliminar sesión GPS." }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const serverClient = await createServerClient();
+    const { data: { user } } = await serverClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
+    }
+
+    const orgId = await getOrgId(serverClient, user.id);
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: "Organización no encontrada" }, { status: 404 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const sessionId = searchParams.get("sessionId");
+    if (!sessionId) {
+      return NextResponse.json({ success: false, error: "sessionId es requerido" }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+    const body = await req.json();
+    const { session_date, session_type, notes } = body;
+
+    const updates: Record<string, any> = {};
+    if (session_date) updates.session_date = session_date;
+    if (session_type) updates.session_type = session_type;
+    if (notes !== undefined) updates.notes = notes;
+
+    const { data: updated, error: uErr } = await supabase
+      .from("wimu_sessions")
+      .update(updates)
+      .eq("id", sessionId)
+      .eq("organization_id", orgId)
+      .select()
+      .single();
+
+    if (uErr) throw uErr;
+
+    return NextResponse.json({ success: true, session: updated });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message || "Error al actualizar sesión." }, { status: 500 });
+  }
+}

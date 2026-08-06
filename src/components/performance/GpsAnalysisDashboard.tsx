@@ -16,7 +16,11 @@ import {
   Sliders,
   Sparkles,
   MapPin,
-  X
+  X,
+  Trash2,
+  Edit3,
+  GitCompare,
+  Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +42,17 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedPlayerDossier, setSelectedPlayerDossier] = useState<any | null>(null);
+
+  // Session Edit State
+  const [isEditingSession, setIsEditingSession] = useState(false);
+  const [editDate, setEditDate] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Player Comparison State
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const [comparePlayerIdA, setComparePlayerIdA] = useState<string>("");
+  const [comparePlayerIdB, setComparePlayerIdB] = useState<string>("");
 
   // Sorting state
   const [sortField, setSortField] = useState<"distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes">("distance_km");
@@ -206,11 +221,69 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     return sortDirection === "desc" ? valB - valA : valA - valB;
   });
 
+  const handleDeleteSession = async () => {
+    if (!selectedSessionId) return;
+    const sObj = sessions.find(s => s.id === selectedSessionId);
+    const dateLabel = sObj?.session_date || "seleccionada";
+    if (!confirm(`¿Estás seguro de que deseas eliminar la sesión GPS del ${dateLabel}? Esta acción borrará de forma permanente todos sus datos.`)) return;
+
+    try {
+      setIsLoading(true);
+      const res = await fetch(`/api/performance/gps/sessions?sessionId=${selectedSessionId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSessionDetail(null);
+        await loadSessionsData();
+      } else {
+        alert(data.error || "Error al eliminar la sesión.");
+      }
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenEditSession = () => {
+    if (!selectedSessionId) return;
+    const sObj = sessionDetail?.session || sessions.find(s => s.id === selectedSessionId);
+    if (sObj) {
+      setEditDate(sObj.session_date || "");
+      setEditNotes(sObj.notes || "");
+      setIsEditingSession(true);
+    }
+  };
+
+  const handleSaveEditSession = async () => {
+    if (!selectedSessionId) return;
+    try {
+      setIsSavingEdit(true);
+      const res = await fetch(`/api/performance/gps/sessions?sessionId=${selectedSessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_date: editDate, notes: editNotes }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsEditingSession(false);
+        await loadSessionsData(selectedSessionId);
+      } else {
+        alert(data.error || "Error al guardar cambios.");
+      }
+    } catch (err) {
+      console.error("Failed to edit session:", err);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   return (
     <div className="space-y-6 text-slate-100">
       {/* Top Session Bar & CTA Minimalista */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="p-2.5 rounded-xl bg-slate-800 text-slate-200 border border-slate-700">
             <Calendar className="size-4" />
           </div>
@@ -221,7 +294,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
             <select
               value={selectedSessionId}
               onChange={(e) => handleSessionChange(e.target.value)}
-              className="bg-slate-950 text-white font-bold text-xs rounded-xl border border-slate-800 px-3 py-1.5 focus:outline-none focus:border-slate-700"
+              className="bg-slate-950 text-white font-bold text-xs rounded-xl border border-slate-800 px-3 py-1.5 focus:outline-none focus:border-slate-700 max-w-xs sm:max-w-md truncate"
             >
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -233,14 +306,55 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenImportModal}
-          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
-        >
-          <Activity className="size-4" />
-          <span>+ Importar Datos GPS</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedSessionId && (
+            <>
+              <button
+                type="button"
+                onClick={handleOpenEditSession}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Editar fecha o notas de esta sesión"
+              >
+                <Edit3 className="size-3.5 text-sky-400" />
+                <span>Editar Fecha / Notas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteSession}
+                className="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-bold text-xs border border-rose-800/50 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Eliminar esta sesión permanentemente"
+              >
+                <Trash2 className="size-3.5 text-rose-400" />
+                <span>Eliminar Sesión</span>
+              </button>
+
+              {activeMetrics.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComparePlayerIdA(activeMetrics[0]?.player_id || "");
+                    setComparePlayerIdB(activeMetrics[1]?.player_id || "");
+                    setIsCompareModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-extrabold text-xs border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <GitCompare className="size-3.5 text-emerald-400" />
+                  <span>Comparar Futbolistas</span>
+                </button>
+              )}
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={onOpenImportModal}
+            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
+          >
+            <Activity className="size-4" />
+            <span>+ Importar Datos GPS</span>
+          </button>
+        </div>
       </div>
 
       {/* Highlights Destacados del Partido */}
@@ -614,6 +728,173 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold text-xs hover:bg-slate-700 transition-colors"
               >
                 Cerrar Dossier
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: EDITAR SESIÓN ── */}
+      {isEditingSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Edit3 className="size-4 text-sky-400" /> Editar Datos de Sesión
+              </h3>
+              <button type="button" onClick={() => setIsEditingSession(false)} className="text-slate-400 hover:text-white">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-300 uppercase text-[10px] mb-1">Fecha del Partido / Sesión</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-slate-700"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 uppercase text-[10px] mb-1">Notas / Nombre Rival</label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Ej. Partido vs SD Almazán"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-slate-700"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsEditingSession(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditSession}
+                disabled={isSavingEdit}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSavingEdit ? "Guardando..." : "Guardar Cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: COMPARAR FUTBOLISTAS (JUGADOR A VS JUGADOR B) ── */}
+      {isCompareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 shadow-2xl text-white max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <GitCompare className="size-4 text-emerald-400" /> Comparativa Directa entre Futbolistas
+              </h3>
+              <button type="button" onClick={() => setIsCompareModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Selectors */}
+            <div className="grid grid-cols-2 gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">Futbolista A</label>
+                <select
+                  value={comparePlayerIdA}
+                  onChange={(e) => setComparePlayerIdA(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold text-xs"
+                >
+                  {activeMetrics.map((m) => (
+                    <option key={m.player_id} value={m.player_id}>
+                      {m.players ? (m.players.sporting_name || `${m.players.first_name} ${m.players.last_name}`) : "Futbolista"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-sky-400 block mb-1">Futbolista B</label>
+                <select
+                  value={comparePlayerIdB}
+                  onChange={(e) => setComparePlayerIdB(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold text-xs"
+                >
+                  {activeMetrics.map((m) => (
+                    <option key={m.player_id} value={m.player_id}>
+                      {m.players ? (m.players.sporting_name || `${m.players.first_name} ${m.players.last_name}`) : "Futbolista"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Comparison Metrics Side by Side */}
+            {(() => {
+              const pA = activeMetrics.find((m) => m.player_id === comparePlayerIdA) || activeMetrics[0];
+              const pB = activeMetrics.find((m) => m.player_id === comparePlayerIdB) || activeMetrics[1] || activeMetrics[0];
+
+              if (!pA || !pB) return null;
+
+              const pAName = pA.players ? (pA.players.sporting_name || `${pA.players.first_name} ${pA.players.last_name}`) : "Futbolista A";
+              const pBName = pB.players ? (pB.players.sporting_name || `${pB.players.first_name} ${pB.players.last_name}`) : "Futbolista B";
+
+              const compMetrics = [
+                { label: "Minutos Jugados", valA: pA.played_minutes || 90, valB: pB.played_minutes || 90, unit: "min" },
+                { label: "Distancia Total", valA: pA.distance_km || 0, valB: pB.distance_km || 0, unit: "km" },
+                { label: "Alta Intensidad HSR (>19.8 km/h)", valA: pA.hsr_m || 0, valB: pB.hsr_m || 0, unit: "m" },
+                { label: "Conteo Sprints (>25.2 km/h)", valA: pA.sprints_count || 0, valB: pB.sprints_count || 0, unit: "acc" },
+                { label: "Velocidad Máxima", valA: pA.max_speed_kmh || 0, valB: pB.max_speed_kmh || 0, unit: "km/h" },
+                { label: "Player Load / min", valA: pA.player_load_min || 0, valB: pB.player_load_min || 0, unit: "PL/m" },
+                { label: "Aceleraciones (>3 m/s²)", valA: pA.accelerations || 0, valB: pB.accelerations || 0, unit: "acc" },
+                { label: "Desaceleraciones (<-3 m/s²)", valA: pA.decelerations || 0, valB: pB.decelerations || 0, unit: "dec" },
+              ];
+
+              return (
+                <div className="space-y-3 font-mono">
+                  {compMetrics.map((cm, idx) => {
+                    const maxVal = Math.max(0.1, cm.valA, cm.valB);
+                    const pctA = Math.min(100, Math.round((cm.valA / maxVal) * 100));
+                    const pctB = Math.min(100, Math.round((cm.valB / maxVal) * 100));
+
+                    return (
+                      <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                        <div className="flex justify-between text-xs font-sans">
+                          <span className="font-bold text-emerald-400">{cm.valA} {cm.unit} ({pAName})</span>
+                          <span className="font-bold text-slate-300 uppercase text-[10px]">{cm.label}</span>
+                          <span className="font-bold text-sky-400">{cm.valB} {cm.unit} ({pBName})</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-slate-900 rounded-full h-2 overflow-hidden flex justify-end">
+                            <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${pctA}%` }} />
+                          </div>
+                          <div className="w-px h-3 bg-slate-700 shrink-0" />
+                          <div className="flex-1 bg-slate-900 rounded-full h-2 overflow-hidden">
+                            <div className="bg-sky-400 h-full rounded-full transition-all" style={{ width: `${pctB}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsCompareModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold text-xs hover:bg-slate-700"
+              >
+                Cerrar Comparativa
               </button>
             </div>
           </div>
