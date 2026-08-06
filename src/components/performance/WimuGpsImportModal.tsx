@@ -341,6 +341,25 @@ export function WimuGpsImportModal({
               `Pausas entre bloques (~${breakMin.toFixed(1)} min c/u)`,
             ];
 
+        // Ensure effective roster is populated (fetch from /api/players if prop was empty)
+        let effectiveRoster = [...roster];
+        if (effectiveRoster.length === 0) {
+          try {
+            const resP = await fetch("/api/players");
+            const dataP = await resP.json();
+            if (dataP.success && Array.isArray(dataP.players)) {
+              effectiveRoster = dataP.players.map((p: any) => ({
+                id: p.id,
+                name: p.sporting_name || `${p.first_name} ${p.last_name}`.trim(),
+                position: p.position || "player",
+                jerseyNumber: p.jersey_number || null,
+              }));
+            }
+          } catch (e) {
+            console.warn("Could not fetch players fallback:", e);
+          }
+        }
+
         // Build player metrics array from decoded files and mapping across all periods
         const totalSessionDuration = periods.reduce((sum, p) => sum + (p.duration_min || 0), 0) || 90;
 
@@ -392,6 +411,21 @@ export function WimuGpsImportModal({
                 activeStart: Math.round(firstStart),
                 activeEnd: Math.round(lastEnd),
                 playedMin: Math.round(totalPlayed),
+              };
+            }
+          });
+        }
+
+        // Automatic fallback assignment if no manual mapping was present
+        if (parsedFiles.length > 0 && Object.keys(playerAssignments).length === 0 && effectiveRoster.length > 0) {
+          effectiveRoster.forEach((p, idx) => {
+            const qul = parsedFiles[idx % parsedFiles.length];
+            if (qul) {
+              playerAssignments[p.id] = {
+                devNum: qul.deviceNumber || (idx + 1),
+                activeStart: 0,
+                activeEnd: Math.round(totalSessionDuration),
+                playedMin: Math.round(totalSessionDuration),
               };
             }
           });

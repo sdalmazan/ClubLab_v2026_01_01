@@ -54,16 +54,34 @@ export async function GET(req: Request) {
         .eq("session_id", sessionId)
         .order("start_min", { ascending: true });
 
-      const { data: metrics } = await supabase
+      const { data: rawMetrics } = await supabase
         .from("wimu_player_session_metrics")
-        .select("*, players(id, first_name, last_name, sporting_name, jersey_number, membership)")
+        .select("*")
         .eq("session_id", sessionId);
+
+      let metrics: any[] = rawMetrics || [];
+
+      if (metrics.length > 0) {
+        const pIds = metrics.map((m: any) => m.player_id).filter(Boolean);
+        if (pIds.length > 0) {
+          const { data: playersList } = await supabase
+            .from("players")
+            .select("id, first_name, last_name, sporting_name, jersey_number")
+            .in("id", pIds);
+
+          const pMap = new Map((playersList || []).map((p: any) => [p.id, p]));
+          metrics = metrics.map((m: any) => ({
+            ...m,
+            players: pMap.get(m.player_id) || null,
+          }));
+        }
+      }
 
       return NextResponse.json({
         success: true,
         session,
         periods:  periods || [],
-        metrics:  metrics || [],
+        metrics,
       });
     }
 
