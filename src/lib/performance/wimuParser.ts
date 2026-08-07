@@ -413,8 +413,23 @@ export function normalizePitchGeometry(
   isPeriod2: boolean = false,
   attackerAttacksPositiveX: boolean = true
 ): SpatialGeometryResult {
-  const p1 = corners?.p1 || [40.453521, -3.688972];
-  const p2 = corners?.p2 || [40.452587, -3.687717];
+  const parseNum = (v: any, fallback: number) => {
+    if (typeof v === "number" && !isNaN(v)) return v;
+    if (typeof v === "string") {
+      const parsed = parseFloat(v.trim().replace(",", "."));
+      if (!isNaN(parsed)) return parsed;
+    }
+    return fallback;
+  };
+
+  const p1: [number, number] = [
+    parseNum(corners?.p1?.[0], 40.453521),
+    parseNum(corners?.p1?.[1], -3.688972),
+  ];
+  const p2: [number, number] = [
+    parseNum(corners?.p2?.[0], 40.452587),
+    parseNum(corners?.p2?.[1], -3.687717),
+  ];
 
   const latC = (p1[0] + p2[0]) / 2;
   const lonC = (p1[1] + p2[1]) / 2;
@@ -424,8 +439,10 @@ export function normalizePitchGeometry(
   const corner1M = [(p1[1] - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad), (p1[0] - latC) * (Math.PI / 180) * earthR];
   const corner2M = [(p2[1] - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad), (p2[0] - latC) * (Math.PI / 180) * earthR];
 
-  const lengthM = Math.max(90, Math.abs(corner2M[0] - corner1M[0]));
-  const widthM = Math.max(45, Math.abs(corner2M[1] - corner1M[1]));
+  const dX = Math.abs(corner2M[0] - corner1M[0]);
+  const dY = Math.abs(corner2M[1] - corner1M[1]);
+  const lengthM = Math.max(90, Math.max(dX, dY));
+  const widthM = Math.max(45, Math.min(dX, dY));
 
   const thetaDeg = 24.37;
   const rad = (-thetaDeg * Math.PI) / 180;

@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { POSITION_LABELS, type PositionKey, NATIONALITY_TO_COUNTRY_CODE } from "@/types";
 import { TalksManagerCard } from "@/components/talks/TalksManagerCard";
+import { PlayerFatControlTab } from "./PlayerFatControlTab";
 
 interface PlayerProfileWorkspaceProps {
   player: any;
@@ -62,7 +63,7 @@ export function PlayerProfileWorkspace({
   tasks = [],
   userRole,
 }: PlayerProfileWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "gps" | "health" | "evaluations" | "wellness">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "gps" | "wellness" | "fat_control" | "health" | "evaluations">("overview");
   const [historyCheckins, setHistoryCheckins] = useState<any[]>([]);
   const [historyRpe, setHistoryRpe] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -294,6 +295,18 @@ export function PlayerProfileWorkspace({
           )}
         >
           <span>📊 Histórico Check-in & RPE</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("fat_control")}
+          className={cn(
+            "rounded px-3 py-1.5 text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5",
+            activeTab === "fat_control"
+              ? "bg-primary text-primary-foreground font-semibold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <span>⚖️ Grasa & Antropometría</span>
         </button>
         <button
           type="button"
@@ -711,6 +724,11 @@ export function PlayerProfileWorkspace({
             )}
           </div>
         </div>
+      )}
+
+      {/* TAB 5: FAT CONTROL & ANTHROPOMETRY */}
+      {activeTab === "fat_control" && (
+        <PlayerFatControlTab player={player} />
       )}
 
       {/* ── TALKS & MEETINGS MANAGER (COACH VIEW) ── */}

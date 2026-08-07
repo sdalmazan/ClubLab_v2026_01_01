@@ -19,6 +19,7 @@ import {
   HeartPulse,
   MapPin,
   Compass,
+  Scale,
 } from "lucide-react";
 
 interface PhysicalTestItem {
@@ -50,10 +51,15 @@ export function PerformanceSettingsTab() {
   const [pitchP2Lat, setPitchP2Lat] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lat") || "40.452587" : "40.452587"));
   const [pitchP2Lon, setPitchP2Lon] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lon") || "-3.687717" : "-3.687717"));
 
-  const p1LatN = parseFloat(pitchP1Lat);
-  const p1LonN = parseFloat(pitchP1Lon);
-  const p2LatN = parseFloat(pitchP2Lat);
-  const p2LonN = parseFloat(pitchP2Lon);
+  const parseCoordStr = (val: string | number) => {
+    if (val === null || val === undefined) return NaN;
+    return parseFloat(String(val).trim().replace(",", "."));
+  };
+
+  const p1LatN = parseCoordStr(pitchP1Lat);
+  const p1LonN = parseCoordStr(pitchP1Lon);
+  const p2LatN = parseCoordStr(pitchP2Lat);
+  const p2LonN = parseCoordStr(pitchP2Lon);
   const hasValidCorners = !isNaN(p1LatN) && !isNaN(p1LonN) && !isNaN(p2LatN) && !isNaN(p2LonN);
 
   let computedLengthM = 0;
@@ -63,12 +69,12 @@ export function PerformanceSettingsTab() {
     const lonC = (p1LonN + p2LonN) / 2;
     const earthR = 6371000;
     const latCRad = (latC * Math.PI) / 180;
-    const c1x = (p1LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
-    const c1y = (p1LatN - latC) * (Math.PI / 180) * earthR;
-    const c2x = (p2LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
-    const c2y = (p2LatN - latC) * (Math.PI / 180) * earthR;
-    computedLengthM = Math.round(Math.abs(c2x - c1x) * 10) / 10;
-    computedWidthM = Math.round(Math.abs(c2y - c1y) * 10) / 10;
+    const dLonM = (p2LonN - p1LonN) * (Math.PI / 180) * earthR * Math.cos(latCRad);
+    const dLatM = (p2LatN - p1LatN) * (Math.PI / 180) * earthR;
+    const absLonM = Math.abs(dLonM);
+    const absLatM = Math.abs(dLatM);
+    computedLengthM = Math.round(Math.max(absLonM, absLatM) * 10) / 10;
+    computedWidthM = Math.round(Math.min(absLonM, absLatM) * 10) / 10;
   }
   
   // Physical Tests State
@@ -85,13 +91,35 @@ export function PerformanceSettingsTab() {
   const [newTestDescription, setNewTestDescription] = useState("");
   const [submittingTest, setSubmittingTest] = useState(false);
 
+  // Body Fat & ISAK Skinfolds Settings State
+  const [activeSkinfolds, setActiveSkinfolds] = useState<string[]>([
+    "triceps", "subescapular", "biceps", "abdominal", "iliaco", "pierna"
+  ]);
+  const [targetFatMin, setTargetFatMin] = useState<number>(8.0);
+  const [targetFatMax, setTargetFatMax] = useState<number>(12.0);
+
   const [saved, setSaved] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     loadPhysicalTests();
     loadGpsPreference();
+    loadBodyFatSettings();
   }, []);
+
+  async function loadBodyFatSettings() {
+    try {
+      const res = await fetch("/api/performance/body-fat/settings");
+      const data = await res.json();
+      if (res.ok && data) {
+        if (data.active_skinfolds) setActiveSkinfolds(data.active_skinfolds);
+        if (data.target_fat_min != null) setTargetFatMin(Number(data.target_fat_min));
+        if (data.target_fat_max != null) setTargetFatMax(Number(data.target_fat_max));
+      }
+    } catch (err) {
+      console.error("Error loading body fat settings:", err);
+    }
+  }
 
   async function loadGpsPreference() {
     try {
@@ -253,6 +281,21 @@ export function PerformanceSettingsTab() {
       localStorage.setItem("cl_pitch_p2_lat", pitchP2Lat);
       localStorage.setItem("cl_pitch_p2_lon", pitchP2Lon);
     }
+
+    try {
+      await fetch("/api/performance/body-fat/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          active_skinfolds: activeSkinfolds,
+          target_fat_min: targetFatMin,
+          target_fat_max: targetFatMax,
+        }),
+      });
+    } catch (err) {
+      console.error("Error saving body fat settings:", err);
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -332,6 +375,88 @@ export function PerformanceSettingsTab() {
                 <option value={20}>20 minutos</option>
                 <option value={30}>30 minutos</option>
               </select>
+            </div>
+          </div>
+
+          {/* Configuración de Control de Grasa & Pliegues ISAK Medidos */}
+          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Scale className="h-4 w-4 text-emerald-400" />
+                Pliegues Cutáneos Medidos (ISAK) & Objetivos
+              </h3>
+              <span className="text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                Antropometría
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Selecciona cuáles de los 6 pliegues cutáneos estándar mide tu cuerpo técnico en las evaluaciones antropométricas del club:
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {[
+                { key: "triceps", label: "TRICEPS (Tricipital)" },
+                { key: "subescapular", label: "SUBES. (Subescapular)" },
+                { key: "biceps", label: "BICEPS (Bicipital)" },
+                { key: "abdominal", label: "ABDO. (Abdominal)" },
+                { key: "iliaco", label: "ILIACO (Suprailíaco)" },
+                { key: "pierna", label: "PIER. (Pierna / Gemelo)" },
+              ].map((item) => {
+                const isChecked = activeSkinfolds.includes(item.key);
+                return (
+                  <label
+                    key={item.key}
+                    className={`flex items-center gap-2 rounded-xl border p-2.5 transition-all cursor-pointer ${
+                      isChecked
+                        ? "border-emerald-500/40 bg-slate-950/80 text-white font-semibold"
+                        : "border-white/5 bg-slate-950/30 text-slate-400"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setActiveSkinfolds([...activeSkinfolds, item.key]);
+                        } else {
+                          setActiveSkinfolds(activeSkinfolds.filter((k) => k !== item.key));
+                        }
+                      }}
+                      className="rounded border-slate-700 bg-slate-900 text-emerald-500 h-4 w-4"
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                  % Grasa Mínimo Objetivo
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={targetFatMin}
+                  onChange={(e) => setTargetFatMin(Number(e.target.value))}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                  % Grasa Máximo Objetivo
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={targetFatMax}
+                  onChange={(e) => setTargetFatMax(Number(e.target.value))}
+                  className="w-full rounded-xl bg-slate-950 border border-white/10 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
             </div>
           </div>
 

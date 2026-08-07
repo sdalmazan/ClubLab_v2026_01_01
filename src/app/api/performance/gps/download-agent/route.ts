@@ -49,10 +49,23 @@ class SpatialGeometryEngine:
     EARTH_RADIUS_M = 6371000.0
 
     def __init__(self, p1_gps=(40.453521, -3.688972), p2_gps=(40.452587, -3.687717)):
-        self.p1_gps = p1_gps
-        self.p2_gps = p2_gps
-        self.lat_c = (p1_gps[0] + p2_gps[0]) / 2.0
-        self.lon_c = (p1_gps[1] + p2_gps[1]) / 2.0
+        def _parse(val, fallback):
+            try:
+                if isinstance(val, str):
+                    return float(val.strip().replace(',', '.'))
+                return float(val)
+            except Exception:
+                return fallback
+
+        p1_lat = _parse(p1_gps[0], 40.453521)
+        p1_lon = _parse(p1_gps[1], -3.688972)
+        p2_lat = _parse(p2_gps[0], 40.452587)
+        p2_lon = _parse(p2_gps[1], -3.687717)
+
+        self.p1_gps = (p1_lat, p1_lon)
+        self.p2_gps = (p2_lat, p2_lon)
+        self.lat_c = (p1_lat + p2_lat) / 2.0
+        self.lon_c = (p1_lon + p2_lon) / 2.0
         self.theta_deg = 0.0
         self.length = 105.0
         self.width = 68.0

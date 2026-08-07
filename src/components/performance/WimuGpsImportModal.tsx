@@ -952,22 +952,23 @@ export function WimuGpsImportModal({
                     </div>
 
                     {(() => {
-                      const p1LatN = parseFloat(customP1Lat);
-                      const p1LonN = parseFloat(customP1Lon);
-                      const p2LatN = parseFloat(customP2Lat);
-                      const p2LonN = parseFloat(customP2Lon);
+                      const parseC = (v: string) => parseFloat(String(v || "").trim().replace(",", "."));
+                      const p1LatN = parseC(customP1Lat);
+                      const p1LonN = parseC(customP1Lon);
+                      const p2LatN = parseC(customP2Lat);
+                      const p2LonN = parseC(customP2Lon);
                       const valid = !isNaN(p1LatN) && !isNaN(p1LonN) && !isNaN(p2LatN) && !isNaN(p2LonN);
                       if (!valid) return null;
                       const latC = (p1LatN + p2LatN) / 2;
                       const lonC = (p1LonN + p2LonN) / 2;
                       const earthR = 6371000;
                       const latCRad = (latC * Math.PI) / 180;
-                      const c1x = (p1LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
-                      const c1y = (p1LatN - latC) * (Math.PI / 180) * earthR;
-                      const c2x = (p2LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
-                      const c2y = (p2LatN - latC) * (Math.PI / 180) * earthR;
-                      const lenM = Math.round(Math.abs(c2x - c1x) * 10) / 10;
-                      const widM = Math.round(Math.abs(c2y - c1y) * 10) / 10;
+                      const dLonM = (p2LonN - p1LonN) * (Math.PI / 180) * earthR * Math.cos(latCRad);
+                      const dLatM = (p2LatN - p1LatN) * (Math.PI / 180) * earthR;
+                      const absLonM = Math.abs(dLonM);
+                      const absLatM = Math.abs(dLatM);
+                      const lenM = Math.round(Math.max(absLonM, absLatM) * 10) / 10;
+                      const widM = Math.round(Math.min(absLonM, absLatM) * 10) / 10;
                       const inRange = lenM >= 80 && lenM <= 125 && widM >= 45 && widM <= 90;
                       return (
                         <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
