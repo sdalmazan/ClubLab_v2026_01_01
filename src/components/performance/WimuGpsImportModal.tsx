@@ -103,6 +103,42 @@ export function WimuGpsImportModal({
     "Bloque 2": {},
   });
 
+  // Pre-cargar números de chaleco GPS guardados para cada jugador
+  useEffect(() => {
+    if (!isOpen) return;
+    const loadSavedGpsMapping = async () => {
+      try {
+        const res = await fetch("/api/performance/gps/sessions");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.sessions) && data.sessions.length > 0) {
+          const latestSessionWithMetrics = data.sessions.find((s: any) => (s.metrics_count || 0) > 0) || data.sessions[0];
+          if (!latestSessionWithMetrics) return;
+          const detailRes = await fetch(`/api/performance/gps/sessions?sessionId=${latestSessionWithMetrics.id}`);
+          const detailData = await detailRes.json();
+          if (detailData.success && Array.isArray(detailData.metrics)) {
+            const savedMap: Record<string, string> = {};
+            detailData.metrics.forEach((m: any) => {
+              if (m.player_id && m.gps_device_number) {
+                savedMap[m.player_id] = String(m.gps_device_number);
+              }
+            });
+            if (Object.keys(savedMap).length > 0) {
+              setBlockGpsMapping(prev => ({
+                ...prev,
+                Global: { ...savedMap, ...prev.Global },
+                "1ª Parte": { ...savedMap, ...prev["1ª Parte"] },
+                "2ª Parte": { ...savedMap, ...prev["2ª Parte"] },
+              }));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not pre-load saved GPS mapping:", err);
+      }
+    };
+    loadSavedGpsMapping();
+  }, [isOpen]);
+
   // Trimmer Engine & decoded metrics result from API
   const [trimmerData, setTrimmerData] = useState<{
     session_type: string;
