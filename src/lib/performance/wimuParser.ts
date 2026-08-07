@@ -405,7 +405,7 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   // ── Generar serie Doppler instantánea (10 Hz) calibrada con WIMU Oficial ──
   const totalSamples = Math.max(600, Math.round(durationMin * 60 * 10));
   const rawVelocitiesMs: number[] = [];
-  const isGoalkeeper = filename.toLowerCase().includes("gk") || filename.toLowerCase().includes("por") || deviceNumber === 1 || deviceNumber === 13;
+  const isGoalkeeper = filename.toLowerCase().includes("gk") || filename.toLowerCase().includes("por");
   const vmaxPlayer = isGoalkeeper 
     ? Math.round((22.0 + pseudoRandom(4) * 3.5) * 10) / 10
     : Math.round((28.5 + pseudoRandom(4) * 5.8) * 10) / 10;
