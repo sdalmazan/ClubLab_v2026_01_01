@@ -471,9 +471,9 @@ export function WimuGpsImportModal({
               const qul = parsedFiles[idx % numQuls];
               playerAssignments[p.id] = {
                 devNum: qul.deviceNumber || (idx + 1),
-                activeStart: Math.round(p.start_min || 0),
-                activeEnd: Math.round(p.end_min || 45),
-                playedMin: Math.round(p.duration_min || 45),
+                activeStart: Math.round(p1?.start_min || 0),
+                activeEnd: Math.round(p1?.end_min || 45),
+                playedMin: Math.round(p1?.duration_min || 45),
               };
             });
 
@@ -484,9 +484,9 @@ export function WimuGpsImportModal({
               const qul = parsedFiles[idx % numQuls];
               playerAssignments[p.id] = {
                 devNum: qul.deviceNumber || (idx + 1),
-                activeStart: Math.round(p2.start_min || 45),
-                activeEnd: Math.round(p2.end_min || 90),
-                playedMin: Math.round(p2.duration_min || 45),
+                activeStart: Math.round(p2?.start_min || 45),
+                activeEnd: Math.round(p2?.end_min || 90),
+                playedMin: Math.round(p2?.duration_min || 45),
               };
             });
           } else {
