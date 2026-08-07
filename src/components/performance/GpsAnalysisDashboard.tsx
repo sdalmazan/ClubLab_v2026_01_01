@@ -43,11 +43,13 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
   const [search, setSearch] = useState("");
   const [selectedPlayerDossier, setSelectedPlayerDossier] = useState<any | null>(null);
 
-  // Session Edit State
+  // Session Edit & Delete State
   const [isEditingSession, setIsEditingSession] = useState(false);
   const [editDate, setEditDate] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Player Comparison State
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
@@ -371,19 +373,21 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     return sortDirection === "desc" ? valB - valA : valA - valB;
   });
 
-  const handleDeleteSession = async () => {
+  const handleDeleteSession = () => {
     if (!selectedSessionId) return;
-    const sObj = sessions.find(s => s.id === selectedSessionId);
-    const dateLabel = sObj?.session_date || "seleccionada";
-    if (!confirm(`¿Estás seguro de que deseas eliminar la sesión GPS del ${dateLabel}? Esta acción borrará de forma permanente todos sus datos.`)) return;
+    setIsDeleteConfirmOpen(true);
+  };
 
+  const handleConfirmDeleteSession = async () => {
+    if (!selectedSessionId) return;
     try {
-      setIsLoading(true);
+      setIsDeleting(true);
       const res = await fetch(`/api/performance/gps/sessions?sessionId=${selectedSessionId}`, {
         method: "DELETE",
       });
       const data = await res.json();
       if (data.success) {
+        setIsDeleteConfirmOpen(false);
         setSessionDetail(null);
         await loadSessionsData();
       } else {
@@ -392,7 +396,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     } catch (err) {
       console.error("Failed to delete session:", err);
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -1149,6 +1153,60 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 {isSavingEdit ? "Guardando..." : "Guardar Cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CONFIRMAR ELIMINACIÓN DE SESIÓN (ESTÉTICA CLUBLAB) ── */}
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-rose-800/60 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl text-white">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <Trash2 className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">
+                  ¿Eliminar Sesión GPS?
+                </h3>
+                <p className="text-xs text-rose-300/80">
+                  Esta acción es irreversible y borrará permanentemente todos los datos.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2 font-mono text-xs">
+              <div className="flex justify-between text-slate-300">
+                <span>Partido / Sesión:</span>
+                <strong className="text-white font-sans">{sessionDetail?.session?.notes || "Sesión GPS"}</strong>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>Fecha:</span>
+                <strong className="text-white">{sessionDetail?.session?.session_date || "—"}</strong>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>Futbolistas analizados:</span>
+                <strong className="text-rose-400">{activeMetrics.length} futbolistas</strong>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteSession}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                {isDeleting ? "Eliminando..." : "Sí, Eliminar Permanentemente"}
               </button>
             </div>
           </div>
