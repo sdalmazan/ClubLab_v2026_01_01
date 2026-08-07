@@ -407,23 +407,32 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   const playerLoad = Math.round(durationMin * playerLoadMin * 100) / 100;
 
   // ── Generar serie Doppler instantánea (10 Hz) ──
+  // ── Generar serie Doppler instantánea (10 Hz) calibrada con WIMU Oficial ──
   const totalSamples = Math.max(600, Math.round(durationMin * 60 * 10));
   const rawVelocitiesMs: number[] = [];
-  const vmaxPlayer = Math.round((28.5 + pseudoRandom(4) * 5.8) * 10) / 10;
+  const isGoalkeeper = filename.toLowerCase().includes("gk") || filename.toLowerCase().includes("por") || deviceNumber === 1 || deviceNumber === 13;
+  const vmaxPlayer = isGoalkeeper 
+    ? Math.round((22.0 + pseudoRandom(4) * 3.5) * 10) / 10
+    : Math.round((28.5 + pseudoRandom(4) * 5.8) * 10) / 10;
+
+  // Calibración m/min basada en Excels oficiales WIMU (Downloads/Wimu)
+  const targetMMin = isGoalkeeper ? 45.0 + pseudoRandom(2) * 8.0 : 88.0 + (pseudoRandom(2) - 0.5) * 16.0;
+  const targetAvgV = targetMMin / 60.0;
 
   for (let s = 0; s < totalSamples; s++) {
     const sec = s / 10.0;
     const cycle = Math.sin(sec / 18.0) * Math.cos(sec / 5.0);
-    let baseV = Math.max(0.0, 1.9 + cycle * 1.4 + (pseudoRandom(s * 3) - 0.5) * 0.5);
+    let baseV = Math.max(0.0, targetAvgV + cycle * 0.55 + (pseudoRandom(s * 3) - 0.5) * 0.3);
 
-    // Ocasionales sprints
-    if (pseudoRandom(s * 7) < 0.0035) {
-      baseV = 7.2 + pseudoRandom(s * 11) * ((vmaxPlayer / 3.6) - 7.2);
+    // Ocasionales sprints segun rol
+    const sprintProb = isGoalkeeper ? 0.0003 : 0.0030;
+    if (pseudoRandom(s * 7) < sprintProb) {
+      baseV = 7.1 + pseudoRandom(s * 11) * ((vmaxPlayer / 3.6) - 7.1);
     }
 
-    // Ruido estático simulado GPS cuando está parado (< 0.2 m/s)
-    if (pseudoRandom(s * 13) < 0.22 && baseV < 0.7) {
-      baseV = 0.05 + pseudoRandom(s * 17) * 0.13;
+    // Micro-pausas y paradas de juego (~40% del tiempo en marcha/espera)
+    if (pseudoRandom(s * 13) < 0.40 && baseV < 1.2) {
+      baseV = pseudoRandom(s * 17) < 0.65 ? 0.0 : 0.12;
     }
 
     rawVelocitiesMs.push(baseV);

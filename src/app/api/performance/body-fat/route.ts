@@ -154,12 +154,12 @@ export async function POST(request: Request) {
     // ISAK Sumatorio (6 pliegues)
     const sumatorio = Math.round((tri + sub + bic + abd + ili + pie) * 100) / 100;
 
-    // Yuhasz Formula: % Grasa = 0.1051 * Sumatorio + 2.585
-    const fat6 = Math.round((0.1051 * sumatorio + 2.585) * 100) / 100;
+    // Yuhasz Formula: % Grasa = 0.1051 * Sumatorio + 2.58
+    const fat6 = Math.round((0.1051 * sumatorio + 2.58) * 100) / 100;
 
     // 4 Pliegues Sum (Tríceps + Subescapular + Abdominal + Ilíaco)
     const sum4 = Math.round((tri + sub + abd + ili) * 100) / 100;
-    const fat4 = Math.round((0.1051 * sum4 + 2.585) * 100) / 100;
+    const fat4 = Math.round((0.1051 * sum4 + 2.58) * 100) / 100;
 
     const recordDate = date || new Date().toISOString().split("T")[0];
 

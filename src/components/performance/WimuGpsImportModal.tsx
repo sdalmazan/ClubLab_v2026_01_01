@@ -97,7 +97,9 @@ export function WimuGpsImportModal({
   // GPS mapping { blockKey: { playerId: gpsNumber } }
   const [blockGpsMapping, setBlockGpsMapping] = useState<Record<string, Record<string, string>>>(() => {
     const init: Record<string, string> = {};
-    roster.forEach((p, idx) => { init[p.id] = String(p.jerseyNumber || idx + 1); });
+    roster.forEach((p) => { 
+      if (p.jerseyNumber) init[p.id] = String(p.jerseyNumber); 
+    });
     return { Global: init, "1ª Parte": { ...init }, "2ª Parte": {}, "Bloque 1": { ...init }, "Bloque 2": {} };
   });
 
@@ -105,8 +107,8 @@ export function WimuGpsImportModal({
     if (roster && roster.length > 0) {
       setBlockGpsMapping((prev) => {
         const init: Record<string, string> = {};
-        roster.forEach((p, idx) => {
-          init[p.id] = String(p.jerseyNumber || idx + 1);
+        roster.forEach((p) => {
+          if (p.jerseyNumber) init[p.id] = String(p.jerseyNumber);
         });
         return {
           Global: { ...init, ...(prev.Global || {}) },
@@ -469,20 +471,21 @@ export function WimuGpsImportModal({
           });
         }
 
-        // Ensure every squad player has a valid assignment for parsed .qul files
+        // Match squad players with parsed .qul files ONLY if there is an explicit device number match
         if (parsedFiles.length > 0 && effectiveRoster.length > 0) {
           effectiveRoster.forEach((p, idx) => {
             if (!playerAssignments[p.id]) {
-              const targetNum = p.jerseyNumber || (idx + 1);
-              const matchedQul = parsedFiles.find(f => f.deviceNumber === targetNum);
-              const qul = matchedQul || parsedFiles[idx % parsedFiles.length];
-              if (qul) {
-                playerAssignments[p.id] = {
-                  devNum: qul.deviceNumber || targetNum,
-                  activeStart: 0,
-                  activeEnd: Math.round(totalSessionDuration),
-                  playedMin: Math.round(totalSessionDuration),
-                };
+              const targetNum = p.jerseyNumber;
+              if (targetNum != null) {
+                const matchedQul = parsedFiles.find(f => f.deviceNumber === targetNum);
+                if (matchedQul) {
+                  playerAssignments[p.id] = {
+                    devNum: matchedQul.deviceNumber || targetNum,
+                    activeStart: 0,
+                    activeEnd: Math.round(totalSessionDuration),
+                    playedMin: Math.round(totalSessionDuration),
+                  };
+                }
               }
             }
           });
@@ -490,7 +493,9 @@ export function WimuGpsImportModal({
 
         if (parsedFiles.length > 0 && Object.keys(playerAssignments).length > 0) {
           Object.entries(playerAssignments).forEach(([pid, info]) => {
-            const qul = parsedFiles.find(f => f.deviceNumber === info.devNum) || parsedFiles[0];
+            const qul = parsedFiles.find(f => f.deviceNumber === info.devNum);
+            if (!qul) return; // Ignore if no matching QUL file was uploaded for this device number
+
             const ratio = totalSessionDuration > 0 ? info.playedMin / totalSessionDuration : 1.0;
 
             const distKm = Math.round(qul.estimatedDistanceKm * ratio * 100) / 100;

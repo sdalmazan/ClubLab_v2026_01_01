@@ -533,27 +533,25 @@ def compute_player_metrics(
     positions_pool = ["LATERAL", "EXTREMO", "CENTRAL", "MEDIOCENTRO", "DELANTERO"]
     pos = player_position or positions_pool[seed % len(positions_pool)]
 
-    # Ajustar perfiles característicos por posición
-    if pos == "LATERAL":
-        vmax_player = round(rng.uniform(30.5, 33.5), 1)
-        base_speed_mult = 1.08
-        sprint_freq_mult = 1.35
-    elif pos == "EXTREMO":
-        vmax_player = round(rng.uniform(31.5, 34.8), 1)
-        base_speed_mult = 1.05
-        sprint_freq_mult = 1.50
-    elif pos == "CENTRAL":
-        vmax_player = round(rng.uniform(28.0, 31.2), 1)
-        base_speed_mult = 0.92
+    # Ajustar perfiles característicos por posición según benchmarks Excels WIMU Oficiales
+    if pos in ("PORTERO", "POR", "GK"):
+        vmax_player = round(rng.uniform(22.0, 25.5), 1)
+        target_m_min = 45.0 + rng.uniform(-5, 5) # ~1.4 km por 45 min
+        sprint_freq_mult = 0.10
+    elif pos in ("CENTRAL", "DFC", "CB"):
+        vmax_player = round(rng.uniform(28.0, 31.0), 1)
+        target_m_min = 82.0 + rng.uniform(-6, 6) # ~3.5 km por 45 min
         sprint_freq_mult = 0.65
-    elif pos == "MEDIOCENTRO":
-        vmax_player = round(rng.uniform(28.5, 31.5), 1)
-        base_speed_mult = 1.14  # Mayor volumen total
-        sprint_freq_mult = 0.75
-    else:  # DELANTERO
-        vmax_player = round(rng.uniform(30.8, 34.2), 1)
-        base_speed_mult = 0.98
-        sprint_freq_mult = 1.25
+    elif pos in ("LATERAL", "EXTREMO", "LD", "LI", "ED", "EI"):
+        vmax_player = round(rng.uniform(31.0, 34.5), 1)
+        target_m_min = 96.0 + rng.uniform(-8, 8) # ~4.3 km por 45 min
+        sprint_freq_mult = 1.40
+    else:  # MEDIOCENTRO / DELANTERO
+        vmax_player = round(rng.uniform(29.0, 33.0), 1)
+        target_m_min = 90.0 + rng.uniform(-7, 7) # ~4.0 km por 45 min
+        sprint_freq_mult = 1.00
+
+    target_avg_v = target_m_min / 60.0  # m/s
 
     # Generar serie de velocidad Doppler determinista (10 Hz = 10 muestras/segundo)
     total_samples = int(total_active_min * 60 * 10)
@@ -563,15 +561,15 @@ def compute_player_metrics(
         sec = s / 10.0
         # Patrones de juego con micro-pausas y aceleraciones
         cycle = math.sin(sec / 18.0) * math.cos(sec / 5.0)
-        base_v = max(0.0, (1.8 * base_speed_mult) + (cycle * 1.5) + rng.uniform(-0.3, 0.3))
+        base_v = max(0.0, target_avg_v + (cycle * 0.55) + rng.uniform(-0.25, 0.25))
 
         # Ocasionales picos de esfuerzo / sprint segun perfil
         if rng.random() < (0.003 * sprint_freq_mult):
-            base_v = rng.uniform(7.2, vmax_player / 3.6)
+            base_v = rng.uniform(7.1, vmax_player / 3.6)
 
-        # Ruido estático simulado de GPS cuando el jugador está parado
-        if rng.random() < 0.25 and base_v < 0.8:
-            base_v = rng.uniform(0.05, 0.18)  # Ruido < 0.2 m/s que debe ser filtrado
+        # Micro-pausas y paradas de juego (~40% del tiempo en marcha/espera)
+        if rng.random() < 0.40 and base_v < 1.2:
+            base_v = 0.0 if rng.random() < 0.65 else rng.uniform(0.05, 0.16)
 
         raw_velocities_ms.append(base_v)
 

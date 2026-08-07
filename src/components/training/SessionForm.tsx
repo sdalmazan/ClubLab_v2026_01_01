@@ -1801,23 +1801,25 @@ export function SessionForm({
                   <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                 </div>
               </div>
-              <div>
-                <label htmlFor="session-load" className={labelClass}>Carga Planificada</label>
-                <select
-                  id="session-load"
-                  value={plannedLoad}
-                  onChange={(e) => setPlannedLoad(e.target.value as LoadLevel)}
-                  className={cn(selectClass, "text-xs")}
-                >
-                  <option value="" className="bg-slate-900">Sin carga</option>
-                  <option value="recovery" className="bg-slate-900">Recuperación</option>
-                  <option value="low" className="bg-slate-900">Baja</option>
-                  <option value="medium" className="bg-slate-900">Media</option>
-                  <option value="medium_high" className="bg-slate-900">Media-Alta</option>
-                  <option value="high" className="bg-slate-900">Alta</option>
-                </select>
-              </div>
-              {showIntensity && (
+              {sessionType !== "test" && (
+                <div>
+                  <label htmlFor="session-load" className={labelClass}>Carga Planificada</label>
+                  <select
+                    id="session-load"
+                    value={plannedLoad}
+                    onChange={(e) => setPlannedLoad(e.target.value as LoadLevel)}
+                    className={cn(selectClass, "text-xs")}
+                  >
+                    <option value="" className="bg-slate-900">Sin carga</option>
+                    <option value="recovery" className="bg-slate-900">Recuperación</option>
+                    <option value="low" className="bg-slate-900">Baja</option>
+                    <option value="medium" className="bg-slate-900">Media</option>
+                    <option value="medium_high" className="bg-slate-900">Media-Alta</option>
+                    <option value="high" className="bg-slate-900">Alta</option>
+                  </select>
+                </div>
+              )}
+              {showIntensity && sessionType !== "test" && (
                 <div>
                   <label htmlFor="session-intensity" className={labelClass}>Intensidad Percibida (RPE)</label>
                   <select
@@ -1894,7 +1896,7 @@ export function SessionForm({
             )}
 
             {/* Dynamic Physical & Tactical Objectives */}
-            {sessionType !== "match" && (
+            {sessionType !== "match" && sessionType !== "test" && (
               <div className="border-t border-white/5 pt-4">
                 <div 
                   onClick={() => setIsObjectivesExpanded(!isObjectivesExpanded)}

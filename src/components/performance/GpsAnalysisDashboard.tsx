@@ -122,18 +122,11 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       const res = await fetch(`/api/performance/gps/sessions?sessionId=${sessionId}`);
       const data = await res.json();
       if (data.success) {
-        const loadedMetrics = data.metrics || [];
         setSessionDetail({
           session: data.session,
           periods: data.periods || [],
-          metrics: loadedMetrics,
+          metrics: data.metrics || [],
         });
-
-        if (loadedMetrics.length === 0 && sessionId !== "SEASON_ACCUMULATED") {
-          setTimeout(() => {
-            handleGenerateMetricsForSession(sessionId);
-          }, 100);
-        }
       }
     } catch (err) {
       console.error("Failed to load session detail:", err);

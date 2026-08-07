@@ -72,9 +72,9 @@ export function PlayerFatControlTab({ player }: PlayerFatControlTabProps) {
   const pieVal = parseFloat(formPierna) || 0;
 
   const liveSumatorio = Math.round((triVal + subVal + bicVal + abdVal + iliVal + pieVal) * 10) / 10;
-  const liveFat6 = liveSumatorio > 0 ? Math.round((0.1051 * liveSumatorio + 2.585) * 100) / 100 : 0;
+  const liveFat6 = liveSumatorio > 0 ? Math.round((0.1051 * liveSumatorio + 2.58) * 100) / 100 : 0;
   const liveSum4 = Math.round((triVal + subVal + abdVal + iliVal) * 10) / 10;
-  const liveFat4 = liveSum4 > 0 ? Math.round((0.1051 * liveSum4 + 2.585) * 100) / 100 : 0;
+  const liveFat4 = liveSum4 > 0 ? Math.round((0.1051 * liveSum4 + 2.58) * 100) / 100 : 0;
 
   async function handleCreateEntry(e: React.FormEvent) {
     e.preventDefault();
