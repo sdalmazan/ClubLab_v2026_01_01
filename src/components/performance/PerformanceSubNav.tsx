@@ -20,7 +20,6 @@ export function PerformanceSubNav() {
     { href: "/performance/monitoring", label: "Monitorización", icon: Activity },
     { href: "/performance/testing", label: "Testing", icon: Target },
     { href: "/performance/routines", label: "Rutinas Físicas", icon: ClipboardList },
-    { href: "/performance/settings", label: "Ajustes de Rendimiento", icon: Settings },
   ];
 
   return (

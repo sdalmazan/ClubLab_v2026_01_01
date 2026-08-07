@@ -908,46 +908,78 @@ export function WimuGpsImportModal({
                 </div>
 
                 {venueType === "away_custom" && (
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
-                    <div>
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P1 (Lat, Lon)</label>
-                      <div className="flex gap-2 mt-1">
-                        <input
-                          type="text"
-                          value={customP1Lat}
-                          onChange={(e) => setCustomP1Lat(e.target.value)}
-                          placeholder="40.453521"
-                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
-                        />
-                        <input
-                          type="text"
-                          value={customP1Lon}
-                          onChange={(e) => setCustomP1Lon(e.target.value)}
-                          placeholder="-3.688972"
-                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
-                        />
+                  <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P1 (Lat, Lon)</label>
+                        <div className="flex gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={customP1Lat}
+                            onChange={(e) => setCustomP1Lat(e.target.value)}
+                            placeholder="40.453521"
+                            className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                          />
+                          <input
+                            type="text"
+                            value={customP1Lon}
+                            onChange={(e) => setCustomP1Lon(e.target.value)}
+                            placeholder="-3.688972"
+                            className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P2 Opuesta (Lat, Lon)</label>
+                        <div className="flex gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={customP2Lat}
+                            onChange={(e) => setCustomP2Lat(e.target.value)}
+                            placeholder="40.452587"
+                            className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                          />
+                          <input
+                            type="text"
+                            value={customP2Lon}
+                            onChange={(e) => setCustomP2Lon(e.target.value)}
+                            placeholder="-3.687717"
+                            className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P2 Opuesta (Lat, Lon)</label>
-                      <div className="flex gap-2 mt-1">
-                        <input
-                          type="text"
-                          value={customP2Lat}
-                          onChange={(e) => setCustomP2Lat(e.target.value)}
-                          placeholder="40.452587"
-                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
-                        />
-                        <input
-                          type="text"
-                          value={customP2Lon}
-                          onChange={(e) => setCustomP2Lon(e.target.value)}
-                          placeholder="-3.687717"
-                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
-                        />
-                      </div>
-                    </div>
+                    {(() => {
+                      const p1LatN = parseFloat(customP1Lat);
+                      const p1LonN = parseFloat(customP1Lon);
+                      const p2LatN = parseFloat(customP2Lat);
+                      const p2LonN = parseFloat(customP2Lon);
+                      const valid = !isNaN(p1LatN) && !isNaN(p1LonN) && !isNaN(p2LatN) && !isNaN(p2LonN);
+                      if (!valid) return null;
+                      const latC = (p1LatN + p2LatN) / 2;
+                      const lonC = (p1LonN + p2LonN) / 2;
+                      const earthR = 6371000;
+                      const latCRad = (latC * Math.PI) / 180;
+                      const c1x = (p1LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
+                      const c1y = (p1LatN - latC) * (Math.PI / 180) * earthR;
+                      const c2x = (p2LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
+                      const c2y = (p2LatN - latC) * (Math.PI / 180) * earthR;
+                      const lenM = Math.round(Math.abs(c2x - c1x) * 10) / 10;
+                      const widM = Math.round(Math.abs(c2y - c1y) * 10) / 10;
+                      const inRange = lenM >= 80 && lenM <= 125 && widM >= 45 && widM <= 90;
+                      return (
+                        <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                          inRange
+                            ? "bg-emerald-950/50 border-emerald-500/40 text-emerald-300"
+                            : "bg-amber-950/50 border-amber-500/40 text-amber-300"
+                        }`}>
+                          <span>📏 Dimensiones calculadas: <strong>{lenM} m (Longitud) × {widM} m (Anchura)</strong></span>
+                          <span className="text-[10px] font-bold">{inRange ? "✓ Válido" : "⚠️ Inusual"}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

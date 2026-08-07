@@ -49,6 +49,27 @@ export function PerformanceSettingsTab() {
   const [pitchP1Lon, setPitchP1Lon] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p1_lon") || "-3.688972" : "-3.688972"));
   const [pitchP2Lat, setPitchP2Lat] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lat") || "40.452587" : "40.452587"));
   const [pitchP2Lon, setPitchP2Lon] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lon") || "-3.687717" : "-3.687717"));
+
+  const p1LatN = parseFloat(pitchP1Lat);
+  const p1LonN = parseFloat(pitchP1Lon);
+  const p2LatN = parseFloat(pitchP2Lat);
+  const p2LonN = parseFloat(pitchP2Lon);
+  const hasValidCorners = !isNaN(p1LatN) && !isNaN(p1LonN) && !isNaN(p2LatN) && !isNaN(p2LonN);
+
+  let computedLengthM = 0;
+  let computedWidthM = 0;
+  if (hasValidCorners) {
+    const latC = (p1LatN + p2LatN) / 2;
+    const lonC = (p1LonN + p2LonN) / 2;
+    const earthR = 6371000;
+    const latCRad = (latC * Math.PI) / 180;
+    const c1x = (p1LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
+    const c1y = (p1LatN - latC) * (Math.PI / 180) * earthR;
+    const c2x = (p2LonN - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
+    const c2y = (p2LatN - latC) * (Math.PI / 180) * earthR;
+    computedLengthM = Math.round(Math.abs(c2x - c1x) * 10) / 10;
+    computedWidthM = Math.round(Math.abs(c2y - c1y) * 10) / 10;
+  }
   
   // Physical Tests State
   const [physicalTests, setPhysicalTests] = useState<PhysicalTestItem[]>([]);
@@ -509,6 +530,28 @@ export function PerformanceSettingsTab() {
                 </div>
               </div>
             </div>
+
+            {hasValidCorners && (
+              <div className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
+                computedLengthM >= 80 && computedLengthM <= 125 && computedWidthM >= 45 && computedWidthM <= 90
+                  ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                  : "bg-amber-950/40 border-amber-500/40 text-amber-300"
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Compass className="h-4 w-4 shrink-0" />
+                  <div>
+                    <span className="font-bold block">
+                      Dimensiones Calculadas del Campo: {computedLengthM} m (Longitud) × {computedWidthM} m (Anchura)
+                    </span>
+                    <span className="text-[10px] opacity-80">
+                      {computedLengthM >= 80 && computedLengthM <= 125 && computedWidthM >= 45 && computedWidthM <= 90
+                        ? "✓ Coordenadas correctas. Rango dentro de las dimensiones habituales de fútbol."
+                        : "⚠️ Revisa las coordenadas: las dimensiones calculadas resultan inusuales (esperado ~90-120m x 45-90m)."}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
