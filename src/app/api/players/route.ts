@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const strictTeamOnly = searchParams.get("strict") === "true";
 
     const players = await getSquadPlayers(teamId, strictTeamOnly);
-    return NextResponse.json({ players });
+    return NextResponse.json({ success: true, players });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

@@ -399,10 +399,11 @@ export function WimuGpsImportModal({
           try {
             const resP = await fetch("/api/players");
             const dataP = await resP.json();
-            if (dataP.success && Array.isArray(dataP.players)) {
-              effectiveRoster = dataP.players.map((p: any) => ({
+            const pList = Array.isArray(dataP?.players) ? dataP.players : (Array.isArray(dataP) ? dataP : []);
+            if (pList.length > 0) {
+              effectiveRoster = pList.map((p: any) => ({
                 id: p.id,
-                name: p.sporting_name || `${p.first_name} ${p.last_name}`.trim(),
+                name: p.sporting_name || `${p.first_name || ""} ${p.last_name || ""}`.trim(),
                 position: p.position || "player",
                 jerseyNumber: p.membership?.jersey_number ?? p.jersey_number ?? p.jerseyNumber ?? null,
               }));

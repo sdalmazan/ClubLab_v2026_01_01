@@ -816,10 +816,10 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       setIsLoading(true);
       const resP = await fetch("/api/players");
       const dataP = await resP.json();
-      const playersList = dataP.success && Array.isArray(dataP.players) ? dataP.players : [];
+      const playersList = Array.isArray(dataP?.players) ? dataP.players : (Array.isArray(dataP) ? dataP : []);
 
       if (playersList.length === 0) {
-        alert("No se encontraron futbolistas en la plantilla para vincular.");
+        console.warn("No squad players returned from /api/players");
         return;
       }
 
