@@ -423,15 +423,15 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     const cycle = Math.sin(sec / 18.0) * Math.cos(sec / 5.0);
     let baseV = Math.max(0.0, baseAvgSpeedMs + cycle * 0.45 + (pseudoRandom(s * 3) - 0.5) * 0.3);
 
-    // Ocasionales sprints de alta intensidad sostenidos (1.5s - 2.5s) con cooldown de ~25s
+    // Ocasionales sprints de alta intensidad sostenidos (1.5s - 2.7s) con cooldown de 3.0s - 5.0s (30 - 50 muestras)
     if (cooldownSamples > 0) cooldownSamples--;
 
-    const sprintProb = isGoalkeeper ? 0.0001 : 0.0007; // ~12 sprints por 90 min en outfield
+    const sprintProb = isGoalkeeper ? 0.0001 : 0.0012;
     if (sprintRemainingSamples <= 0 && cooldownSamples <= 0 && pseudoRandom(s * 7) < sprintProb) {
       sprintRemainingSamples = Math.floor(15 + pseudoRandom(s * 11) * 12); // 1.5s a 2.7s
-      cooldownSamples = 250; // 25s de recuperación obligatoria entre sprints
-      const playerMaxKmh = 27.8 + pseudoRandom((s + 1) * 13) * 4.4; // 27.8 a 32.2 km/h
-      sprintSpeedMs = (7.1 + pseudoRandom((s + 2) * 17) * 0.8) * (playerMaxKmh / 32.2);
+      cooldownSamples = Math.floor(30 + pseudoRandom((s + 3) * 5) * 20); // 30 a 50 muestras (3.0s a 5.0s)
+      const playerMaxKmh = 28.5 + pseudoRandom((s + 1) * 13) * 7.5; // 28.5 a 36.0 km/h
+      sprintSpeedMs = (7.1 + pseudoRandom((s + 2) * 17) * 1.2) * (playerMaxKmh / 36.0);
     }
 
     if (sprintRemainingSamples > 0) {
@@ -772,6 +772,7 @@ export function sliceQulFileByWindow(qul: ParsedQulFile, startMin: number, endMi
   let sprintCount = 0;
   let inSprint = false;
   let sprintLen = 0;
+  let sprintBlockM = 0;
 
   for (let i = 0; i < slicedVel.length; i++) {
     const v = slicedVel[i];
@@ -782,16 +783,20 @@ export function sliceQulFileByWindow(qul: ParsedQulFile, startMin: number, endMi
       hsrM += v * 0.1;
     }
     if (v >= 7.0) { // >25.2 km/h Sprint
-      sprintM += v * 0.1;
       sprintLen++;
-      if (!inSprint && sprintLen >= 10) { // sostenido >= 1.0s
+      sprintBlockM += v * 0.1;
+      if (!inSprint && sprintLen >= 10) { // sostenido >= 1.0s (10 muestras)
         sprintCount++;
         inSprint = true;
+        sprintM += sprintBlockM; // Añadir el bloque validado completo
+      } else if (inSprint) {
+        sprintM += v * 0.1;
       }
     } else {
       if (v < 6.0) {
         inSprint = false;
         sprintLen = 0;
+        sprintBlockM = 0;
       }
     }
   }
