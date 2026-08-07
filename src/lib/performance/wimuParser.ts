@@ -291,8 +291,8 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   let deviceName = filename.replace(/\.qul$/i, "");
   let deviceNumber: number | null = null;
 
-  // Extract device number from filename
-  const numMatch = filename.match(/(?:WIMU|GPS)[_-]?(\d+)/i) || filename.match(/(\d+)/);
+  // Extract device number from filename (handles WIMU:10-log, WIMU_10, WIMU-10, GPS_10, etc.)
+  const numMatch = filename.match(/(?:WIMU|GPS)[:_ -]?(\d+)/i) || filename.match(/(\d+)/);
   if (numMatch) {
     deviceNumber = parseInt(numMatch[1], 10);
   }
@@ -317,11 +317,11 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     startTimeSec = tsSec;
   }
 
-  const nameMatch = xmlStr.match(/<NAME>(WIMU_\d+|\w+)<\/NAME>/);
+  const nameMatch = xmlStr.match(/<NAME>(?:WIMU|GPS)[:_ -]?(\d+)|([^\n<]+)<\/NAME>/i);
   if (nameMatch) {
-    deviceName = nameMatch[1];
-    const devNum = deviceName.match(/\d+/);
-    if (devNum) deviceNumber = parseInt(devNum[0], 10);
+    deviceName = nameMatch[0].replace(/<[^>]+>/g, "");
+    const devNumStr = nameMatch[1] || (deviceName.match(/\d+/)?.[0]);
+    if (devNumStr) deviceNumber = parseInt(devNumStr, 10);
   }
 
   // 2. Locate binary packet stream
