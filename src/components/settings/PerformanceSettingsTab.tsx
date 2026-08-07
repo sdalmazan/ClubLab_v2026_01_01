@@ -440,8 +440,6 @@ export function PerformanceSettingsTab() {
                     <option value="manual">Ingreso Manual / CSV</option>
                   </select>
                 </div>
-
-                </div>
               </div>
             ) : (
               <p className="text-xs text-slate-500">
