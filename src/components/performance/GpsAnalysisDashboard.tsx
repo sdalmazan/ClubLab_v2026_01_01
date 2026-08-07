@@ -929,12 +929,12 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   )}
                 >
                   <span>2ª Parte</span>
-                  <span>⬅️</span>
+                  <span>←</span>
                 </button>
               </div>
 
               <div className="px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono text-emerald-400 font-bold hidden sm:block">
-                <span>Orientación: Atacando {teamPosPeriodTab === "p2" ? "⬅️ (2ª Parte)" : "➔ (1ª Parte)"}</span>
+                <span>Orientación: Atacando {teamPosPeriodTab === "p2" ? "← (2ª Parte)" : "➔ (1ª Parte)"}</span>
               </div>
             </div>
           </div>
@@ -1111,104 +1111,115 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
         </div>
       </div>
 
-      {/* Modal Dossier & Mapa de Calor 2D */}
+      {/* Modal Dossier & Mapa de Calor 2D (Diseño Ultra-Minimalista & Premium) */}
       {selectedPlayerDossier && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden text-slate-100 max-h-[94vh] flex flex-col my-auto">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-950 shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-5xl bg-slate-950 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-slate-100 max-h-[92vh] flex flex-col my-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-xl shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700">
-                  <User className="size-4" />
+                <div className="size-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-mono font-black text-sm shadow-md">
+                  #{selectedPlayerDossier.players?.jersey_number || selectedPlayerDossier.gps_device_number || "—"}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white uppercase">
-                    Dossier GPS — {selectedPlayerDossier.players ? `${selectedPlayerDossier.players.first_name} ${selectedPlayerDossier.players.last_name}` : "Futbolista"}
+                  <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
+                    <span>{selectedPlayerDossier.players ? `${selectedPlayerDossier.players.first_name} ${selectedPlayerDossier.players.last_name}` : "Futbolista"}</span>
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Análisis posicional, aceleración explosiva y mapa de calor de ocupación
+                  <p className="text-xs text-slate-400 font-medium">
+                    Informe Cinemático & GPS · {selectedPlayerDossier.players?.position || "Jugador"}
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedPlayerDossier(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
               >
-                <X className="size-4" />
+                <X className="size-5" />
               </button>
             </div>
 
             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-y-auto lg:overflow-visible shrink">
-              {/* Left Column: 2D Pitch Canvas (Heatmap + Sprint Vectors) */}
-              <div className="lg:col-span-5 space-y-2.5">
-                {/* Map Mode & Period Controls */}
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-[10px] font-bold">
+              {/* Left Column: 2D Pitch Canvas & Tactical Controls */}
+              <div className="lg:col-span-5 space-y-3 flex flex-col justify-between">
+                {/* Unified Segmented Bar */}
+                <div className="flex items-center justify-between gap-2 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800/80 text-xs font-bold shadow-inner">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setDossierPeriodTab("all")}
-                      className={cn("px-2 py-0.5 rounded-lg transition-colors cursor-pointer", dossierPeriodTab === "all" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white")}
+                      className={cn("px-2.5 py-1 rounded-xl transition-all cursor-pointer", dossierPeriodTab === "all" ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200")}
                     >
-                      Completo
+                      Partido
                     </button>
                     <button
                       type="button"
                       onClick={() => setDossierPeriodTab("p1")}
-                      className={cn("px-2 py-0.5 rounded-lg transition-colors cursor-pointer", dossierPeriodTab === "p1" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white")}
+                      className={cn("px-2.5 py-1 rounded-xl transition-all cursor-pointer", dossierPeriodTab === "p1" ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200")}
                     >
                       1ª Parte ➔
                     </button>
                     <button
                       type="button"
                       onClick={() => setDossierPeriodTab("p2")}
-                      className={cn("px-2 py-0.5 rounded-lg transition-colors cursor-pointer", dossierPeriodTab === "p2" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white")}
+                      className={cn("px-2.5 py-1 rounded-xl transition-all cursor-pointer", dossierPeriodTab === "p2" ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200")}
                     >
-                      2ª Parte ⬅️
+                      2ª Parte ←
                     </button>
                   </div>
 
-                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-[10px] font-bold">
+                  <div className="flex items-center gap-1 border-l border-slate-800/80 pl-1.5">
                     <button
                       type="button"
                       onClick={() => setDossierMapView("tactical")}
-                      className={cn("px-2 py-0.5 rounded-lg transition-colors cursor-pointer", dossierMapView === "tactical" ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-white")}
+                      className={cn("px-2 py-1 rounded-xl transition-all cursor-pointer", dossierMapView === "tactical" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "text-slate-400 hover:text-slate-200")}
                     >
-                      🟢 2D
+                      2D
                     </button>
                     <button
                       type="button"
                       onClick={() => setDossierMapView("satellite")}
-                      className={cn("px-2 py-0.5 rounded-lg transition-colors cursor-pointer", dossierMapView === "satellite" ? "bg-slate-800 text-sky-400" : "text-slate-400 hover:text-white")}
+                      className={cn("px-2 py-1 rounded-xl transition-all cursor-pointer", dossierMapView === "satellite" ? "bg-sky-500/20 text-sky-300 border border-sky-500/30" : "text-slate-400 hover:text-slate-200")}
                     >
-                      🛰️ Satélite
+                      Satélite
                     </button>
                   </div>
                 </div>
 
-                {/* Attack Orientation Banner */}
-                <div className="px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-[11px] font-mono font-bold text-sky-400">
-                  <span>⚔️ Orientación de Ataque:</span>
-                  <span className="text-white">Atacando {dossierPeriodTab === "p2" ? "⬅️ (2ª Parte)" : "➔ (1ª Parte)"}</span>
+                {/* Attack Orientation Label */}
+                <div className="flex items-center justify-between text-xs font-mono px-1">
+                  <span className="text-slate-400 flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-sky-400 animate-pulse" />
+                    Orientación:
+                  </span>
+                  <span className="font-bold text-sky-300">
+                    Atacando {dossierPeriodTab === "p2" ? "← (2ª Parte)" : "➔ (1ª Parte)"}
+                  </span>
                 </div>
 
-                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex justify-center relative">
+                {/* Pitch Canvas */}
+                <div className="bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800/80 flex justify-center relative shadow-inner">
                   <canvas
                     ref={canvasRef}
                     width={340}
                     height={215}
-                    className="rounded-lg border border-slate-800 w-full max-w-[340px] h-auto"
+                    className="rounded-xl border border-slate-800/60 w-full max-w-[340px] h-auto"
                   />
                 </div>
 
-                <div className="flex items-center justify-between text-[9px] text-slate-400 px-1 font-mono flex-wrap gap-1">
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />0-12 km/h</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-lime-400 inline-block" />12-20 km/h</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />20-26 km/h</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />26-31 km/h</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />&gt;31 km/h</span>
+                {/* Smooth Speed Bar Legend */}
+                <div className="space-y-1 px-1">
+                  <div className="h-1.5 rounded-full w-full bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-500 shadow-sm" />
+                  <div className="flex justify-between text-[9px] font-mono text-slate-400">
+                    <span>0 km/h</span>
+                    <span>20 km/h</span>
+                    <span>28 km/h</span>
+                    <span className="text-rose-400 font-bold">&gt;31 km/h</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Right Column: 4 Bloques Clave con Percentiles del Partido */}
+              {/* Right Column: Executive Cards */}
               {(() => {
                 const pctDist = getMatchPercentile("distance_km", Number(selectedPlayerDossier.distance_km || 0));
                 const pctSpeed = getMatchPercentile("max_speed_kmh", Number(selectedPlayerDossier.max_speed_kmh || 0));
@@ -1218,106 +1229,106 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 const pctSprints = getMatchPercentile("sprints_count", Number(selectedPlayerDossier.sprints_count || 0));
 
                 return (
-                  <div className="lg:col-span-7 space-y-2 lg:max-h-none lg:overflow-visible max-h-[460px] overflow-y-auto pr-0.5">
-                    {/* BLOQUE 1: VOLUMEN LOCOMOTOR & DISTANCIA */}
-                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                  <div className="lg:col-span-7 space-y-2.5">
+                    {/* CARD 1: VOLUMEN & DISTANCIA */}
+                    <div className="bg-slate-900/60 backdrop-blur-md p-3 rounded-2xl border border-slate-800/80 space-y-2 shadow-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                          🏃 Bloque 1: Volumen Locomotor & Distancia (km)
+                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          🏃 Volumen Locomotor & Distancia
                         </span>
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                          Percentil P{pctDist} (Top {101 - pctDist}% partido)
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                          P{pctDist} · Top {101 - pctDist}% del partido
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-1.5 font-mono text-xs">
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Distancia Total</span>
-                          <span className="font-extrabold text-white text-xs sm:text-sm">{selectedPlayerDossier.distance_km} km</span>
+                      <div className="grid grid-cols-3 gap-2 font-mono">
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Distancia Total</span>
+                          <span className="font-extrabold text-white text-sm">{selectedPlayerDossier.distance_km} km</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Distancia Relativa</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Distancia Relativa</span>
                           <span className="font-extrabold text-emerald-300 text-xs">{selectedPlayerDossier.relative_distance_mmin || Math.round((Number(selectedPlayerDossier.distance_km || 0) * 1000) / 90)} m/min</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Minutos Jugados</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Minutos Jugados</span>
                           <span className="font-extrabold text-white text-xs">{selectedPlayerDossier.played_minutes || 90}' min</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* BLOQUE 2: ALTA INTENSIDAD HSR & PICO DE VELOCIDAD */}
-                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                    {/* CARD 2: ALTA INTENSIDAD HSR & VELOCIDAD */}
+                    <div className="bg-slate-900/60 backdrop-blur-md p-3 rounded-2xl border border-slate-800/80 space-y-2 shadow-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                          ⚡ Bloque 2: Alta Intensidad HSR & Pico de Velocidad
+                        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                          ⚡ Alta Intensidad & Pico Velocidad
                         </span>
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                          P{pctSpeed} Vel / P{pctHsr} HSR
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          P{pctSpeed} Vel · P{pctHsr} HSR
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-1.5 font-mono text-xs">
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Velocidad Máxima</span>
-                          <span className="font-extrabold text-amber-300 text-xs sm:text-sm">{selectedPlayerDossier.max_speed_kmh} km/h</span>
+                      <div className="grid grid-cols-3 gap-2 font-mono">
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Velocidad Máxima</span>
+                          <span className="font-extrabold text-amber-300 text-sm">{selectedPlayerDossier.max_speed_kmh} km/h</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Volumen HSR (&gt;19.8)</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Volumen HSR (&gt;19.8)</span>
                           <span className="font-extrabold text-sky-300 text-xs">{selectedPlayerDossier.hsr_m} m</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Sprints (&gt;25.2)</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Sprints (&gt;25.2)</span>
                           <span className="font-extrabold text-white text-xs">{selectedPlayerDossier.sprints_count} acc (P{pctSprints})</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* BLOQUE 3: CAPACIDAD DE ARRANCADA & ACELERACIONES EXPLOSIVAS */}
-                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                    {/* CARD 3: PERFIL EXPLOSIVO ACC / DEC */}
+                    <div className="bg-slate-900/60 backdrop-blur-md p-3 rounded-2xl border border-slate-800/80 space-y-2 shadow-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                          💥 Bloque 3: Arrancada Explosiva & Perfil Acc/Dec
+                        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                          💥 Perfil Explosivo & Acc/Dec
                         </span>
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                          Percentil P{pctAccel} Arrancada
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                          P{pctAccel} Arrancadas
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-1.5 font-mono text-xs">
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Pico Arrancada</span>
-                          <span className="font-extrabold text-purple-300 text-xs sm:text-sm">4.2 m/s²</span>
+                      <div className="grid grid-cols-3 gap-2 font-mono">
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Pico Arrancada</span>
+                          <span className="font-extrabold text-purple-300 text-sm">4.2 m/s²</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Aceleraciones (&gt;3 m/s²)</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Aceleraciones (&gt;3 m/s²)</span>
                           <span className="font-extrabold text-white text-xs">+{selectedPlayerDossier.accelerations} arr.</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Desaceleraciones (&lt;-3 m/s²)</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Desaceleraciones (&lt;-3 m/s²)</span>
                           <span className="font-extrabold text-rose-300 text-xs">-{selectedPlayerDossier.decelerations} dec.</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* BLOQUE 4: CARGA INERCIAL (PLAYERLOAD) & METABÓLICO */}
-                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                    {/* CARD 4: CARGA INERCIAL (PLAYERLOAD) */}
+                    <div className="bg-slate-900/60 backdrop-blur-md p-3 rounded-2xl border border-slate-800/80 space-y-2 shadow-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-                          🔥 Bloque 4: Carga Inercial (PlayerLoad) & Perfil Metabólico
+                        <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                          🔥 Carga Inercial (PlayerLoad)
                         </span>
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
-                          Percentil P{pctPl} Carga
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                          P{pctPl} Carga Total
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-1.5 font-mono text-xs">
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Player Load / min</span>
-                          <span className="font-extrabold text-white text-xs sm:text-sm">{selectedPlayerDossier.player_load_min} PL/m</span>
+                      <div className="grid grid-cols-3 gap-2 font-mono">
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Player Load / min</span>
+                          <span className="font-extrabold text-white text-sm">{selectedPlayerDossier.player_load_min} PL/m</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">Distancia Explosiva</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">Distancia Explosiva</span>
                           <span className="font-extrabold text-sky-300 text-xs">{selectedPlayerDossier.explosive_distance_m || Math.round(Number(selectedPlayerDossier.distance_km || 0) * 140)} m</span>
                         </div>
-                        <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                          <span className="text-[9px] text-slate-400 block font-sans">ACWR Ratio</span>
+                        <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/40">
+                          <span className="text-[10px] text-slate-400 block font-sans">ACWR Ratio</span>
                           <span className="font-extrabold text-emerald-400 text-xs">{selectedPlayerDossier.acwr_ratio || 1.05}</span>
                         </div>
                       </div>
@@ -1327,11 +1338,12 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
               })()}
               </div>
 
-            <div className="px-5 py-2.5 bg-slate-950 border-t border-slate-800 flex justify-end shrink-0">
+            {/* Footer */}
+            <div className="px-6 py-3 bg-slate-900/80 border-t border-slate-800/80 flex justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => setSelectedPlayerDossier(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold text-xs hover:bg-slate-700 transition-colors"
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-md"
               >
                 Cerrar Dossier
               </button>
