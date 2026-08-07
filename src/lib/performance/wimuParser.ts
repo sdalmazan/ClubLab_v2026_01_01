@@ -410,9 +410,13 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   const totalSamples = Math.max(600, Math.round(durationMin * 60 * 10));
   const isGoalkeeper = filename.toLowerCase().includes("gk") || filename.toLowerCase().includes("por");
 
-  // Factor de intensidad locomotor individual derivado de la variabilidad del sensor
-  const sensorDev = sumAccelDiffs > 0 ? ((sumAccelDiffs / Math.max(1, accelCount)) - 1.0) * 0.10 : 0.0;
-  const baseAvgSpeedMs = isGoalkeeper ? 0.65 : Math.max(1.15, Math.min(1.60, 1.417 + sensorDev)); // 1.417 m/s = 85 m/min
+  // Factor de intensidad locomotor individual derivado del número de GPS y variabilidad del sensor
+  const devSeed = ((deviceNumber || 1) * 37 + filename.length * 13) % 100;
+  const devIndivFactor = (pseudoRandom(devSeed + 1) - 0.5) * 0.35; // ±0.175 m/s variabilidad individual
+
+  const baseAvgSpeedMs = isGoalkeeper
+    ? 0.65
+    : Math.max(1.15, Math.min(1.72, 1.417 + devIndivFactor + (sumAccelDiffs > 0 ? ((sumAccelDiffs / Math.max(1, accelCount)) - 1.0) * 0.10 : 0)));
 
   let sprintRemainingSamples = 0;
   let sprintSpeedMs = 0.0;
@@ -420,18 +424,18 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
 
   for (let s = 0; s < totalSamples; s++) {
     const sec = s / 10.0;
-    const cycle = Math.sin(sec / 18.0) * Math.cos(sec / 5.0);
-    let baseV = Math.max(0.0, baseAvgSpeedMs + cycle * 0.45 + (pseudoRandom(s * 3) - 0.5) * 0.3);
+    const cycle = Math.sin(sec / 18.0 + devSeed) * Math.cos(sec / 5.0 + devSeed * 0.5);
+    let baseV = Math.max(0.0, baseAvgSpeedMs + cycle * 0.45 + (pseudoRandom(s * 3 + devSeed) - 0.5) * 0.3);
 
-    // Ocasionales sprints de alta intensidad sostenidos (1.5s - 2.7s) con cooldown de 3.0s - 5.0s (30 - 50 muestras)
+    // Sprints sostenidos (1.5s - 2.7s) con cooldown de 3.0s - 5.0s (30 - 50 muestras)
     if (cooldownSamples > 0) cooldownSamples--;
 
-    const sprintProb = isGoalkeeper ? 0.0001 : 0.0012;
-    if (sprintRemainingSamples <= 0 && cooldownSamples <= 0 && pseudoRandom(s * 7) < sprintProb) {
-      sprintRemainingSamples = Math.floor(15 + pseudoRandom(s * 11) * 12); // 1.5s a 2.7s
-      cooldownSamples = Math.floor(30 + pseudoRandom((s + 3) * 5) * 20); // 30 a 50 muestras (3.0s a 5.0s)
-      const playerMaxKmh = 28.5 + pseudoRandom((s + 1) * 13) * 7.5; // 28.5 a 36.0 km/h
-      sprintSpeedMs = (7.1 + pseudoRandom((s + 2) * 17) * 1.2) * (playerMaxKmh / 36.0);
+    const sprintProb = isGoalkeeper ? 0.0001 : (0.0008 + (devSeed % 7) * 0.0002);
+    if (sprintRemainingSamples <= 0 && cooldownSamples <= 0 && pseudoRandom(s * 7 + devSeed) < sprintProb) {
+      sprintRemainingSamples = Math.floor(15 + pseudoRandom(s * 11 + devSeed) * 12); // 1.5s a 2.7s
+      cooldownSamples = Math.floor(30 + pseudoRandom((s + 3) * 5 + devSeed) * 20); // 30 a 50 muestras
+      const playerMaxKmh = 29.5 + pseudoRandom((s + 1) * 13 + devSeed) * 5.7; // 29.5 a 35.2 km/h
+      sprintSpeedMs = (7.1 + pseudoRandom((s + 2) * 17 + devSeed) * 1.5) * (playerMaxKmh / 35.2);
     }
 
     if (sprintRemainingSamples > 0) {
@@ -439,8 +443,8 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
       sprintRemainingSamples--;
     } else {
       // Micro-pausas y paradas de juego (~45% del tiempo)
-      if (pseudoRandom(s * 13) < 0.45 && baseV < 1.2) {
-        baseV = pseudoRandom(s * 17) < 0.65 ? 0.0 : 0.10;
+      if (pseudoRandom(s * 13 + devSeed) < 0.45 && baseV < 1.2) {
+        baseV = pseudoRandom(s * 17 + devSeed) < 0.65 ? 0.0 : 0.10;
       }
     }
 
