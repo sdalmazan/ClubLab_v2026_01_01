@@ -400,78 +400,104 @@ export function WimuGpsImportModal({
         // Build player metrics array from decoded files and mapping across all periods
         const totalSessionDuration = periods.reduce((sum, p) => sum + (p.duration_min || 0), 0) || 90;
 
-        // Map of playerId -> { gpsNum, assignedPeriods: Period[] }
+        // Map of playerId -> { devNum, activeStart, activeEnd, playedMin }
         const playerAssignments: Record<string, { devNum: number; activeStart: number; activeEnd: number; playedMin: number }> = {};
 
-        if (assignmentMode === "global") {
-          const globalMap = blockGpsMapping["Global"] || blockGpsMapping[Object.keys(blockGpsMapping)[0]] || {};
-          Object.entries(globalMap).forEach(([pid, gpsNumStr]) => {
-            const devNum = parseInt(String(gpsNumStr).trim(), 10);
-            if (isNaN(devNum)) return;
-            playerAssignments[pid] = {
-              devNum,
-              activeStart: 0,
-              activeEnd: Math.round(totalSessionDuration),
-              playedMin: Math.round(totalSessionDuration),
-            };
-          });
-        } else {
-          // By Period mode: aggregate active periods for each player
-          const allPids = new Set<string>();
-          Object.values(blockGpsMapping).forEach(map => {
-            Object.keys(map).forEach(pid => allPids.add(pid));
-          });
+        // 1. Read manual/block mapping if present
+        const hasManualMapping = Object.values(blockGpsMapping).some(m => Object.values(m).some(v => !!String(v).trim()));
 
-          allPids.forEach(pid => {
-            let firstStart: number | null = null;
-            let lastEnd: number | null = null;
-            let totalPlayed = 0;
-            let assignedDevNum: number | null = null;
-
-            periods.forEach((p) => {
-              const blkMap = blockGpsMapping[p.name] || {};
-              const gpsNumStr = blkMap[pid];
-              if (gpsNumStr) {
-                const devNum = parseInt(String(gpsNumStr).trim(), 10);
-                if (!isNaN(devNum)) {
-                  assignedDevNum = devNum;
-                  if (firstStart === null || p.start_min < firstStart) firstStart = p.start_min;
-                  if (lastEnd === null || p.end_min > lastEnd) lastEnd = p.end_min;
-                  totalPlayed += p.duration_min;
-                }
-              }
+        if (hasManualMapping) {
+          if (assignmentMode === "global") {
+            const globalMap = blockGpsMapping["Global"] || blockGpsMapping[Object.keys(blockGpsMapping)[0]] || {};
+            Object.entries(globalMap).forEach(([pid, gpsNumStr]) => {
+              const devNum = parseInt(String(gpsNumStr).trim(), 10);
+              if (isNaN(devNum)) return;
+              playerAssignments[pid] = {
+                devNum,
+                activeStart: 0,
+                activeEnd: Math.round(totalSessionDuration),
+                playedMin: Math.round(totalSessionDuration),
+              };
+            });
+          } else {
+            // By Period mode: aggregate active periods for each player
+            const allPids = new Set<string>();
+            Object.values(blockGpsMapping).forEach(map => {
+              Object.keys(map).forEach(pid => allPids.add(pid));
             });
 
-            if (assignedDevNum !== null && firstStart !== null && lastEnd !== null) {
-              playerAssignments[pid] = {
-                devNum: assignedDevNum,
-                activeStart: Math.round(firstStart),
-                activeEnd: Math.round(lastEnd),
-                playedMin: Math.round(totalPlayed),
-              };
-            }
-          });
+            allPids.forEach(pid => {
+              let firstStart: number | null = null;
+              let lastEnd: number | null = null;
+              let totalPlayed = 0;
+              let assignedDevNum: number | null = null;
+
+              periods.forEach((p) => {
+                const blkMap = blockGpsMapping[p.name] || {};
+                const gpsNumStr = blkMap[pid];
+                if (gpsNumStr) {
+                  const devNum = parseInt(String(gpsNumStr).trim(), 10);
+                  if (!isNaN(devNum)) {
+                    assignedDevNum = devNum;
+                    if (firstStart === null || p.start_min < firstStart) firstStart = p.start_min;
+                    if (lastEnd === null || p.end_min > lastEnd) lastEnd = p.end_min;
+                    totalPlayed += p.duration_min;
+                  }
+                }
+              });
+
+              if (assignedDevNum !== null && firstStart !== null && lastEnd !== null) {
+                playerAssignments[pid] = {
+                  devNum: assignedDevNum,
+                  activeStart: Math.round(firstStart),
+                  activeEnd: Math.round(lastEnd),
+                  playedMin: Math.round(totalPlayed),
+                };
+              }
+            });
+          }
         }
 
-        // Match squad players with parsed .qul files ONLY if there is an explicit device number match
-        if (parsedFiles.length > 0 && effectiveRoster.length > 0) {
-          effectiveRoster.forEach((p, idx) => {
-            if (!playerAssignments[p.id]) {
-              const targetNum = p.jerseyNumber;
-              if (targetNum != null) {
-                const matchedQul = parsedFiles.find(f => f.deviceNumber === targetNum);
-                if (matchedQul) {
-                  playerAssignments[p.id] = {
-                    devNum: matchedQul.deviceNumber || targetNum,
-                    activeStart: 0,
-                    activeEnd: Math.round(totalSessionDuration),
-                    playedMin: Math.round(totalSessionDuration),
-                  };
-                }
+        // 2. Automatic matching ONLY up to the exact number of parsed .qul files
+        if (Object.keys(playerAssignments).length === 0 && parsedFiles.length > 0 && effectiveRoster.length > 0) {
+          const usedQulDevs = new Set<number>();
+
+          // Pass A: Match by exact jerseyNumber === deviceNumber
+          effectiveRoster.forEach((p) => {
+            if (p.jerseyNumber != null) {
+              const qul = parsedFiles.find(f => f.deviceNumber === p.jerseyNumber && !usedQulDevs.has(f.deviceNumber || 0));
+              if (qul) {
+                const devN = qul.deviceNumber || p.jerseyNumber;
+                usedQulDevs.add(devN);
+                playerAssignments[p.id] = {
+                  devNum: devN,
+                  activeStart: 0,
+                  activeEnd: Math.round(totalSessionDuration),
+                  playedMin: Math.round(totalSessionDuration),
+                };
+              }
+            }
+          });
+
+          // Pass B: Assign any remaining parsedFiles to unassigned squad players (STRICTLY up to parsedFiles.length)
+          parsedFiles.forEach((qul) => {
+            const devN = qul.deviceNumber || 0;
+            if (!usedQulDevs.has(devN)) {
+              const unassignedPlayer = effectiveRoster.find(p => !playerAssignments[p.id]);
+              if (unassignedPlayer) {
+                usedQulDevs.add(devN);
+                playerAssignments[unassignedPlayer.id] = {
+                  devNum: devN || (unassignedPlayer.jerseyNumber || 1),
+                  activeStart: 0,
+                  activeEnd: Math.round(totalSessionDuration),
+                  playedMin: Math.round(totalSessionDuration),
+                };
               }
             }
           });
         }
+
+
 
         if (parsedFiles.length > 0 && Object.keys(playerAssignments).length > 0) {
           Object.entries(playerAssignments).forEach(([pid, info]) => {

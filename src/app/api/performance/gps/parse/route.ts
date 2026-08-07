@@ -143,7 +143,8 @@ export async function POST(req: Request) {
         const devNum = parseInt(String(gpsNumStr).trim(), 10);
         if (isNaN(devNum)) return;
 
-        const qul = parsedFiles.find(f => f.deviceNumber === devNum) || parsedFiles[0];
+        const qul = parsedFiles.find(f => f.deviceNumber === devNum);
+        if (!qul) return; // Skip if no matching QUL file for this device number
         playerMetrics.push({
           player_id:             pid,
           gps_device_number:     devNum,
