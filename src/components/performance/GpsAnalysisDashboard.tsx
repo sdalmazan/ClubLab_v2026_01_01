@@ -20,7 +20,9 @@ import {
   Trash2,
   Edit3,
   GitCompare,
-  Check
+  Check,
+  Trophy,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +35,8 @@ interface GpsAnalysisDashboardProps {
 export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initialSessionId }: GpsAnalysisDashboardProps) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
+  const [includeFriendlies, setIncludeFriendlies] = useState(true);
   const [sessionDetail, setSessionDetail] = useState<{
     session: any;
     periods: any[];
@@ -516,7 +520,41 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     ctx.textAlign = "left";
   }, [sessionDetail, teamPosPeriodTab]);
 
-  const activeMetrics = sessionDetail?.metrics || [];
+  const checkIfFriendly = (s: any) => {
+    if (!s) return false;
+    const notes = (s.notes || "").toLowerCase();
+    const stype = (s.session_type || "").toLowerCase();
+    return (
+      notes.includes("amistoso") ||
+      notes.includes("friendly") ||
+      notes.includes("pretemporada") ||
+      notes.includes("ensayo") ||
+      stype.includes("amistoso")
+    );
+  };
+
+  const isSeasonMode = selectedSessionId === "SEASON_ACCUMULATED";
+
+  let activeMetrics: any[] = [];
+  if (isSeasonMode) {
+    activeMetrics = Object.entries(seasonStats).map(([pid, stat]: [string, any]) => ({
+      id: pid,
+      player_id: pid,
+      players: stat.players || null,
+      played_minutes: (stat.totalSessions || 1) * 90,
+      distance_km: stat.avgDistanceKm || 0,
+      hsr_m: stat.avgHsrM || 0,
+      sprints_count: stat.avgSprints || 0,
+      max_speed_kmh: stat.avgMaxSpeedKmh || 0,
+      player_load_min: stat.avgPlayerLoadMin || 0,
+      accelerations: stat.avgAccelerations || 0,
+      decelerations: Math.round((stat.avgAccelerations || 0) * 0.85),
+      isSeasonAccumulated: true,
+    }));
+  } else {
+    activeMetrics = sessionDetail?.metrics || [];
+  }
+
   const teamTotalDist = activeMetrics.reduce((acc, m) => acc + Number(m.distance_km || 0), 0);
   const teamAvgDist = activeMetrics.length > 0 ? (teamTotalDist / activeMetrics.length).toFixed(2) : "0";
   const teamTotalHsr = activeMetrics.reduce((acc, m) => acc + Number(m.hsr_m || 0), 0);
@@ -696,29 +734,126 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
             <div>
               <div className="flex items-center gap-2">
                 <label className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 inline-block">
-                  Informe General GPS del Partido
+                  {selectedSessionId === "SEASON_ACCUMULATED" ? "Acumulado & Medias de la Temporada" : "Informe General GPS del Partido"}
                 </label>
               </div>
-              <div className="flex items-center gap-3 mt-1 flex-wrap">
-                <select
-                  value={selectedSessionId}
-                  onChange={(e) => handleSessionChange(e.target.value)}
-                  className="bg-slate-950 text-white font-extrabold text-sm rounded-xl border border-slate-800 px-3 py-1.5 focus:outline-none focus:border-slate-700 max-w-xs sm:max-w-md truncate"
-                >
-                  {sessions.map((s) => {
-                    const title = s.notes
-                      ? `${s.notes} (${s.session_date})`
-                      : `${s.session_date} — ${s.session_type} (${s.detection_mode})`;
-                    return (
-                      <option key={s.id} value={s.id}>
-                        {title}
-                      </option>
-                    );
-                  })}
-                  {sessions.length === 0 && <option value="">Sin sesiones GPS cargadas aún</option>}
-                </select>
+              <div className="flex items-center gap-3 mt-1.5 flex-wrap relative">
+                {/* Custom Glassmorphic Popover Dropdown Selector */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsSessionDropdownOpen(!isSessionDropdownOpen)}
+                    className="bg-slate-950 hover:bg-slate-900 text-white font-extrabold text-xs sm:text-sm rounded-xl border border-slate-800 px-3.5 py-2 focus:outline-none focus:border-slate-700 max-w-xs sm:max-w-md flex items-center justify-between gap-2.5 shadow-lg transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      {selectedSessionId === "SEASON_ACCUMULATED" ? (
+                        <>
+                          <Trophy className="size-4 text-amber-400 shrink-0" />
+                          <span className="text-amber-300 font-black">Acumulado & Medias Temporada</span>
+                        </>
+                      ) : (
+                        <>
+                          <Calendar className="size-4 text-emerald-400 shrink-0" />
+                          <span className="truncate">
+                            {(() => {
+                              const s = sessions.find((item) => item.id === selectedSessionId);
+                              if (!s) return "Seleccionar Sesión / Informe";
+                              return s.notes
+                                ? `${s.notes} (${s.session_date})`
+                                : `${s.session_date} — ${s.session_type}`;
+                            })()}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <ChevronDown className={cn("size-4 text-slate-400 transition-transform shrink-0", isSessionDropdownOpen && "rotate-180")} />
+                  </button>
 
-                {sessionDetail && (
+                  {isSessionDropdownOpen && (
+                    <div className="absolute left-0 top-full mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 space-y-1">
+                      {/* Special Season Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSessionId("SEASON_ACCUMULATED");
+                          setIsSessionDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between text-xs font-bold cursor-pointer",
+                          selectedSessionId === "SEASON_ACCUMULATED"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            : "hover:bg-slate-800/60 text-slate-200"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            <Trophy className="size-4" />
+                          </div>
+                          <div>
+                            <span className="block text-white font-extrabold">Acumulado & Medias Temporada</span>
+                            <span className="text-[10px] text-slate-400 block font-mono">Totales, promedios y récords del equipo</span>
+                          </div>
+                        </div>
+                        {selectedSessionId === "SEASON_ACCUMULATED" && <Check className="size-4 text-amber-400" />}
+                      </button>
+
+                      <div className="h-px bg-slate-800 my-1" />
+
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 flex justify-between items-center">
+                        <span>Partidos Cargados ({sessions.length})</span>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                        {sessions.map((s) => {
+                          const isFriendly = checkIfFriendly(s);
+                          const isSelected = selectedSessionId === s.id;
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                handleSessionChange(s.id);
+                                setIsSessionDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between text-xs cursor-pointer",
+                                isSelected
+                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold"
+                                  : "hover:bg-slate-800/60 text-slate-300"
+                              )}
+                            >
+                              <div className="truncate pr-2">
+                                <span className="block text-white font-bold truncate">
+                                  {s.notes || s.session_type}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono block">
+                                  {s.session_date} · {isFriendly ? "Amistoso 🤝" : "Oficial 🏆"}
+                                </span>
+                              </div>
+                              {isSelected && <Check className="size-4 text-emerald-400 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {selectedSessionId === "SEASON_ACCUMULATED" && (
+                  <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={includeFriendlies}
+                        onChange={(e) => setIncludeFriendlies(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500 size-3.5"
+                      />
+                      <span className="text-white font-bold text-[11px]">Incluir Partidos Amistosos</span>
+                    </label>
+                  </div>
+                )}
+
+                {sessionDetail && selectedSessionId !== "SEASON_ACCUMULATED" && (
                   <span className="text-xs text-slate-400 font-mono">
                     Fecha: {sessionDetail.session.session_date} · Tipo: {sessionDetail.session.session_type} · {activeMetrics.length} Futbolistas analizados
                   </span>
