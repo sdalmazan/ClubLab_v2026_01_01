@@ -322,24 +322,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // Limpiar sesiones vacías huérfanas (sin métricas) en la misma fecha antes de crear la nueva
-    const { data: emptySessions } = await supabase
+    // Limpiar cualquier sesión anterior existente en la misma fecha para evitar duplicados o datos descalibrados previos
+    const { data: existingSessions } = await supabase
       .from("wimu_sessions")
       .select("id")
-      .eq("organization_id", orgId)
       .eq("session_date", targetDate);
 
-    if (emptySessions && emptySessions.length > 0) {
-      for (const es of emptySessions) {
-        const { count } = await supabase
-          .from("wimu_player_session_metrics")
-          .select("id", { count: "exact", head: true })
-          .eq("session_id", es.id);
-        
-        if (count === 0 || count === null) {
-          await supabase.from("session_trimmed_periods").delete().eq("session_id", es.id);
-          await supabase.from("wimu_sessions").delete().eq("id", es.id);
-        }
+    if (existingSessions && existingSessions.length > 0) {
+      for (const es of existingSessions) {
+        await supabase.from("wimu_player_session_metrics").delete().eq("session_id", es.id);
+        await supabase.from("session_trimmed_periods").delete().eq("session_id", es.id);
+        await supabase.from("wimu_sessions").delete().eq("id", es.id);
       }
     }
 
