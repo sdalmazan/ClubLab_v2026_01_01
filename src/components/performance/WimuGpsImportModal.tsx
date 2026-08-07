@@ -73,6 +73,7 @@ export function WimuGpsImportModal({
   const [sessionType, setSessionType] = useState<"PARTIDO" | "ENTRENAMIENTO">("PARTIDO");
   const [notes, setNotes] = useState("");
   const [isParsing, setIsParsing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [parseProgressMsg, setParseProgressMsg] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -162,17 +163,43 @@ export function WimuGpsImportModal({
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const qulFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".qul"));
-      setSelectedFiles(qulFiles);
+      const filesArr = Array.from(files);
+      const qulFiles = filesArr.filter(f => f.name.toLowerCase().endsWith(".qul") || f.name.toLowerCase().endsWith(".csv"));
+      const finalFiles = qulFiles.length > 0 ? qulFiles : filesArr;
+      setSelectedFiles(finalFiles);
 
       const firstFile = files[0];
       const fullPath = (firstFile as any).path;
       if (fullPath) {
         const last = Math.max(fullPath.lastIndexOf("/"), fullPath.lastIndexOf("\\"));
         setFolderPath(last !== -1 ? fullPath.substring(0, last) : fullPath);
-      } else {
+      } else if (firstFile.webkitRelativePath) {
         setFolderPath(firstFile.webkitRelativePath.split("/")[0] || "Archivos Seleccionados");
+      } else {
+        setFolderPath(`${finalFiles.length} grabaciones .qul seleccionadas`);
       }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const filesArr = Array.from(e.dataTransfer.files);
+      const qulFiles = filesArr.filter(f => f.name.toLowerCase().endsWith(".qul") || f.name.toLowerCase().endsWith(".csv"));
+      const finalFiles = qulFiles.length > 0 ? qulFiles : filesArr;
+      setSelectedFiles(finalFiles);
+      setFolderPath(`${finalFiles.length} grabaciones .qul arrastradas al sistema`);
     }
   };
 
@@ -758,37 +785,59 @@ export function WimuGpsImportModal({
           {step === 1 && (
             <div className="space-y-5">
 
-              {/* Folder Selector */}
-              <div className="space-y-1.5">
+              {/* Drag and Drop & Multi-File Picker Dropzone */}
+              <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Seleccionar Carpeta con Grabaciones GPS (.qul)
+                  Seleccionar Grabaciones GPS (.qul)
                 </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <FolderSearch className="size-4 text-slate-500 absolute left-3 top-2.5" />
-                    <input
-                      type="file"
-                      ref={folderInputRef}
-                      onChange={handleFolderSelect}
-                      {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
-                      className="hidden"
-                    />
-                    <input
-                      type="text"
-                      readOnly
-                      value={folderPath || (selectedFiles.length > 0 ? `${selectedFiles.length} archivos .qul seleccionados` : "")}
-                      placeholder="Haz clic en Examinar para seleccionar la carpeta de los chalecos..."
-                      onClick={() => folderInputRef.current?.click()}
-                      className="w-full text-xs rounded-xl bg-slate-950 border border-slate-800 pl-9 pr-3 py-2 text-white placeholder:text-slate-600 focus:outline-none focus:border-slate-600 cursor-pointer"
-                    />
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => folderInputRef.current?.click()}
+                  className={cn(
+                    "p-6 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2.5",
+                    isDragging
+                      ? "border-emerald-400 bg-emerald-500/10 scale-[1.01]"
+                      : selectedFiles.length > 0
+                      ? "border-emerald-500/40 bg-slate-950/90 hover:border-emerald-500/60"
+                      : "border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-950"
+                  )}
+                >
+                  <input
+                    type="file"
+                    ref={folderInputRef}
+                    onChange={handleFolderSelect}
+                    multiple
+                    accept=".qul,.csv,.json,.txt"
+                    className="hidden"
+                  />
+
+                  <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-emerald-400 shadow-md">
+                    <FolderOpen className="size-6" />
                   </div>
+
+                  <div>
+                    <span className="text-xs font-extrabold text-white block">
+                      {selectedFiles.length > 0
+                        ? `✓ ${selectedFiles.length} grabaciones .qul seleccionadas`
+                        : "Arrastra aquí los archivos/carpeta o haz clic para examinar"}
+                    </span>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">
+                      Admite selección múltiple de grabaciones nativas WIMU (.qul / .csv)
+                    </span>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => folderInputRef.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      folderInputRef.current?.click();
+                    }}
+                    className="mt-1 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow"
                   >
-                    <FolderOpen className="size-3.5" />
-                    <span>Examinar</span>
+                    <FolderSearch className="size-3.5 text-emerald-400" />
+                    <span>Seleccionar Grabaciones (.qul)</span>
                   </button>
                 </div>
                 {selectedFiles.length > 0 && (

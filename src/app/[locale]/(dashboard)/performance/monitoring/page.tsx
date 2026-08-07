@@ -205,6 +205,17 @@ export default function PerformanceMonitoringPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {isGpsEnabled && (
+            <button
+              type="button"
+              onClick={() => setIsGpsModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-lg flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              <Activity className="size-4" />
+              <span>+ Importar Datos GPS</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setIsExportModalOpen(true)}

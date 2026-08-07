@@ -1048,7 +1048,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
               </button>
             )}
 
-            {selectedSessionId && (
+            {selectedSessionId && selectedSessionId !== "SEASON_ACCUMULATED" && sessionDetail?.session && (
               <>
                 <button
                   type="button"
@@ -1086,15 +1086,6 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 )}
               </>
             )}
-
-            <button
-              type="button"
-              onClick={onOpenImportModal}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
-            >
-              <Activity className="size-4 text-emerald-400" />
-              <span>+ Importar Datos GPS</span>
-            </button>
           </div>
         </div>
 
