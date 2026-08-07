@@ -819,7 +819,7 @@ export function SettingsForm({
                   : 'border-transparent text-slate-400 hover:text-white'
               }`}
             >
-              ⚙️ Rendimiento & Tests
+              Rendimiento & Tests
             </button>
           )}
         </div>

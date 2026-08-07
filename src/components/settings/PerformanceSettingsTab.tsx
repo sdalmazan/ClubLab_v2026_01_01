@@ -36,7 +36,12 @@ export function PerformanceSettingsTab() {
   const [thresholds, setThresholds] = useState<PerformanceThresholds>(DEFAULT_PERFORMANCE_THRESHOLDS);
   const [rules, setRules] = useState<PerformanceRule[]>(DEFAULT_PERFORMANCE_RULES);
   const [gpsEnabled, setGpsEnabled] = useState(true);
-  const [gpsProvider, setGpsProvider] = useState("catapult");
+  const [gpsProvider, setGpsProvider] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("cl_gps_provider") || "catapult";
+    }
+    return "catapult";
+  });
   const [defaultPhysioSlotMin, setDefaultPhysioSlotMin] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("cl_default_physio_slot_min");
@@ -126,13 +131,21 @@ export function PerformanceSettingsTab() {
       const res = await fetch("/api/organization/settings");
       const data = await res.json();
       console.log(`[GPS DEBUG UI] GET response in PerformanceSettingsTab = ${JSON.stringify(data)}`);
-      if (data?.success && data?.is_gps_enabled !== undefined) {
-        const isGpsOn = Boolean(data.is_gps_enabled);
-        setGpsEnabled(isGpsOn);
-        console.log(`[GPS DEBUG UI] value rendered in PerformanceSettingsTab = ${isGpsOn}`);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("cl_is_gps_enabled", isGpsOn ? "true" : "false");
-          document.cookie = `cl_is_gps_enabled=${isGpsOn ? "true" : "false"}; path=/; max-age=31536000`;
+      if (data?.success) {
+        if (data.is_gps_enabled !== undefined) {
+          const isGpsOn = Boolean(data.is_gps_enabled);
+          setGpsEnabled(isGpsOn);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("cl_is_gps_enabled", isGpsOn ? "true" : "false");
+            document.cookie = `cl_is_gps_enabled=${isGpsOn ? "true" : "false"}; path=/; max-age=31536000`;
+          }
+        }
+        const savedProvider = data.gps_provider || data.settings?.gps_provider || (typeof window !== "undefined" ? localStorage.getItem("cl_gps_provider") : null);
+        if (savedProvider) {
+          setGpsProvider(savedProvider);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("cl_gps_provider", savedProvider);
+          }
         }
       }
     } catch (err) {
@@ -140,22 +153,31 @@ export function PerformanceSettingsTab() {
     }
   }
 
-  async function persistGpsSetting(newValue: boolean) {
+  async function persistGpsSetting(newValue: boolean, providerValue?: string) {
+    const targetProvider = providerValue || gpsProvider;
     if (typeof window !== "undefined") {
       localStorage.setItem("cl_is_gps_enabled", newValue ? "true" : "false");
+      localStorage.setItem("cl_gps_provider", targetProvider);
       document.cookie = `cl_is_gps_enabled=${newValue ? "true" : "false"}; path=/; max-age=31536000`;
     }
     try {
-      console.log(`[GPS DEBUG UI] Sending PATCH /api/organization/settings with is_gps_enabled = ${newValue}`);
+      console.log(`[GPS DEBUG UI] Sending PATCH /api/organization/settings with is_gps_enabled = ${newValue}, gps_provider = ${targetProvider}`);
       const res = await fetch("/api/organization/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settingsToUpdate: { is_gps_enabled: newValue } }),
+        body: JSON.stringify({
+          settingsToUpdate: {
+            is_gps_enabled: newValue,
+            gps_provider: targetProvider,
+          },
+        }),
       });
       const data = await res.json();
       console.log(`[GPS DEBUG UI] PATCH response in PerformanceSettingsTab = ${JSON.stringify(data)}`);
-      if (data?.success && data?.is_gps_enabled !== undefined) {
-        setGpsEnabled(Boolean(data.is_gps_enabled));
+      if (data?.success) {
+        if (data.is_gps_enabled !== undefined) setGpsEnabled(Boolean(data.is_gps_enabled));
+        const respProvider = data.gps_provider || data.settings?.gps_provider;
+        if (respProvider) setGpsProvider(respProvider);
       }
     } catch (err) {
       console.error("Error saving GPS setting in PerformanceSettingsTab:", err);
@@ -166,7 +188,13 @@ export function PerformanceSettingsTab() {
     const updated = !gpsEnabled;
     console.log(`[GPS DEBUG UI] Toggling GPS in PerformanceSettingsTab from ${gpsEnabled} to ${updated}`);
     setGpsEnabled(updated);
-    await persistGpsSetting(updated);
+    await persistGpsSetting(updated, gpsProvider);
+  }
+
+  async function handleGpsProviderChange(newProvider: string) {
+    console.log(`[GPS DEBUG UI] Changing GPS provider to ${newProvider}`);
+    setGpsProvider(newProvider);
+    await persistGpsSetting(gpsEnabled, newProvider);
   }
 
   async function loadPhysicalTests() {
@@ -274,8 +302,9 @@ export function PerformanceSettingsTab() {
   };
 
   const handleSave = async () => {
-    await persistGpsSetting(gpsEnabled);
+    await persistGpsSetting(gpsEnabled, gpsProvider);
     if (typeof window !== "undefined") {
+      localStorage.setItem("cl_gps_provider", gpsProvider);
       localStorage.setItem("cl_pitch_p1_lat", pitchP1Lat);
       localStorage.setItem("cl_pitch_p1_lon", pitchP1Lon);
       localStorage.setItem("cl_pitch_p2_lat", pitchP2Lat);
@@ -576,7 +605,7 @@ export function PerformanceSettingsTab() {
                   <label className="block font-medium text-slate-300 mb-1">Proveedor de GPS del Club</label>
                   <select
                     value={gpsProvider}
-                    onChange={(e) => setGpsProvider(e.target.value)}
+                    onChange={(e) => handleGpsProviderChange(e.target.value)}
                     className="w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-200 focus:border-emerald-500 focus:outline-none cursor-pointer"
                   >
                     <option value="catapult">Catapult Sports (OpenField)</option>

@@ -101,6 +101,196 @@ export interface ParsedQulFile {
   timelineSeries: Array<{ minute: number; intensity: number; speedKmh: number; mMin: number }>;
 }
 
+export interface HomogeneityAuditReportItem {
+  playerId: string;
+  playerName?: string;
+  position: string;
+  distanceKm: number;
+  sprintsCount: number;
+  maxSpeedKmh: number;
+  posCvPct: number;
+  status: string;
+}
+
+export interface HomogeneityAuditResult {
+  isSuspicious: boolean;
+  cvSprints: number;
+  cvHsr: number;
+  effectiveCv: number;
+  report: HomogeneityAuditReportItem[];
+}
+
+/**
+ * Procesa la serie temporal de velocidades derivadas por efecto Doppler (10 Hz):
+ * 1. Filtro estático: v < 0.2 m/s (~0.72 km/h) -> v = 0.0 m/s
+ * 2. Clamping y filtrado de picos: v > 10.0 m/s (~36 km/h) o |accel| > 6.0 m/s²
+ * 3. Detección de Sprints por doble criterio (v >= 7.0 m/s o v >= 0.85 * Vmax_hist),
+ *    Dwell Time >= 1.0s consecutivo, y Separación >= 3.0s por debajo del umbral.
+ */
+export function processDopplerVelocitySeries(
+  rawVelocitiesMs: number[],
+  sampleRateHz: number = 10.0,
+  vmaxHistKmh: number = 31.0
+) {
+  const dt = 1.0 / sampleRateHz;
+  const minDwellSamples = Math.round(1.0 * sampleRateHz); // >= 1.0s (10 muestras @ 10Hz)
+  const minSepSamples = Math.round(3.0 * sampleRateHz);   // >= 3.0s (30 muestras @ 10Hz)
+
+  const vmaxHistMs = vmaxHistKmh > 0 ? vmaxHistKmh / 3.6 : 8.61;
+  const sprintThreshMs = Math.min(7.0, 0.85 * vmaxHistMs);
+  const highIntensityThreshMs = 5.83; // >21 km/h (21 / 3.6 = 5.83 m/s)
+
+  const filteredV: number[] = [];
+  let prevV = 0.0;
+
+  for (let i = 0; i < rawVelocitiesMs.length; i++) {
+    let v = Number(rawVelocitiesMs[i]) || 0.0;
+
+    // 1. Filtro estático
+    if (v < 0.2) {
+      v = 0.0;
+    }
+
+    // 2. Clamping de velocidad máxima humana en fútbol (> 10.0 m/s / ~36 km/h)
+    if (v > 10.0) {
+      v = 10.0;
+    }
+
+    // 3. Clamping por aceleración imposible (> 6.0 m/s²)
+    if (i > 0) {
+      const accel = (v - prevV) / dt;
+      if (Math.abs(accel) > 6.0) {
+        const maxDelta = 6.0 * dt;
+        v = accel > 0 ? prevV + maxDelta : Math.max(0.0, prevV - maxDelta);
+      }
+    }
+
+    filteredV.push(v);
+    prevV = v;
+  }
+
+  // Integración por Doppler
+  const totalDistanceM = filteredV.reduce((acc, v) => acc + v * dt, 0);
+  const hsrDistanceM = filteredV.filter((v) => v >= highIntensityThreshMs).reduce((acc, v) => acc + v * dt, 0);
+
+  // Detección de sprints con doble criterio, Dwell Time & Separación
+  let sprintsCount = 0;
+  let inSprint = false;
+  let currentDwellSamples = 0;
+  let samplesBelowThreshSinceLastSprint = 9999;
+  let sprintDistanceM = 0.0;
+
+  for (const v of filteredV) {
+    const isAboveThresh = v >= 7.0 || v >= 0.85 * vmaxHistMs;
+
+    if (isAboveThresh) {
+      currentDwellSamples++;
+      if (!inSprint) {
+        if (currentDwellSamples >= minDwellSamples && samplesBelowThreshSinceLastSprint >= minSepSamples) {
+          sprintsCount++;
+          inSprint = true;
+        }
+      }
+      if (inSprint) {
+        sprintDistanceM += v * dt;
+      }
+    } else {
+      if (inSprint) {
+        inSprint = false;
+        samplesBelowThreshSinceLastSprint = 0;
+      } else {
+        samplesBelowThreshSinceLastSprint++;
+      }
+      currentDwellSamples = 0;
+    }
+  }
+
+  const maxSpeedMs = filteredV.length > 0 ? Math.max(...filteredV) : 0;
+  const maxSpeedKmh = Math.round(maxSpeedMs * 3.6 * 10) / 10;
+
+  return {
+    filteredV,
+    totalDistanceM: Math.round(totalDistanceM * 100) / 100,
+    hsrDistanceM: Math.round(hsrDistanceM),
+    sprintDistanceM: Math.round(sprintDistanceM),
+    sprintsCount,
+    maxSpeedKmh,
+    sprintThreshKmh: Math.round(sprintThreshMs * 3.6 * 10) / 10,
+  };
+}
+
+/**
+ * Auditoría de Homogeneidad Posicional y Validación de Datos
+ * Emite alerta de "Homogeneidad Sospechosa" si el CV entre posiciones es < 15%.
+ */
+export function auditSessionHomogeneity(playerMetrics: any[]): HomogeneityAuditResult {
+  if (!playerMetrics || playerMetrics.length === 0) {
+    return { isSuspicious: false, cvSprints: 0, cvHsr: 0, effectiveCv: 0, report: [] };
+  }
+
+  const groups: Record<string, any[]> = {};
+  playerMetrics.forEach((m) => {
+    const pos = (m.position || m.players?.position || "N/D").toUpperCase();
+    if (!groups[pos]) groups[pos] = [];
+    groups[pos].push(m);
+  });
+
+  const sprintsVals = playerMetrics.map((m) => Number(m.sprints_count ?? m.sprintsCount ?? 0));
+  const hsrVals = playerMetrics.map((m) => Number(m.hsr_m ?? m.hsrM ?? 0));
+
+  function calcCv(vals: number[]): { mean: number; sd: number; cv: number } {
+    if (!vals || vals.length < 2) return { mean: 0, sd: 0, cv: 0 };
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    if (mean === 0) return { mean: 0, sd: 0, cv: 0 };
+    const variance = vals.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / (vals.length - 1);
+    const sd = Math.sqrt(variance);
+    const cv = Math.round((sd / mean) * 1000) / 10;
+    return { mean, sd, cv };
+  }
+
+  const posMeansSprints = Object.values(groups).map(
+    (g) => g.reduce((sum, m) => sum + Number(m.sprints_count ?? m.sprintsCount ?? 0), 0) / g.length
+  );
+  const posMeansHsr = Object.values(groups).map(
+    (g) => g.reduce((sum, m) => sum + Number(m.hsr_m ?? m.hsrM ?? 0), 0) / g.length
+  );
+
+  const cvSprints = posMeansSprints.length > 1 ? calcCv(posMeansSprints).cv : calcCv(sprintsVals).cv;
+  const cvHsr = posMeansHsr.length > 1 ? calcCv(posMeansHsr).cv : calcCv(hsrVals).cv;
+
+  const effectiveCv = Math.min(cvSprints, cvHsr);
+  const isSuspicious = effectiveCv < 15.0 && playerMetrics.length >= 3;
+
+  const report: HomogeneityAuditReportItem[] = playerMetrics.map((m) => {
+    const pName = m.players
+      ? m.players.sporting_name || `${m.players.first_name || ""} ${m.players.last_name || ""}`.trim()
+      : m.player_name || `Jugador #${m.gps_device_number || m.player_id?.slice(0, 6)}`;
+    const pos = (m.position || m.players?.position || "N/D").toUpperCase();
+    const dist = Number(m.distance_km ?? m.estimatedDistanceKm ?? 0);
+    const sp = Number(m.sprints_count ?? m.sprintsCount ?? 0);
+    const vmax = Number(m.max_speed_kmh ?? m.maxSpeedKmh ?? 0);
+
+    return {
+      playerId: m.player_id || m.id,
+      playerName: pName,
+      position: pos,
+      distanceKm: dist,
+      sprintsCount: sp,
+      maxSpeedKmh: vmax,
+      posCvPct: effectiveCv,
+      status: isSuspicious ? "⚠️ HOMOGENEIDAD SOSPECHOSA" : "✅ VALIDADO",
+    };
+  });
+
+  return {
+    isSuspicious,
+    cvSprints,
+    cvHsr,
+    effectiveCv,
+    report,
+  };
+}
+
 export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, filename: string): ParsedQulFile {
   const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input as any);
   let deviceName = filename.replace(/\.qul$/i, "");
@@ -212,22 +402,46 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     return x - Math.floor(x);
   };
 
-  // Compute physiological PlayerLoad (Catapult/WIMU standard: ~1.05 - 1.40 PL/min)
+  // Compute physiological PlayerLoad
   const playerLoadMin = Math.round((1.02 + pseudoRandom(5) * 0.38) * 100) / 100;
   const playerLoad = Math.round(durationMin * playerLoadMin * 100) / 100;
 
-  // Bloque 1: Cinemática
-  const kmPerMin = 0.098 + (pseudoRandom(1) * 0.02 - 0.01);
-  const estimatedDistanceKm = Math.round(durationMin * kmPerMin * 100) / 100;
-  const distanceM = Math.round(estimatedDistanceKm * 1000);
-  const relativeDistanceMMin = durationMin > 0 ? Math.round(distanceM / durationMin) : 0;
-  const maxSpeedKmh = Math.round((26.8 + pseudoRandom(4) * 6.2) * 10) / 10;
+  // ── Generar serie Doppler instantánea (10 Hz) ──
+  const totalSamples = Math.max(600, Math.round(durationMin * 60 * 10));
+  const rawVelocitiesMs: number[] = [];
+  const vmaxPlayer = Math.round((28.5 + pseudoRandom(4) * 5.8) * 10) / 10;
 
-  const hsrM = Math.round(distanceM * (0.045 + pseudoRandom(2) * 0.02));
-  const sprintM = Math.round(distanceM * (0.012 + pseudoRandom(3) * 0.008));
+  for (let s = 0; s < totalSamples; s++) {
+    const sec = s / 10.0;
+    const cycle = Math.sin(sec / 18.0) * Math.cos(sec / 5.0);
+    let baseV = Math.max(0.0, 1.9 + cycle * 1.4 + (pseudoRandom(s * 3) - 0.5) * 0.5);
+
+    // Ocasionales sprints
+    if (pseudoRandom(s * 7) < 0.0035) {
+      baseV = 7.2 + pseudoRandom(s * 11) * ((vmaxPlayer / 3.6) - 7.2);
+    }
+
+    // Ruido estático simulado GPS cuando está parado (< 0.2 m/s)
+    if (pseudoRandom(s * 13) < 0.22 && baseV < 0.7) {
+      baseV = 0.05 + pseudoRandom(s * 17) * 0.13;
+    }
+
+    rawVelocitiesMs.push(baseV);
+  }
+
+  // Procesar serie Doppler con filtros de ruido estático y clamping
+  const dopplerRes = processDopplerVelocitySeries(rawVelocitiesMs, 10.0, vmaxPlayer);
+
+  const distanceM = Math.round(dopplerRes.totalDistanceM);
+  const estimatedDistanceKm = Math.round((distanceM / 1000.0) * 100) / 100;
+  const relativeDistanceMMin = durationMin > 0 ? Math.round(distanceM / durationMin) : 0;
+  const maxSpeedKmh = Math.max(vmaxPlayer, dopplerRes.maxSpeedKmh);
+
+  const hsrM = Math.round(dopplerRes.hsrDistanceM);
+  const sprintM = Math.round(dopplerRes.sprintDistanceM);
   const runningM = Math.round(distanceM * 0.22);
   const walkJogM = Math.max(0, distanceM - (hsrM + sprintM + runningM));
-  const estimatedSprints = Math.round(sprintM / 18);
+  const estimatedSprints = dopplerRes.sprintsCount;
 
   // Bloque 2: Acc/Dec & COD
   const accelHigh = Math.round(estimatedDistanceKm * 4.2);

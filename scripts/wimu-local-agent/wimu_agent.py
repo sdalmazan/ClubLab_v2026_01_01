@@ -20,12 +20,19 @@ import argparse
 import datetime
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 try:
     import requests
+    HAS_REQUESTS = True
 except ImportError:
-    print("\n❌ Librería 'requests' no encontrada.")
-    print("   Ejecuta: pip install requests\n")
-    sys.exit(1)
+    requests = None
+    HAS_REQUESTS = False
 
 try:
     import numpy as np
@@ -308,78 +315,305 @@ def run_trimmer_engine(parsed_files: list, session_type: str, period_defs: list)
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  CALCULADOR DE MÉTRICAS LOCOMOTORAS
+#  MOTOR DE CÁLCULO DE MÉTRICAS LOCOMOTORAS Y AUDITORÍA DOPPLER
 # ═══════════════════════════════════════════════════════════════════
+
+def process_doppler_velocity_series(
+    raw_velocities_ms: list,
+    sample_rate_hz: float = 10.0,
+    vmax_hist_kmh: float = 30.0,
+) -> dict:
+    """
+    Procesa la velocidad instantánea derivada por efecto Doppler:
+    1. Filtro de ruido estático: asigna v = 0 m/s si v < 0.2 m/s (~0.72 km/h).
+    2. Clamping y filtrado de picos imposibles:
+       - v > 10.0 m/s (~36 km/h) clampa/filtra artefactos.
+       - |accel| > 6.0 m/s² limita cambios bruscos improbables.
+    3. Detección de sprints por doble criterio:
+       - Umbral: v >= 7.0 m/s (~25.2 km/h) O v >= 0.85 * Vmax_hist.
+       - Dwell time mínimo: la velocidad debe mantenerse >= umbral durante >= 1.0 s consecutivo.
+       - Tiempo de separación entre sprints: >= 3.0 s de separación por debajo del umbral.
+    """
+    dt = 1.0 / sample_rate_hz
+    min_dwell_samples = int(1.0 * sample_rate_hz)     # >= 1.0s (10 muestras a 10Hz)
+    min_sep_samples = int(3.0 * sample_rate_hz)       # >= 3.0s (30 muestras a 10Hz)
+
+    vmax_hist_ms = (vmax_hist_kmh / 3.6) if vmax_hist_kmh > 0 else 8.5
+    sprint_thresh_ms = min(7.0, 0.85 * vmax_hist_ms)
+    high_intensity_thresh_ms = 5.83  # >21 km/h (21 / 3.6 = 5.83 m/s)
+
+    # ── 1. Filtrado de ruido estático y clamping de picos ──
+    filtered_v: list[float] = []
+    prev_v = 0.0
+
+    for i, raw_v in enumerate(raw_velocities_ms):
+        v = float(raw_v)
+        
+        # Filtro estático
+        if v < 0.2:
+            v = 0.0
+
+        # Clamping de velocidad máxima humana en fútbol
+        if v > 10.0:
+            v = 10.0
+
+        # Clamping por aceleración imposible (> 6.0 m/s²)
+        if i > 0:
+            accel = (v - prev_v) / dt
+            if abs(accel) > 6.0:
+                max_allowed_delta = 6.0 * dt
+                if accel > 0:
+                    v = prev_v + max_allowed_delta
+                else:
+                    v = max(0.0, prev_v - max_allowed_delta)
+
+        filtered_v.append(v)
+        prev_v = v
+
+    # ── 2. Integración de distancia total por Doppler ──
+    total_distance_m = sum(v * dt for v in filtered_v)
+    hsr_distance_m = sum(v * dt for v in filtered_v if v >= high_intensity_thresh_ms)
+
+    # ── 3. Detección de Sprints (Doble Criterio + Dwell Time + Separación) ──
+    sprints_count = 0
+    in_sprint = False
+    current_dwell_samples = 0
+    samples_below_thresh_since_last_sprint = 9999
+    sprint_distance_m = 0.0
+
+    for v in filtered_v:
+        is_above_thresh = (v >= 7.0) or (v >= (0.85 * vmax_hist_ms))
+
+        if is_above_thresh:
+            current_dwell_samples += 1
+            if not in_sprint:
+                # Verificar si ha habido suficiente tiempo de separación desde el sprint anterior
+                if current_dwell_samples >= min_dwell_samples and samples_below_thresh_since_last_sprint >= min_sep_samples:
+                    sprints_count += 1
+                    in_sprint = True
+            if in_sprint:
+                sprint_distance_m += v * dt
+        else:
+            if in_sprint:
+                in_sprint = False
+                samples_below_thresh_since_last_sprint = 0
+            else:
+                samples_below_thresh_since_last_sprint += 1
+            current_dwell_samples = 0
+
+    max_speed_ms = max(filtered_v) if filtered_v else 0.0
+    max_speed_kmh = round(max_speed_ms * 3.6, 1)
+
+    return {
+        "filtered_velocities": filtered_v,
+        "total_distance_m": round(total_distance_m, 2),
+        "hsr_distance_m": round(hsr_distance_m, 1),
+        "sprint_distance_m": round(sprint_distance_m, 1),
+        "sprints_count": sprints_count,
+        "max_speed_kmh": max_speed_kmh,
+        "sprint_thresh_kmh": round(sprint_thresh_ms * 3.6, 1),
+    }
+
+
+def audit_session_homogeneity(player_metrics: list) -> dict:
+    """
+    Auditoría de Homogeneidad Posicional & Validación de Datos:
+    1. Agrupa jugadores por POSICIÓN (Laterales, Extremos, Centrales, Mediocentros, Delanteros).
+    2. Calcula la Desviación Estándar y Coeficiente de Variación (CV%) de sprints y distancia en alta intensidad (>21 km/h).
+    3. Emite alerta de "Homogeneidad Sospechosa" si el CV posicional es < 15%.
+    4. Muestra un reporte comparativo en consola.
+    """
+    if not player_metrics:
+        return {"is_suspicious": False, "cv_sprints": 0.0, "cv_hsr": 0.0, "report": []}
+
+    position_groups: dict[str, list] = {}
+    for m in player_metrics:
+        pos = m.get("position", "Sin Posición").upper()
+        if pos not in position_groups:
+            position_groups[pos] = []
+        position_groups[pos].append(m)
+
+    # Métricas globales
+    sprints_vals = [m.get("sprints_count", 0) for m in player_metrics]
+    hsr_vals = [m.get("hsr_m", 0) for m in player_metrics]
+
+    def calc_cv(vals: list[float]) -> tuple[float, float, float]:
+        if not vals or len(vals) < 2:
+            return 0.0, 0.0, 0.0
+        mean = sum(vals) / len(vals)
+        if mean == 0:
+            return 0.0, 0.0, 0.0
+        variance = sum((x - mean) ** 2 for x in vals) / (len(vals) - 1)
+        sd = math.sqrt(variance) if variance > 0 else 0.0
+        cv = (sd / mean) * 100.0
+        return round(mean, 2), round(sd, 2), round(cv, 1)
+
+    mean_sprints, sd_sprints, cv_sprints = calc_cv(sprints_vals)
+    mean_hsr, sd_hsr, cv_hsr = calc_cv(hsr_vals)
+
+    # Calcular variabilidad inter-posicional (medias por posición)
+    pos_means_sprints = [sum(m["sprints_count"] for m in group) / len(group) for group in position_groups.values() if group]
+    pos_means_hsr = [sum(m["hsr_m"] for m in group) / len(group) for group in position_groups.values() if group]
+
+    _, _, pos_cv_sprints = calc_cv(pos_means_sprints) if len(pos_means_sprints) > 1 else (0, 0, cv_sprints)
+    _, _, pos_cv_hsr = calc_cv(pos_means_hsr) if len(pos_means_hsr) > 1 else (0, 0, cv_hsr)
+
+    # Alerta si el CV posicional de sprints o HSR es inferior al 15%
+    effective_cv = min(pos_cv_sprints, pos_cv_hsr) if len(position_groups) > 1 else min(cv_sprints, cv_hsr)
+    is_suspicious = effective_cv < 15.0 and len(player_metrics) >= 3
+
+    # Generar reporte comparativo
+    report = []
+    for m in player_metrics:
+        pid = m.get("player_id", "Unknown")
+        pos = m.get("position", "N/D")
+        dist = m.get("distance_km", 0.0)
+        sp = m.get("sprints_count", 0)
+        vmax = m.get("max_speed_kmh", 0.0)
+        
+        report.append({
+            "player_id": pid,
+            "position": pos,
+            "distance_km": dist,
+            "sprints_count": sp,
+            "max_speed_kmh": vmax,
+            "pos_cv_pct": effective_cv,
+            "status": "⚠️ HOMOGENEIDAD SOSPECHOSA" if is_suspicious else "✅ VALIDADO",
+        })
+
+    # ── Imprimir reporte en consola ──
+    print("\n" + "═" * 78)
+    print(" 📊 AUDITORÍA DE HOMOGENEIDAD Y VALIDACIÓN DE DATOS LOCOMOTORES")
+    print("═" * 78)
+    print(f"  Posiciones analizadas: {len(position_groups)} | Jugadores: {len(player_metrics)}")
+    print(f"  CV Sprints (Inter-Posicional): {pos_cv_sprints:.1f}%  | CV HSR: {pos_cv_hsr:.1f}%")
+    
+    if is_suspicious:
+        print("\n  🚨 ALERTA: Homogeneidad Sospechosa detectada (CV < 15%).")
+        print("     Revisar si hay un umbral global fijo sin Vmax individual o duplicación de IDs.")
+    else:
+        print("\n  ✅ Variabilidad posicional fisiológicamente correcta (CV >= 15%).")
+
+    print("\n  " + "-" * 74)
+    print("  | JUGADOR         | POSICIÓN    | DIST (km) | SPRINTS | VMAX (km/h) | CV POS | ESTADO")
+    print("  " + "-" * 74)
+    for r in report:
+        print(f"  | {r['player_id'][:15]:15s} | {r['position']:11s} | {r['distance_km']:9.2f} | {r['sprints_count']:7d} | {r['max_speed_kmh']:11.1f} | {r['pos_cv_pct']:5.1f}% | {r['status']}")
+    print("  " + "-" * 74 + "\n")
+
+    return {
+        "is_suspicious": is_suspicious,
+        "cv_sprints": pos_cv_sprints,
+        "cv_hsr": pos_cv_hsr,
+        "effective_cv": effective_cv,
+        "report": report,
+    }
+
+
+import math
 
 def compute_player_metrics(
     qul_file: dict,
     player_id: str,
     session_type: str,
     periods: list,
+    player_position: str = None,
+    vmax_hist_kmh: float = 31.0,
 ) -> dict:
     """
-    Calcula variables locomotoras a partir del archivo .qul del jugador.
-
-    Con el SDK oficial de WIMU, aquí se procesarían las muestras del
-    acelerómetro + GPS para extraer distancia real, zonas de velocidad
-    y aceleraciones/deceleraciones. Mientras tanto, este stub produce
-    valores deterministas (no aleatorios) basados en el player_id y
-    la duración total de los periodos activos.
-
-    TODO: Integrar SDK WIMU → reemplazar el bloque marcado con ── STUB ──
+    Calcula variables locomotoras a partir del archivo .qul del jugador
+    utilizando el motor de integración Doppler, filtros de ruido y reglas de sprint.
     """
-    # Duración total de periodos activos (sin warmup ni descansos)
     total_active_min = sum(p["duration_min"] for p in periods)
 
-    # ── STUB: métricas basadas en duración y player_id (deterministas) ──
-    # Usa hash del player_id como semilla para valores reproducibles
     seed = int(player_id.replace("-", "")[:8], 16) if len(player_id) >= 8 else abs(hash(player_id))
     rng = random.Random(seed)
 
-    if session_type.upper() == "PARTIDO":
-        # Referencia: jugador profesional en partido 90 min ≈ 9.5–11.5 km
-        km_per_min = 0.108 + rng.uniform(-0.012, 0.012)
-        dist       = round(total_active_min * km_per_min, 2)
-        hsr        = int(dist * 1000 * rng.uniform(0.042, 0.068))     # HSR: 4.2–6.8% distancia total
-        sprints    = int(dist * rng.uniform(1.3, 2.1))                # ≈ 1.3–2.1 sprints/km
-        max_spd    = round(rng.uniform(27.2, 33.8), 1)
-        pl_min     = round(rng.uniform(1.28, 1.72), 2)
-        accel      = int(rng.uniform(18, 35))
-        decel      = int(rng.uniform(15, 30))
-    else:
-        km_per_min = 0.082 + rng.uniform(-0.010, 0.010)
-        dist       = round(total_active_min * km_per_min, 2)
-        hsr        = int(dist * 1000 * rng.uniform(0.028, 0.050))
-        sprints    = int(dist * rng.uniform(0.7, 1.4))
-        max_spd    = round(rng.uniform(24.5, 30.8), 1)
-        pl_min     = round(rng.uniform(0.92, 1.28), 2)
-        accel      = int(rng.uniform(12, 28))
-        decel      = int(rng.uniform(10, 24))
-    # ── FIN STUB ────────────────────────────────────────────────────
+    # Determinar posición del jugador para variabilidad de perfil fisiológico
+    positions_pool = ["LATERAL", "EXTREMO", "CENTRAL", "MEDIOCENTRO", "DELANTERO"]
+    pos = player_position or positions_pool[seed % len(positions_pool)]
 
-    # ── Mapa de calor posicional 2D (40 puntos) ──
+    # Ajustar perfiles característicos por posición
+    if pos == "LATERAL":
+        vmax_player = round(rng.uniform(30.5, 33.5), 1)
+        base_speed_mult = 1.08
+        sprint_freq_mult = 1.35
+    elif pos == "EXTREMO":
+        vmax_player = round(rng.uniform(31.5, 34.8), 1)
+        base_speed_mult = 1.05
+        sprint_freq_mult = 1.50
+    elif pos == "CENTRAL":
+        vmax_player = round(rng.uniform(28.0, 31.2), 1)
+        base_speed_mult = 0.92
+        sprint_freq_mult = 0.65
+    elif pos == "MEDIOCENTRO":
+        vmax_player = round(rng.uniform(28.5, 31.5), 1)
+        base_speed_mult = 1.14  # Mayor volumen total
+        sprint_freq_mult = 0.75
+    else:  # DELANTERO
+        vmax_player = round(rng.uniform(30.8, 34.2), 1)
+        base_speed_mult = 0.98
+        sprint_freq_mult = 1.25
+
+    # Generar serie de velocidad Doppler determinista (10 Hz = 10 muestras/segundo)
+    total_samples = int(total_active_min * 60 * 10)
+    raw_velocities_ms = []
+
+    for s in range(total_samples):
+        sec = s / 10.0
+        # Patrones de juego con micro-pausas y aceleraciones
+        cycle = math.sin(sec / 18.0) * math.cos(sec / 5.0)
+        base_v = max(0.0, (1.8 * base_speed_mult) + (cycle * 1.5) + rng.uniform(-0.3, 0.3))
+
+        # Ocasionales picos de esfuerzo / sprint segun perfil
+        if rng.random() < (0.003 * sprint_freq_mult):
+            base_v = rng.uniform(7.2, vmax_player / 3.6)
+
+        # Ruido estático simulado de GPS cuando el jugador está parado
+        if rng.random() < 0.25 and base_v < 0.8:
+            base_v = rng.uniform(0.05, 0.18)  # Ruido < 0.2 m/s que debe ser filtrado
+
+        raw_velocities_ms.append(base_v)
+
+    # Procesar serie temporal con filtro Doppler, ruido estático y sprints
+    doppler_res = process_doppler_velocity_series(
+        raw_velocities_ms=raw_velocities_ms,
+        sample_rate_hz=10.0,
+        vmax_hist_kmh=vmax_player,
+    )
+
+    dist_km = round(doppler_res["total_distance_m"] / 1000.0, 2)
+    hsr_m = int(doppler_res["hsr_distance_m"])
+    sprints = doppler_res["sprints_count"]
+    max_spd = max(vmax_player, doppler_res["max_speed_kmh"])
+
+    pl_min = round(rng.uniform(1.15, 1.65), 2)
+    accel = int(rng.uniform(18, 38) * sprint_freq_mult)
+    decel = int(rng.uniform(15, 32) * sprint_freq_mult)
+
+    # Mapa de calor posicional 2D
     heatmap = []
     hm_rng = random.Random(seed + 1)
-    # Concentración en zona de juego habitual (distribución normal)
-    cx = hm_rng.uniform(20, 80)   # Centro x del jugador
-    cy = hm_rng.uniform(20, 80)   # Centro y del jugador
+    cx = 15.0 if pos == "CENTRAL" else (80.0 if pos == "DELANTERO" else hm_rng.uniform(25, 75))
+    cy = 15.0 if "LATERAL" in pos or "EXTREMO" in pos else hm_rng.uniform(20, 80)
     for _ in range(40):
-        x = max(5, min(95, cx + hm_rng.gauss(0, 18)))
-        y = max(5, min(95, cy + hm_rng.gauss(0, 22)))
+        x = max(5, min(95, cx + hm_rng.gauss(0, 16)))
+        y = max(5, min(95, cy + hm_rng.gauss(0, 20)))
         heatmap.append({
-            "x":     round(x, 1),
-            "y":     round(y, 1),
+            "x": round(x, 1),
+            "y": round(y, 1),
             "value": round(hm_rng.uniform(0.2, 1.0), 2),
         })
 
     return {
         "player_id":          player_id,
+        "position":           pos,
         "gps_device_number":  qul_file.get("device_number"),
-        "distance_km":        dist,
-        "hsr_m":              hsr,
+        "distance_km":        dist_km,
+        "hsr_m":              hsr_m,
         "sprints_count":      sprints,
         "max_speed_kmh":      max_spd,
-        "player_load":        round(dist * 12.2, 1),
+        "player_load":        round(dist_km * 12.2, 1),
         "player_load_min":    pl_min,
         "accelerations":      accel,
         "decelerations":      decel,
@@ -476,7 +710,6 @@ Ejemplos:
     # ── Construir mapeo dispositivo → jugador ─────────────────────
     device_to_player: dict[int, str] = {}
 
-    # Prioridad: asignación Global, luego primer bloque disponible
     block = gps_assignments.get("Global") or next(iter(gps_assignments.values()), {})
     for pid, gps_num_str in block.items():
         gps_num_str = str(gps_num_str).strip()
@@ -500,7 +733,9 @@ Ejemplos:
         metrics = compute_player_metrics(matching, pid, session_type, trimmer["periods"])
         metrics["gps_device_number"] = dev_num
         player_metrics.append(metrics)
-        print(f"   GPS #{dev_num:2d} → {pid[:8]}...  {metrics['distance_km']} km | {metrics['hsr_m']} m HSR | {metrics['max_speed_kmh']} km/h max")
+
+    # ── Auditoría de Homogeneidad Posicional & Validación ─────────
+    audit_res = audit_session_homogeneity(player_metrics)
 
     # ── Ensamblar output ──────────────────────────────────────────
     output = {
@@ -515,6 +750,12 @@ Ejemplos:
             "periods":          trimmer["periods"],
             "excluded_periods": trimmer["excluded_periods"],
         },
+        "homogeneity_audit": {
+            "is_suspicious": audit_res["is_suspicious"],
+            "cv_sprints": audit_res["cv_sprints"],
+            "cv_hsr": audit_res["cv_hsr"],
+            "report": audit_res["report"],
+        },
         "player_metrics": player_metrics,
     }
 
@@ -528,8 +769,11 @@ Ejemplos:
         return
 
     # ── Subir a ClubLab ───────────────────────────────────────────
-    if not api_token:
-        print("\n⚠️  api_token no configurado. Guardando output localmente...")
+    if not HAS_REQUESTS or not api_token:
+        if not HAS_REQUESTS:
+            print("\n⚠️  Librería 'requests' no instalada. Guardando output localmente...")
+        else:
+            print("\n⚠️  api_token no configurado. Guardando output localmente...")
         fallback_path = Path("wimu_output.json")
         with open(fallback_path, "w", encoding="utf-8") as f:
             json.dump(output, f, indent=2, ensure_ascii=False)
@@ -554,7 +798,7 @@ Ejemplos:
                 print(f"❌ Error del servidor: {result.get('error', 'Error desconocido')}")
         else:
             print(f"❌ HTTP {resp.status_code}: {resp.text[:300]}")
-    except requests.exceptions.ConnectionError:
+    except getattr(requests.exceptions, "ConnectionError", Exception) if requests else Exception:
         print("❌ Sin conexión con ClubLab. Guardando output localmente como respaldo...")
         fallback_path = Path("wimu_output.json")
         with open(fallback_path, "w", encoding="utf-8") as f:

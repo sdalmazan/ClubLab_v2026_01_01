@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseWimuQulBuffer, ParsedQulFile } from "@/lib/performance/wimuParser";
+import { parseWimuQulBuffer, ParsedQulFile, auditSessionHomogeneity } from "@/lib/performance/wimuParser";
 
 /**
  * POST /api/performance/gps/parse
@@ -174,6 +174,8 @@ export async function POST(req: Request) {
       });
     }
 
+    const homogeneityAudit = auditSessionHomogeneity(playerMetrics);
+
     const trimmerJson = {
       session_type:     sessionType.toUpperCase(),
       detection_mode:   detectionMode,
@@ -187,6 +189,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       trimmerJson,
+      homogeneityAudit,
       playerMetrics,
       message: `Análisis de ${parsedFiles.length} archivos .qul WIMU completado.`,
     });

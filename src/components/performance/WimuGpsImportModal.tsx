@@ -24,7 +24,7 @@ import {
   UserMinus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseWimuQulBuffer, ParsedQulFile, normalizePitchGeometry } from "@/lib/performance/wimuParser";
+import { parseWimuQulBuffer, ParsedQulFile, normalizePitchGeometry, auditSessionHomogeneity, HomogeneityAuditReportItem } from "@/lib/performance/wimuParser";
 import { GpsTimelineChart } from "@/components/performance/GpsTimelineChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1330,6 +1330,114 @@ export function WimuGpsImportModal({
                   </div>
                 </div>
               )}
+
+              {/* ── Auditoría de Homogeneidad y Validación de Datos ── */}
+              {decodedPlayerMetrics.length > 0 && (() => {
+                const auditInput = decodedPlayerMetrics.map((m) => {
+                  const rPlayer = roster.find((r) => r.id === m.player_id);
+                  return {
+                    ...m,
+                    position: rPlayer?.position || m.position || "N/D",
+                    player_name: rPlayer?.name || m.player_name,
+                  };
+                });
+                const audit = auditSessionHomogeneity(auditInput);
+
+                return (
+                  <div className="space-y-3 border-t border-slate-800 pt-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <span className="text-xs font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
+                          <Activity className="size-4 text-emerald-400" />
+                          Auditoría de Homogeneidad Posicional & Validación de Datos
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          Comprobación estadística para detectar fallos en la canalización de datos o umbrales fijos sin Vmax individual.
+                        </span>
+                      </div>
+                      <span className={cn(
+                        "text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 font-mono uppercase",
+                        audit.isSuspicious
+                          ? "bg-rose-950/80 text-rose-300 border-rose-700 animate-pulse"
+                          : "bg-emerald-950/80 text-emerald-300 border-emerald-700"
+                      )}>
+                        {audit.isSuspicious ? "⚠️ Homogeneidad Sospechosa" : "✅ Auditoría Validada"}
+                      </span>
+                    </div>
+
+                    {/* Resumen de CV Posicional */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 font-mono">
+                      <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">CV Inter-Posicional Sprints</span>
+                        <span className={cn("text-sm font-bold", audit.cvSprints < 15 ? "text-rose-400" : "text-emerald-400")}>
+                          {audit.cvSprints.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">CV Alta Intensidad (&gt;21 km/h)</span>
+                        <span className={cn("text-sm font-bold", audit.cvHsr < 15 ? "text-rose-400" : "text-emerald-400")}>
+                          {audit.cvHsr.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 col-span-2 sm:col-span-1">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Umbral Mínimo Variabilidad</span>
+                        <span className="text-sm font-bold text-slate-300">15.0% CV</span>
+                      </div>
+                    </div>
+
+                    {/* Reporte Comparativo Desglosado */}
+                    <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+                      <div className="p-2.5 bg-slate-900/60 border-b border-slate-800 text-[11px] font-bold text-slate-300 uppercase tracking-wider flex justify-between items-center">
+                        <span>Reporte Comparativo de Auditoría Posicional</span>
+                        <span className="text-[10px] text-slate-500 font-mono">Doppler + Dual-Threshold Sprint</span>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        <table className="w-full text-left text-xs font-mono">
+                          <thead className="bg-slate-950 text-slate-400 text-[10px] uppercase sticky top-0 border-b border-slate-800">
+                            <tr>
+                              <th className="p-2.5">Jugador</th>
+                              <th className="p-2.5">Posición</th>
+                              <th className="p-2.5 text-right">Dist (km)</th>
+                              <th className="p-2.5 text-right">Sprints (n)</th>
+                              <th className="p-2.5 text-right">Vmax (km/h)</th>
+                              <th className="p-2.5 text-right">CV Pos</th>
+                              <th className="p-2.5 text-center">Estado</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                            {audit.report.map((item: HomogeneityAuditReportItem, idx: number) => (
+                              <tr key={idx} className="hover:bg-slate-900/40">
+                                <td className="p-2.5 font-bold text-white truncate max-w-[130px]">
+                                  {item.playerName}
+                                </td>
+                                <td className="p-2.5 text-slate-400">
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px]">
+                                    {item.position}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-right font-bold">{item.distanceKm.toFixed(2)}</td>
+                                <td className="p-2.5 text-right text-emerald-400 font-bold">{item.sprintsCount}</td>
+                                <td className="p-2.5 text-right text-amber-400">{item.maxSpeedKmh.toFixed(1)}</td>
+                                <td className="p-2.5 text-right text-slate-400">{item.posCvPct.toFixed(1)}%</td>
+                                <td className="p-2.5 text-center">
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded text-[10px] font-bold border",
+                                    item.status.includes("SOSPECHOSA")
+                                      ? "bg-rose-950/60 text-rose-300 border-rose-800"
+                                      : "bg-emerald-950/60 text-emerald-300 border-emerald-800"
+                                  )}>
+                                    {item.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5">
                 <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">

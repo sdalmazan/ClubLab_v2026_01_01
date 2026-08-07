@@ -29,6 +29,7 @@ import {
   Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { auditSessionHomogeneity } from "@/lib/performance/wimuParser";
 
 interface GpsAnalysisDashboardProps {
   onOpenImportModal: () => void;
@@ -1202,6 +1203,109 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
           <p className="text-[10px] text-slate-500">Acciones &gt;25.2 km/h</p>
         </div>
       </div>
+
+      {/* ── AUDITORÍA DE HOMOGENEIDAD Y VALIDACIÓN DE DATOS GPS ── */}
+      {activeMetrics.length > 0 && (() => {
+        const auditRes = auditSessionHomogeneity(activeMetrics);
+
+        return (
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Activity className="size-4 text-emerald-400" />
+                  Auditoría de Homogeneidad Posicional & Calidad GPS WIMU
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Validación de variabilidad fisiológica entre líneas posicionales y detección de sobrecálculos por deriva estática
+                </p>
+              </div>
+
+              <span className={cn(
+                "text-xs font-bold px-3 py-1 rounded-full border flex items-center gap-1.5 font-mono uppercase",
+                auditRes.isSuspicious
+                  ? "bg-rose-950/80 text-rose-300 border-rose-700 animate-pulse"
+                  : "bg-emerald-950/80 text-emerald-300 border-emerald-700"
+              )}>
+                {auditRes.isSuspicious ? "⚠️ Homogeneidad Sospechosa" : "✅ Auditoría Validada"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">CV Inter-Posicional Sprints</span>
+                <span className={cn("text-lg font-bold", auditRes.cvSprints < 15 ? "text-rose-400" : "text-emerald-400")}>
+                  {auditRes.cvSprints.toFixed(1)}%
+                </span>
+                <span className="text-[10px] text-slate-500 block">Sprints &gt;25.2 km/h</span>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">CV Alta Intensidad (&gt;21 km/h)</span>
+                <span className={cn("text-lg font-bold", auditRes.cvHsr < 15 ? "text-rose-400" : "text-emerald-400")}>
+                  {auditRes.cvHsr.toFixed(1)}%
+                </span>
+                <span className="text-[10px] text-slate-500 block">Distancia a alta velocidad</span>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Filtro Doppler Estático</span>
+                <span className="text-lg font-bold text-emerald-400">v &lt; 0.2 m/s</span>
+                <span className="text-[10px] text-slate-500 block">Filtro de deriva estática activo</span>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Clamping Artefactos</span>
+                <span className="text-lg font-bold text-sky-400">10 m/s | 6 m/s²</span>
+                <span className="text-[10px] text-slate-500 block">Límite físico fisiológico</span>
+              </div>
+            </div>
+
+            {/* Tabla resumida de auditoría posicional */}
+            <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden">
+              <div className="max-h-40 overflow-y-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-950 text-slate-400 text-[10px] uppercase sticky top-0 border-b border-slate-800">
+                    <tr>
+                      <th className="p-2">Jugador</th>
+                      <th className="p-2">Posición</th>
+                      <th className="p-2 text-right">Dist (km)</th>
+                      <th className="p-2 text-right">Sprints (n)</th>
+                      <th className="p-2 text-right">Vmax (km/h)</th>
+                      <th className="p-2 text-right">CV Pos</th>
+                      <th className="p-2 text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                    {auditRes.report.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-900/40">
+                        <td className="p-2 font-bold text-white truncate max-w-[140px]">{item.playerName}</td>
+                        <td className="p-2 text-slate-400">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px]">{item.position}</span>
+                        </td>
+                        <td className="p-2 text-right font-bold">{item.distanceKm.toFixed(2)}</td>
+                        <td className="p-2 text-right text-emerald-400 font-bold">{item.sprintsCount}</td>
+                        <td className="p-2 text-right text-amber-400">{item.maxSpeedKmh.toFixed(1)}</td>
+                        <td className="p-2 text-right text-slate-400">{item.posCvPct.toFixed(1)}%</td>
+                        <td className="p-2 text-center">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-bold border",
+                            item.status.includes("SOSPECHOSA")
+                              ? "bg-rose-950/60 text-rose-300 border-rose-800"
+                              : "bg-emerald-950/60 text-emerald-300 border-emerald-800"
+                          )}>
+                            {item.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── MAPA TÁCTICO DE POSICIONES MEDIAS DEL EQUIPO (11 FUTBOLISTAS) ── */}
       {activeMetrics.length > 0 && (
