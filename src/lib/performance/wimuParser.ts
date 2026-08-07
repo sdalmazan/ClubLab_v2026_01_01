@@ -414,20 +414,29 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   const targetMMin = isGoalkeeper ? 45.0 + pseudoRandom(2) * 8.0 : 88.0 + (pseudoRandom(2) - 0.5) * 16.0;
   const targetAvgV = targetMMin / 60.0;
 
+  let sprintRemainingSamples = 0;
+  let sprintSpeedMs = 0.0;
+
   for (let s = 0; s < totalSamples; s++) {
     const sec = s / 10.0;
     const cycle = Math.sin(sec / 18.0) * Math.cos(sec / 5.0);
     let baseV = Math.max(0.0, targetAvgV + cycle * 0.55 + (pseudoRandom(s * 3) - 0.5) * 0.3);
 
-    // Ocasionales sprints segun rol
-    const sprintProb = isGoalkeeper ? 0.0003 : 0.0030;
-    if (pseudoRandom(s * 7) < sprintProb) {
-      baseV = 7.1 + pseudoRandom(s * 11) * ((vmaxPlayer / 3.6) - 7.1);
+    // Ocasionales sprints de alta intensidad sostenidos (ráfaga de 1.5s a 2.5s)
+    const sprintProb = isGoalkeeper ? 0.0003 : 0.0028;
+    if (sprintRemainingSamples <= 0 && pseudoRandom(s * 7) < sprintProb) {
+      sprintRemainingSamples = Math.floor(15 + pseudoRandom(s * 11) * 12); // 15-27 muestras = 1.5s - 2.7s
+      sprintSpeedMs = 7.1 + pseudoRandom(s * 13) * ((vmaxPlayer / 3.6) - 7.1);
     }
 
-    // Micro-pausas y paradas de juego (~40% del tiempo en marcha/espera)
-    if (pseudoRandom(s * 13) < 0.40 && baseV < 1.2) {
-      baseV = pseudoRandom(s * 17) < 0.65 ? 0.0 : 0.12;
+    if (sprintRemainingSamples > 0) {
+      baseV = sprintSpeedMs;
+      sprintRemainingSamples--;
+    } else {
+      // Micro-pausas y paradas de juego (~40% del tiempo en marcha/espera)
+      if (pseudoRandom(s * 13) < 0.40 && baseV < 1.2) {
+        baseV = pseudoRandom(s * 17) < 0.65 ? 0.0 : 0.12;
+      }
     }
 
     rawVelocitiesMs.push(baseV);

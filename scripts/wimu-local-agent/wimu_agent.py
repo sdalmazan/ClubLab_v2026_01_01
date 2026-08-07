@@ -521,19 +521,27 @@ def compute_player_metrics(
     total_samples = int(total_active_min * 60 * 10)
     raw_velocities_ms = []
 
+    sprint_remaining_samples = 0
+    sprint_speed_ms = 0.0
+
     for s in range(total_samples):
         sec = s / 10.0
         # Patrones de juego con micro-pausas y aceleraciones
         cycle = math.sin(sec / 18.0) * math.cos(sec / 5.0)
         base_v = max(0.0, target_avg_v + (cycle * 0.55) + rng.uniform(-0.25, 0.25))
 
-        # Ocasionales picos de esfuerzo / sprint segun perfil
-        if rng.random() < (0.003 * sprint_freq_mult):
-            base_v = rng.uniform(7.1, vmax_player / 3.6)
+        # Ocasionales picos de esfuerzo / sprint sostenidos segun perfil (1.5s - 2.7s)
+        if sprint_remaining_samples <= 0 and rng.random() < (0.0028 * sprint_freq_mult):
+            sprint_remaining_samples = rng.randint(15, 27)
+            sprint_speed_ms = rng.uniform(7.1, vmax_player / 3.6)
 
-        # Micro-pausas y paradas de juego (~40% del tiempo en marcha/espera)
-        if rng.random() < 0.40 and base_v < 1.2:
-            base_v = 0.0 if rng.random() < 0.65 else rng.uniform(0.05, 0.16)
+        if sprint_remaining_samples > 0:
+            base_v = sprint_speed_ms
+            sprint_remaining_samples -= 1
+        else:
+            # Micro-pausas y paradas de juego (~40% del tiempo en marcha/espera)
+            if rng.random() < 0.40 and base_v < 1.2:
+                base_v = 0.0 if rng.random() < 0.65 else rng.uniform(0.05, 0.16)
 
         raw_velocities_ms.append(base_v)
 
