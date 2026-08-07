@@ -122,11 +122,18 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       const res = await fetch(`/api/performance/gps/sessions?sessionId=${sessionId}`);
       const data = await res.json();
       if (data.success) {
+        const loadedMetrics = data.metrics || [];
         setSessionDetail({
           session: data.session,
           periods: data.periods || [],
-          metrics: data.metrics || [],
+          metrics: loadedMetrics,
         });
+
+        if (loadedMetrics.length === 0 && sessionId !== "SEASON_ACCUMULATED") {
+          setTimeout(() => {
+            handleGenerateMetricsForSession(sessionId);
+          }, 100);
+        }
       }
     } catch (err) {
       console.error("Failed to load session detail:", err);
@@ -802,8 +809,9 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     }
   };
 
-  const handleGenerateMetricsForSession = async () => {
-    if (!selectedSessionId) return;
+  const handleGenerateMetricsForSession = async (targetSessionId?: string) => {
+    const activeId = targetSessionId || selectedSessionId;
+    if (!activeId || activeId === "SEASON_ACCUMULATED") return;
     try {
       setIsLoading(true);
       const resP = await fetch("/api/players");
@@ -853,7 +861,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       });
 
       const payload = {
-        sessionId: selectedSessionId,
+        sessionId: activeId,
         sessionDate: sessionDetail?.session?.session_date || new Date().toISOString().split("T")[0],
         sessionType: sessionDetail?.session?.session_type || "PARTIDO",
         detectionMode: sessionDetail?.session?.detection_mode || "AUTOMATIC_KICKOFF_SIGNATURE",
@@ -870,9 +878,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
 
       const data = await res.json();
       if (data.success) {
-        await loadSessionDetail(selectedSessionId);
-      } else {
-        alert(data.error || "Error al generar métricas.");
+        await loadSessionDetail(activeId);
       }
     } catch (err) {
       console.error(err);
@@ -1088,25 +1094,6 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
             )}
           </div>
         </div>
-
-        {activeMetrics.length === 0 && sessionDetail && (
-          <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs space-y-2 text-amber-200">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="font-bold flex items-center gap-2">
-                <Activity className="size-4 text-amber-400" />
-                Esta sesión GPS fue creada previamente sin métricas vinculadas a la plantilla.
-              </span>
-              <button
-                type="button"
-                onClick={handleGenerateMetricsForSession}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-              >
-                <Sparkles className="size-4" />
-                <span>⚡ Vincular Métricas de la Plantilla Ahora</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Highlights Destacados del Partido */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   X,
   Upload,
@@ -97,9 +97,27 @@ export function WimuGpsImportModal({
   // GPS mapping { blockKey: { playerId: gpsNumber } }
   const [blockGpsMapping, setBlockGpsMapping] = useState<Record<string, Record<string, string>>>(() => {
     const init: Record<string, string> = {};
-    roster.forEach((p, idx) => { if (idx < 11) init[p.id] = String(p.jerseyNumber || idx + 1); });
+    roster.forEach((p, idx) => { init[p.id] = String(p.jerseyNumber || idx + 1); });
     return { Global: init, "1ª Parte": { ...init }, "2ª Parte": {}, "Bloque 1": { ...init }, "Bloque 2": {} };
   });
+
+  useEffect(() => {
+    if (roster && roster.length > 0) {
+      setBlockGpsMapping((prev) => {
+        const init: Record<string, string> = {};
+        roster.forEach((p, idx) => {
+          init[p.id] = String(p.jerseyNumber || idx + 1);
+        });
+        return {
+          Global: { ...init, ...(prev.Global || {}) },
+          "1ª Parte": { ...init, ...(prev["1ª Parte"] || {}) },
+          "2ª Parte": { ...(prev["2ª Parte"] || {}) },
+          "Bloque 1": { ...init, ...(prev["Bloque 1"] || {}) },
+          "Bloque 2": { ...(prev["Bloque 2"] || {}) },
+        };
+      });
+    }
+  }, [roster]);
 
   // Trimmer Engine & decoded metrics result from API
   const [trimmerData, setTrimmerData] = useState<{
@@ -450,17 +468,21 @@ export function WimuGpsImportModal({
           });
         }
 
-        // Automatic fallback assignment if no manual mapping was present
-        if (parsedFiles.length > 0 && Object.keys(playerAssignments).length === 0 && effectiveRoster.length > 0) {
+        // Ensure every squad player has a valid assignment for parsed .qul files
+        if (parsedFiles.length > 0 && effectiveRoster.length > 0) {
           effectiveRoster.forEach((p, idx) => {
-            const qul = parsedFiles[idx % parsedFiles.length];
-            if (qul) {
-              playerAssignments[p.id] = {
-                devNum: qul.deviceNumber || (idx + 1),
-                activeStart: 0,
-                activeEnd: Math.round(totalSessionDuration),
-                playedMin: Math.round(totalSessionDuration),
-              };
+            if (!playerAssignments[p.id]) {
+              const targetNum = p.jerseyNumber || (idx + 1);
+              const matchedQul = parsedFiles.find(f => f.deviceNumber === targetNum);
+              const qul = matchedQul || parsedFiles[idx % parsedFiles.length];
+              if (qul) {
+                playerAssignments[p.id] = {
+                  devNum: qul.deviceNumber || targetNum,
+                  activeStart: 0,
+                  activeEnd: Math.round(totalSessionDuration),
+                  playedMin: Math.round(totalSessionDuration),
+                };
+              }
             }
           });
         }
