@@ -95,31 +95,13 @@ export function WimuGpsImportModal({
   const [activeBlock, setActiveBlock] = useState<string>("1ª Parte");
 
   // GPS mapping { blockKey: { playerId: gpsNumber } }
-  const [blockGpsMapping, setBlockGpsMapping] = useState<Record<string, Record<string, string>>>(() => {
-    const init: Record<string, string> = {};
-    roster.forEach((p) => { 
-      if (p.jerseyNumber) init[p.id] = String(p.jerseyNumber); 
-    });
-    return { Global: init, "1ª Parte": { ...init }, "2ª Parte": {}, "Bloque 1": { ...init }, "Bloque 2": {} };
+  const [blockGpsMapping, setBlockGpsMapping] = useState<Record<string, Record<string, string>>>({
+    Global: {},
+    "1ª Parte": {},
+    "2ª Parte": {},
+    "Bloque 1": {},
+    "Bloque 2": {},
   });
-
-  useEffect(() => {
-    if (roster && roster.length > 0) {
-      setBlockGpsMapping((prev) => {
-        const init: Record<string, string> = {};
-        roster.forEach((p) => {
-          if (p.jerseyNumber) init[p.id] = String(p.jerseyNumber);
-        });
-        return {
-          Global: { ...init, ...(prev.Global || {}) },
-          "1ª Parte": { ...init, ...(prev["1ª Parte"] || {}) },
-          "2ª Parte": { ...(prev["2ª Parte"] || {}) },
-          "Bloque 1": { ...init, ...(prev["Bloque 1"] || {}) },
-          "Bloque 2": { ...(prev["Bloque 2"] || {}) },
-        };
-      });
-    }
-  }, [roster]);
 
   // Trimmer Engine & decoded metrics result from API
   const [trimmerData, setTrimmerData] = useState<{
