@@ -809,19 +809,6 @@ export function SettingsForm({
               Herramientas de Vídeo
             </button>
           )}
-          {canSeePerformanceSettings && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('performance')}
-              className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === 'performance'
-                  ? 'border-emerald-500 text-emerald-400'
-                  : 'border-transparent text-slate-400 hover:text-white'
-              }`}
-            >
-              Rendimiento & Tests
-            </button>
-          )}
         </div>
 
         {/* Tab 1: Profile & Password */}
@@ -1869,10 +1856,6 @@ export function SettingsForm({
         </div>
       )}
 
-        {/* Tab 6: Rendimiento & Tests */}
-        {activeTab === 'performance' && (
-          <PerformanceSettingsTab />
-        )}
       </div>
       {selectedFileForAdjustment && (
         <ImageAdjusterModal
