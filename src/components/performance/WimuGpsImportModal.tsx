@@ -24,7 +24,7 @@ import {
   UserMinus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseWimuQulBuffer, ParsedQulFile, normalizePitchGeometry, auditSessionHomogeneity, HomogeneityAuditReportItem } from "@/lib/performance/wimuParser";
+import { parseWimuQulBuffer, ParsedQulFile, normalizePitchGeometry, auditSessionHomogeneity, HomogeneityAuditReportItem, sliceQulFileByWindow } from "@/lib/performance/wimuParser";
 import { GpsTimelineChart } from "@/components/performance/GpsTimelineChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -552,13 +552,15 @@ export function WimuGpsImportModal({
             }
             if (!qul) return;
 
-            const fileDuration = qul.durationMin && qul.durationMin > 0 ? qul.durationMin : (totalSessionDuration > 0 ? totalSessionDuration : 90);
+            const slicedMetrics = sliceQulFileByWindow(qul, info.activeStart, info.activeEnd);
+            const fileDuration = qul.durationMin && qul.durationMin > 0 ? qul.durationMin : 90;
             const ratio = Math.min(1.0, Math.max(0.0, info.playedMin / fileDuration));
 
-            const distKm = Math.round(qul.estimatedDistanceKm * ratio * 100) / 100;
-            const hsrM = Math.round(qul.estimatedHsrM * ratio);
-            const sprintsCount = Math.round(qul.estimatedSprints * ratio);
-            const pl = Math.round(qul.playerLoad * ratio * 100) / 100;
+            const distKm = slicedMetrics.distanceKm;
+            const hsrM = slicedMetrics.hsrM;
+            const sprintsCount = slicedMetrics.sprintsCount;
+            const maxSpeedKmh = slicedMetrics.maxSpeedKmh;
+            const pl = slicedMetrics.playerLoad;
             const plMin = info.playedMin > 0 ? Math.round((pl / info.playedMin) * 100) / 100 : 0;
             const relDist = info.playedMin > 0 ? Math.round((distKm * 1000) / info.playedMin) : 0;
 
@@ -578,7 +580,7 @@ export function WimuGpsImportModal({
               relative_distance_mmin: relDist,
               hsr_m:                 hsrM,
               sprints_count:         sprintsCount,
-              max_speed_kmh:         qul.maxSpeedKmh,
+              max_speed_kmh:         maxSpeedKmh,
               player_load:           pl,
               player_load_min:       plMin,
               accelerations:         Math.round((qul.accelBands.high + qul.accelBands.mid) * ratio),

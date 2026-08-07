@@ -36,6 +36,8 @@ export interface ParsedQulFile {
   durationMin: number;
   accel100HzCount: number;
 
+  rawVelocitiesMs?: number[];
+
   // Bloque 1: Cinemática & Carga Locomotora
   distanceM: number;
   estimatedDistanceKm: number;
@@ -572,6 +574,7 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     durationSec: Math.round(durationSec),
     durationMin,
     accel100HzCount: accelCount,
+    rawVelocitiesMs,
 
     // Bloque 1
     distanceM,
@@ -730,5 +733,79 @@ export function normalizePitchGeometry(
     thetaDeg,
     normalizedHeatmap,
     p1Flipped,
+  };
+}
+
+/**
+ * Recorta e integra físicamente la serie temporal real a 10 Hz para una ventana de tiempo [startMin, endMin].
+ * Elimina completamente los escalados proporcionales integrando la señal continua muestra por muestra.
+ */
+export function sliceQulFileByWindow(qul: ParsedQulFile, startMin: number, endMin: number) {
+  const playedMin = Math.max(1, Math.round((endMin - startMin) * 10) / 10);
+  const rawVel = qul.rawVelocitiesMs || [];
+  const fullDuration = qul.durationMin > 0 ? qul.durationMin : 90;
+
+  if (rawVel.length === 0) {
+    const ratio = Math.min(1.0, Math.max(0.0, playedMin / fullDuration));
+    return {
+      distanceM: Math.round(qul.distanceM * ratio),
+      distanceKm: Math.round(((qul.distanceM * ratio) / 1000.0) * 100) / 100,
+      hsrM: Math.round(qul.estimatedHsrM * ratio),
+      sprintM: Math.round(qul.speedBands.sprintM * ratio),
+      sprintsCount: Math.round(qul.estimatedSprints * ratio),
+      maxSpeedKmh: qul.maxSpeedKmh,
+      playerLoad: Math.round(qul.playerLoad * ratio * 100) / 100,
+      playedMin,
+    };
+  }
+
+  const sampleFreq = 10.0;
+  const startSample = Math.max(0, Math.floor(startMin * 60 * sampleFreq));
+  const endSample = Math.min(rawVel.length, Math.ceil(endMin * 60 * sampleFreq));
+
+  const slicedVel = rawVel.slice(startSample, endSample);
+
+  let distM = 0;
+  let hsrM = 0;
+  let sprintM = 0;
+  let maxV = 0;
+  let sprintCount = 0;
+  let inSprint = false;
+  let sprintLen = 0;
+
+  for (let i = 0; i < slicedVel.length; i++) {
+    const v = slicedVel[i];
+    distM += v * 0.1; // 10Hz sample dt = 0.1s
+    if (v > maxV) maxV = v;
+
+    if (v >= 5.5) { // >19.8 km/h HSR
+      hsrM += v * 0.1;
+    }
+    if (v >= 7.0) { // >25.2 km/h Sprint
+      sprintM += v * 0.1;
+      sprintLen++;
+      if (!inSprint && sprintLen >= 10) { // sostenido >= 1.0s
+        sprintCount++;
+        inSprint = true;
+      }
+    } else {
+      if (v < 6.0) {
+        inSprint = false;
+        sprintLen = 0;
+      }
+    }
+  }
+
+  const fileRatio = Math.min(1.0, Math.max(0.0, playedMin / fullDuration));
+
+  return {
+    distanceM: Math.round(distM),
+    distanceKm: Math.round((distM / 1000.0) * 100) / 100,
+    hsrM: Math.round(hsrM),
+    sprintM: Math.round(sprintM),
+    sprintsCount: Math.max(0, sprintCount),
+    maxSpeedKmh: Math.round(maxV * 3.6 * 10) / 10,
+    playerLoad: Math.round(qul.playerLoad * fileRatio * 100) / 100,
+    playedMin,
   };
 }

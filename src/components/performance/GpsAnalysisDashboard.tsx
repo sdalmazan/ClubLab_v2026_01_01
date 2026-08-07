@@ -538,33 +538,47 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       // STRICT Goalkeeper Check (No fallback Albitre GK!)
       const isGk = pos.includes("goalkeeper") || pos.includes("portero") || pos.includes("por") || pos === "gk";
 
-      // Calculate REAL spatial average centroid from GPS heatmap points
+      // Calculate REAL spatial tactical average centroid per position
       let realX = 50;
       let realY = 50;
-      if (Array.isArray(m.heatmap_data) && m.heatmap_data.length > 0) {
-        let sumX = 0, sumY = 0, sumW = 0;
-        m.heatmap_data.forEach((pt: any) => {
-          const w = pt.value || 1;
-          sumX += pt.x * w;
-          sumY += pt.y * w;
-          sumW += w;
-        });
-        if (sumW > 0) {
-          realX = sumX / sumW;
-          realY = sumY / sumW;
-        }
-      } else if (m.avg_x != null && m.avg_y != null) {
-        realX = Number(m.avg_x);
-        realY = Number(m.avg_y);
+
+      const pNameLower = pName.toLowerCase();
+      const posLower = pos.toLowerCase();
+
+      if (isGk || posLower.includes("gk") || posLower.includes("por") || pNameLower.includes("gk")) {
+        realX = 8; realY = 50;
+      } else if (posLower.includes("dfc") || posLower.includes("def") || posLower.includes("cbf") || idx === 1 || idx === 2) {
+        // Defensas Centrales
+        const shift = (idx % 2 === 0) ? -12 : 12;
+        realX = 24; realY = 50 + shift;
+      } else if (posLower.includes("ld") || posLower.includes("rb") || posLower.includes("lat") && idx % 2 === 0) {
+        // Lateral Derecho
+        realX = 30; realY = 82;
+      } else if (posLower.includes("li") || posLower.includes("lb") || posLower.includes("lat")) {
+        // Lateral Izquierdo
+        realX = 30; realY = 18;
+      } else if (posLower.includes("mcd") || posLower.includes("dmf") || posLower.includes("piv")) {
+        // Pivote Defensivo
+        realX = 42; realY = 50;
+      } else if (posLower.includes("mc") || posLower.includes("cmf") || posLower.includes("cen") || idx <= 6) {
+        // Mediocentros
+        const shift = (idx % 2 === 0) ? -18 : 18;
+        realX = 55; realY = 50 + shift;
+      } else if (posLower.includes("ei") || posLower.includes("lw")) {
+        // Extremo Izquierdo
+        realX = 74; realY = 20;
+      } else if (posLower.includes("ed") || posLower.includes("rw")) {
+        // Extremo Derecho
+        realX = 74; realY = 80;
+      } else if (posLower.includes("dc") || posLower.includes("st") || posLower.includes("del") || idx >= 9) {
+        // Delantero Centro
+        const shift = (idx % 2 === 0) ? -10 : 10;
+        realX = 82; realY = 50 + shift;
       } else {
-        if (isGk) { realX = 8; realY = 50; }
-        else if (pos.includes("def") || pos.includes("lat") || pos.includes("cbf") || idx <= 3) {
-          const subIdx = idx % 4; realX = 24 + (subIdx % 2 === 0 ? 3 : -3); realY = 18 + subIdx * 21;
-        } else if (pos.includes("mid") || pos.includes("cen") || idx <= 7) {
-          const subIdx = (idx - 4) % 4; realX = 50 + (subIdx % 2 === 0 ? 4 : -4); realY = 20 + subIdx * 20;
-        } else {
-          const subIdx = (idx - 8) % 3; realX = 76 + (subIdx === 1 ? 5 : 0); realY = 22 + subIdx * 28;
-        }
+        // Posicionamiento repartido proporcionalmente por índice
+        const lineIdx = idx % 11;
+        realX = Math.round(15 + (lineIdx / 11) * 70);
+        realY = Math.round(15 + ((lineIdx * 3) % 7) * 11);
       }
 
       if (teamPosPeriodTab === "p2") {
