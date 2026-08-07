@@ -429,7 +429,6 @@ export async function POST(req: Request) {
         const obj: any = {
           session_id:             sessionId,
           player_id:              m.player_id,
-          gps_device_number:      m.gps_device_number || m.devNum || null,
           // Bloque 1: Kinematics
           distance_km:            safeNum(m.distance_km, 0, 0, 999),
           distance_m:             Math.round(safeNum(m.distance_m, 0, 0, 999000)),
