@@ -415,22 +415,47 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     // Tactical Pitch Background
     ctx.fillStyle = "#090d16";
     ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
     ctx.lineWidth = 1.5;
 
-    // Pitch Outline & Markings
-    ctx.strokeRect(10, 10, width - 20, height - 20);
+    // Pitch Proportional Outline & Markings (FIFA 105m x 68m Ratio: 1.544)
+    const pMargin = 8;
+    const pWidth = width - 2 * pMargin;
+    const pHeight = height - 2 * pMargin;
+
+    // Outline & Center Line
+    ctx.strokeRect(pMargin, pMargin, pWidth, pHeight);
     ctx.beginPath();
-    ctx.moveTo(width / 2, 10);
-    ctx.lineTo(width / 2, height - 10);
+    ctx.moveTo(pMargin + pWidth / 2, pMargin);
+    ctx.lineTo(pMargin + pWidth / 2, pMargin + pHeight);
     ctx.stroke();
 
+    // Center Circle (9.15m radius = 13.5% of pitch height)
     ctx.beginPath();
-    ctx.arc(width / 2, height / 2, 35, 0, Math.PI * 2);
+    ctx.arc(pMargin + pWidth / 2, pMargin + pHeight / 2, pHeight * 0.135, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.strokeRect(10, height / 2 - 50, 45, 100);
-    ctx.strokeRect(width - 55, height / 2 - 50, 45, 100);
+    // Center Spot
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.beginPath();
+    ctx.arc(pMargin + pWidth / 2, pMargin + pHeight / 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Penalty Boxes (16.5m depth = 15.7% pWidth, 40.32m height = 59.3% pHeight)
+    const penDepth = pWidth * 0.157;
+    const penHeight = pHeight * 0.593;
+    const penTop = pMargin + (pHeight - penHeight) / 2;
+
+    ctx.strokeRect(pMargin, penTop, penDepth, penHeight);
+    ctx.strokeRect(pMargin + pWidth - penDepth, penTop, penDepth, penHeight);
+
+    // Goal Boxes (5.5m depth = 5.2% pWidth, 18.32m height = 26.9% pHeight)
+    const goalDepth = pWidth * 0.052;
+    const goalHeight = pHeight * 0.269;
+    const goalTop = pMargin + (pHeight - goalHeight) / 2;
+
+    ctx.strokeRect(pMargin, goalTop, goalDepth, goalHeight);
+    ctx.strokeRect(pMargin + pWidth - goalDepth, goalTop, goalDepth, goalHeight);
 
     const isSeasonMode = selectedSessionId === "SEASON_ACCUMULATED";
 
@@ -1137,17 +1162,16 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
           <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-center relative">
             <canvas
               ref={teamCanvasRef}
-              width={780}
-              height={320}
-              className="rounded-lg border border-slate-800 w-full max-w-[780px] h-auto"
+              width={680}
+              height={440}
+              className="rounded-lg border border-slate-800 w-full max-w-[680px] h-auto"
             />
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono flex-wrap gap-2 pt-1 border-t border-slate-800/60">
             <div className="flex items-center gap-4 flex-wrap">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400 inline-block border border-white/40" />Portero (#1)</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400 inline-block border border-white/40" />Portero</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-sky-500 inline-block border border-white/40" />Jugadores de Campo</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-sky-400/80 inline-block border-t border-dashed" />Líneas tácticas</span>
             </div>
             <span className="text-emerald-400 font-bold">🎯 Centro de Gravedad del Colectivo</span>
           </div>
