@@ -9,14 +9,34 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
  */
 
 async function getOrgId(supabase: any, userId: string): Promise<string | null> {
-  const { data } = await supabase
+  const { data: roleRow } = await supabase
     .from("user_organization_roles")
     .select("organization_id")
     .eq("user_id", userId)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  return data?.organization_id ?? null;
+
+  if (roleRow?.organization_id) return roleRow.organization_id;
+
+  // Fallback 1: check organization_invitations
+  const { data: invRow } = await supabase
+    .from("organization_invitations")
+    .select("organization_id")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (invRow?.organization_id) return invRow.organization_id;
+
+  // Fallback 2: first available organization
+  const { data: firstOrg } = await supabase
+    .from("organizations")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  return firstOrg?.id ?? null;
 }
 
 export async function GET(req: Request) {
