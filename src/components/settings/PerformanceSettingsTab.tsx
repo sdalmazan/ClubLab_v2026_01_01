@@ -41,6 +41,12 @@ export function PerformanceSettingsTab() {
     }
     return 10;
   });
+
+  // Geometría del Campo (Esquinas GPS Opuestas P1 y P2)
+  const [pitchP1Lat, setPitchP1Lat] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p1_lat") || "40.453521" : "40.453521"));
+  const [pitchP1Lon, setPitchP1Lon] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p1_lon") || "-3.688972" : "-3.688972"));
+  const [pitchP2Lat, setPitchP2Lat] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lat") || "40.452587" : "40.452587"));
+  const [pitchP2Lon, setPitchP2Lon] = useState<string>(() => (typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lon") || "-3.687717" : "-3.687717"));
   
   // Physical Tests State
   const [physicalTests, setPhysicalTests] = useState<PhysicalTestItem[]>([]);
@@ -218,6 +224,12 @@ export function PerformanceSettingsTab() {
 
   const handleSave = async () => {
     await persistGpsSetting(gpsEnabled);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("cl_pitch_p1_lat", pitchP1Lat);
+      localStorage.setItem("cl_pitch_p1_lon", pitchP1Lon);
+      localStorage.setItem("cl_pitch_p2_lat", pitchP2Lat);
+      localStorage.setItem("cl_pitch_p2_lon", pitchP2Lon);
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -425,6 +437,57 @@ export function PerformanceSettingsTab() {
                     <option value="statssports">STATS Apex GPS</option>
                     <option value="manual">Ingreso Manual / CSV</option>
                   </select>
+                </div>
+
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                  <label className="block font-semibold text-slate-200">
+                    Geometría del Campo de Juego (Esquinas GPS Opuestas P1 y P2)
+                  </label>
+                  <p className="text-[11px] text-slate-400">
+                    Introduce las coordenadas GPS de dos esquinas opuestas de tu terreno de juego habitual para la normalización espacial cartesiana (0,0) y rotación por PCA.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P1 (Lat, Lon)</label>
+                      <div className="flex gap-1 mt-0.5">
+                        <input
+                          type="text"
+                          value={pitchP1Lat}
+                          onChange={(e) => setPitchP1Lat(e.target.value)}
+                          placeholder="Latitud P1"
+                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
+                        />
+                        <input
+                          type="text"
+                          value={pitchP1Lon}
+                          onChange={(e) => setPitchP1Lon(e.target.value)}
+                          placeholder="Longitud P1"
+                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P2 Opuesta (Lat, Lon)</label>
+                      <div className="flex gap-1 mt-0.5">
+                        <input
+                          type="text"
+                          value={pitchP2Lat}
+                          onChange={(e) => setPitchP2Lat(e.target.value)}
+                          placeholder="Latitud P2"
+                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
+                        />
+                        <input
+                          type="text"
+                          value={pitchP2Lon}
+                          onChange={(e) => setPitchP2Lon(e.target.value)}
+                          placeholder="Longitud P2"
+                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (

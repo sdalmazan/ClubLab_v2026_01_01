@@ -24,7 +24,7 @@ import {
   UserMinus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseWimuQulBuffer, ParsedQulFile } from "@/lib/performance/wimuParser";
+import { parseWimuQulBuffer, ParsedQulFile, normalizePitchGeometry } from "@/lib/performance/wimuParser";
 import { GpsTimelineChart } from "@/components/performance/GpsTimelineChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,6 +78,13 @@ export function WimuGpsImportModal({
   const [errorMsg, setErrorMsg] = useState("");
 
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Pitch Geometry venue state
+  const [venueType, setVenueType] = useState<"home" | "away_custom" | "away_auto">("home");
+  const [customP1Lat, setCustomP1Lat] = useState("");
+  const [customP1Lon, setCustomP1Lon] = useState("");
+  const [customP2Lat, setCustomP2Lat] = useState("");
+  const [customP2Lon, setCustomP2Lon] = useState("");
 
   // Period definitions
   const [periodDefs, setPeriodDefs] = useState<PeriodDefinition[]>(DEFAULT_PARTIDO_PERIODS);
@@ -473,8 +480,26 @@ export function WimuGpsImportModal({
               speed_bands:           qul.speedBands,
               accel_bands:           qul.accelBands,
               decel_bands:           qul.decelBands,
-              acwr_ratio:            qul.acwrRatio,
-              heatmap_data:          qul.heatmapData,
+              heatmap_data:          normalizePitchGeometry(
+                qul.heatmapData,
+                venueType === "away_auto"
+                  ? undefined
+                  : venueType === "away_custom" && customP1Lat && customP1Lon && customP2Lat && customP2Lon
+                  ? {
+                      p1: [parseFloat(customP1Lat), parseFloat(customP1Lon)],
+                      p2: [parseFloat(customP2Lat), parseFloat(customP2Lon)],
+                    }
+                  : {
+                      p1: [
+                        parseFloat(typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p1_lat") || "40.453521" : "40.453521"),
+                        parseFloat(typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p1_lon") || "-3.688972" : "-3.688972"),
+                      ],
+                      p2: [
+                        parseFloat(typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lat") || "40.452587" : "40.452587"),
+                        parseFloat(typeof window !== "undefined" ? localStorage.getItem("cl_pitch_p2_lon") || "-3.687717" : "-3.687717"),
+                      ],
+                    }
+              ).normalizedHeatmap,
               sprint_vectors:        qul.sprintVectors,
             });
           });
@@ -831,6 +856,100 @@ export function WimuGpsImportModal({
                     ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Ubicación del Campo de Juego (Estadio Club / Otro Campo / Auto GPS) */}
+              <div className="space-y-2.5 p-4 bg-slate-950/80 border border-slate-800 rounded-2xl">
+                <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider">
+                  Ubicación del Terreno de Juego
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVenueType("home")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer",
+                      venueType === "home"
+                        ? "bg-emerald-950/50 border-emerald-500 text-emerald-300"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="font-bold text-white">Estadio del Club</div>
+                    <div className="text-[10px] opacity-75 mt-0.5">Usar esquinas P1/P2 guardadas en Ajustes</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVenueType("away_custom")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer",
+                      venueType === "away_custom"
+                        ? "bg-emerald-950/50 border-emerald-500 text-emerald-300"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="font-bold text-white">Otro Campo (Manual)</div>
+                    <div className="text-[10px] opacity-75 mt-0.5">Meter coordenadas GPS de 2 esquinas opuestas</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVenueType("away_auto")}
+                    className={cn(
+                      "p-3 rounded-xl border text-left text-xs font-semibold transition-all cursor-pointer",
+                      venueType === "away_auto"
+                        ? "bg-emerald-950/50 border-emerald-500 text-emerald-300"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="font-bold text-white">Otro Campo (Auto GPS)</div>
+                    <div className="text-[10px] opacity-75 mt-0.5">Obviar esquinas y estimar por datos de jugadores</div>
+                  </button>
+                </div>
+
+                {venueType === "away_custom" && (
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P1 (Lat, Lon)</label>
+                      <div className="flex gap-2 mt-1">
+                        <input
+                          type="text"
+                          value={customP1Lat}
+                          onChange={(e) => setCustomP1Lat(e.target.value)}
+                          placeholder="40.453521"
+                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                        />
+                        <input
+                          type="text"
+                          value={customP1Lon}
+                          onChange={(e) => setCustomP1Lon(e.target.value)}
+                          placeholder="-3.688972"
+                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P2 Opuesta (Lat, Lon)</label>
+                      <div className="flex gap-2 mt-1">
+                        <input
+                          type="text"
+                          value={customP2Lat}
+                          onChange={(e) => setCustomP2Lat(e.target.value)}
+                          placeholder="40.452587"
+                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                        />
+                        <input
+                          type="text"
+                          value={customP2Lon}
+                          onChange={(e) => setCustomP2Lon(e.target.value)}
+                          placeholder="-3.687717"
+                          className="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Period Definitions */}

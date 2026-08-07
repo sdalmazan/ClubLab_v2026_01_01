@@ -27,6 +27,87 @@ except ImportError:
     print("   Ejecuta: pip install requests\n")
     sys.exit(1)
 
+try:
+    import numpy as np
+    from sklearn.decomposition import PCA
+    HAS_NUMPY_PCA = True
+except ImportError:
+    HAS_NUMPY_PCA = False
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  MOTOR DE PROCESAMIENTO ESPACIAL Y GEOMETRÍA AUTOMÁTICA
+# ═══════════════════════════════════════════════════════════════════
+
+class SpatialGeometryEngine:
+    """
+    Motor de Ciencia de Datos para la Resolución Geométrico-Espacial 
+    y Normalización de Coordenadas GPS en Fútbol (Fases 1 y 2).
+    """
+    EARTH_RADIUS_M = 6371000.0
+
+    def __init__(self, p1_gps: tuple = (40.453521, -3.688972), p2_gps: tuple = (40.452587, -3.687717)):
+        self.p1_gps = p1_gps  # (lat1, lon1)
+        self.p2_gps = p2_gps  # (lat2, lon2)
+        self.lat_c = (p1_gps[0] + p2_gps[0]) / 2.0
+        self.lon_c = (p1_gps[1] + p2_gps[1]) / 2.0
+        self.theta_deg = 0.0
+        self.length = 105.0
+        self.width = 68.0
+        self.p1_flipped = False
+
+    def gps_to_local_meters(self, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
+        lat_c_rad = np.radians(self.lat_c)
+        d_lat = np.radians(lats - self.lat_c)
+        d_lon = np.radians(lons - self.lon_c)
+        x_m = d_lon * self.EARTH_RADIUS_M * np.cos(lat_c_rad)
+        y_m = d_lat * self.EARTH_RADIUS_M
+        return np.column_stack((x_m, y_m))
+
+    def fit_pitch_geometry(self, player_lats: np.ndarray, player_lons: np.ndarray):
+        if not HAS_NUMPY_PCA or len(player_lats) < 5:
+            return
+        local_coords = self.gps_to_local_meters(player_lats, player_lons)
+        pca = PCA(n_components=2)
+        pca.fit(local_coords)
+        primary_axis = pca.components_[0]
+        self.theta_deg = float(np.degrees(np.arctan2(primary_axis[1], primary_axis[0])))
+        
+        rad = np.radians(-self.theta_deg)
+        rot_matrix = np.array([
+            [np.cos(rad), -np.sin(rad)],
+            [np.sin(rad),  np.cos(rad)]
+        ])
+        
+        p1_m = self.gps_to_local_meters(np.array([self.p1_gps[0]]), np.array([self.p1_gps[1]]))[0]
+        p2_m = self.gps_to_local_meters(np.array([self.p2_gps[0]]), np.array([self.p2_gps[1]]))[0]
+        
+        p1_rot = np.dot(rot_matrix, p1_m)
+        p2_rot = np.dot(rot_matrix, p2_m)
+        
+        self.length = max(90.0, float(np.abs(p2_rot[0] - p1_rot[0])))
+        self.width = max(45.0, float(np.abs(p2_rot[1] - p1_rot[1])))
+
+    def filter_out_of_bounds(self, x_rot: np.ndarray, y_rot: np.ndarray, margin: float = 1.5) -> np.ndarray:
+        half_l = (self.length / 2.0) + margin
+        half_w = (self.width / 2.0) + margin
+        return (x_rot >= -half_l) & (x_rot <= half_l) & (y_rot >= -half_w) & (y_rot <= half_w)
+
+    def process_attack_direction_and_flip(self, p1_def_x: np.ndarray, p1_del_x: np.ndarray, p1_coords: np.ndarray, p2_coords: np.ndarray):
+        mean_def_x = float(np.mean(p1_def_x)) if len(p1_def_x) > 0 else -20.0
+        mean_del_x = float(np.mean(p1_del_x)) if len(p1_del_x) > 0 else 15.0
+        
+        if mean_del_x > mean_def_x:
+            self.p1_flipped = False
+            p1_norm = p1_coords.copy()
+            p2_norm = -p2_coords.copy()
+        else:
+            self.p1_flipped = True
+            p1_norm = -p1_coords.copy()
+            p2_norm = p2_coords.copy()
+            
+        return p1_norm, p2_norm
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  PARSER DE ARCHIVOS .qul  (WIMU proprietary binary format)

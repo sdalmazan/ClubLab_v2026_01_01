@@ -392,3 +392,96 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     timelineSeries,
   };
 }
+
+export interface PitchCorners {
+  p1: [number, number]; // [lat1, lon1]
+  p2: [number, number]; // [lat2, lon2]
+}
+
+export interface SpatialGeometryResult {
+  center: [number, number];
+  lengthM: number;
+  widthM: number;
+  thetaDeg: number;
+  normalizedHeatmap: Array<{ x: number; y: number; value: number }>;
+  p1Flipped: boolean;
+}
+
+export function normalizePitchGeometry(
+  rawPoints: Array<{ lat?: number; lon?: number; x?: number; y?: number; value: number }>,
+  corners?: PitchCorners,
+  isPeriod2: boolean = false,
+  attackerAttacksPositiveX: boolean = true
+): SpatialGeometryResult {
+  const p1 = corners?.p1 || [40.453521, -3.688972];
+  const p2 = corners?.p2 || [40.452587, -3.687717];
+
+  const latC = (p1[0] + p2[0]) / 2;
+  const lonC = (p1[1] + p2[1]) / 2;
+
+  const earthR = 6371000;
+  const latCRad = (latC * Math.PI) / 180;
+  const corner1M = [(p1[1] - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad), (p1[0] - latC) * (Math.PI / 180) * earthR];
+  const corner2M = [(p2[1] - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad), (p2[0] - latC) * (Math.PI / 180) * earthR];
+
+  const lengthM = Math.max(90, Math.abs(corner2M[0] - corner1M[0]));
+  const widthM = Math.max(45, Math.abs(corner2M[1] - corner1M[1]));
+
+  const thetaDeg = 24.37;
+  const rad = (-thetaDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  const halfL = lengthM / 2 + 1.5;
+  const halfW = widthM / 2 + 1.5;
+
+  let p1Flipped = !attackerAttacksPositiveX;
+
+  const normalizedHeatmap = rawPoints
+    .map((pt) => {
+      let xm = 0;
+      let ym = 0;
+
+      if (pt.lat !== undefined && pt.lon !== undefined) {
+        xm = (pt.lon - lonC) * (Math.PI / 180) * earthR * Math.cos(latCRad);
+        ym = (pt.lat - latC) * (Math.PI / 180) * earthR;
+      } else {
+        xm = ((pt.x ?? 50) - 50) * (lengthM / 100);
+        ym = ((pt.y ?? 50) - 50) * (widthM / 100);
+      }
+
+      let xRot = xm * cos - ym * sin;
+      let yRot = xm * sin + ym * cos;
+
+      if (Math.abs(xRot) > halfL || Math.abs(yRot) > halfW) {
+        return null;
+      }
+
+      if (!isPeriod2) {
+        if (p1Flipped) {
+          xRot = -xRot;
+          yRot = -yRot;
+        }
+      } else {
+        if (!p1Flipped) {
+          xRot = -xRot;
+          yRot = -yRot;
+        }
+      }
+
+      const normX = Math.round(Math.max(0, Math.min(100, ((xRot + lengthM / 2) / lengthM) * 100)) * 10) / 10;
+      const normY = Math.round(Math.max(0, Math.min(100, ((yRot + widthM / 2) / widthM) * 100)) * 10) / 10;
+
+      return { x: normX, y: normY, value: pt.value };
+    })
+    .filter((item): item is { x: number; y: number; value: number } => item !== null);
+
+  return {
+    center: [latC, lonC],
+    lengthM: Math.round(lengthM * 100) / 100,
+    widthM: Math.round(widthM * 100) / 100,
+    thetaDeg,
+    normalizedHeatmap,
+    p1Flipped,
+  };
+}

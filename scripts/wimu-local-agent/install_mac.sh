@@ -39,7 +39,7 @@ python3 -m venv "$VENV_DIR"
 
 # ── Instalar dependencias ─────────────────────────────────────
 echo ""
-echo " Instalando dependencias (requests)..."
+echo " Instalando dependencias (requests, numpy, scikit-learn)..."
 "$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements.txt" --quiet
 
 # ── Crear script de ejecución ─────────────────────────────────

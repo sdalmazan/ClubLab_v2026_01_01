@@ -42,7 +42,7 @@ if errorlevel 1 (
 
 :: ── Instalar dependencias ─────────────────────────────────────
 echo.
-echo  Instalando dependencias (requests)...
+echo  Instalando dependencias (requests, numpy, scikit-learn)...
 "%VENV_DIR%\Scripts\pip" install -r "%~dp0requirements.txt" --quiet
 if errorlevel 1 (
     echo  [ERROR] No se pudieron instalar las dependencias.
