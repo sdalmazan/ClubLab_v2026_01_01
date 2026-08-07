@@ -104,7 +104,8 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
         setSessions(data.sessions);
         setSeasonStats(data.playerSeasonStats || {});
 
-        const activeId = targetSessionId || initialSessionId || (data.sessions.length > 0 ? data.sessions[0].id : "");
+        const validSessionWithMetrics = data.sessions.find((s: any) => (s.metrics_count ?? 1) > 0) || data.sessions[0];
+        const activeId = targetSessionId || initialSessionId || (validSessionWithMetrics ? validSessionWithMetrics.id : "");
         if (activeId) {
           setSelectedSessionId(activeId);
           await loadSessionDetail(activeId);

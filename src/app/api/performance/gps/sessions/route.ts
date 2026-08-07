@@ -204,8 +204,10 @@ export async function GET(req: Request) {
     if (sessionIds.length > 0) {
       const { data: allMetrics } = await supabase
         .from("wimu_player_session_metrics")
-        .select("player_id, distance_km, hsr_m, sprints_count, max_speed_kmh, player_load_min, accelerations, hmld_m, metabolic_power_wkg, acwr_ratio, explosive_distance_m")
+        .select("session_id, player_id, distance_km, hsr_m, sprints_count, max_speed_kmh, player_load_min, accelerations, hmld_m, metabolic_power_wkg, acwr_ratio, explosive_distance_m")
         .in("session_id", sessionIds);
+
+      const sessionMetricsCount: Record<string, number> = {};
 
       if (allMetrics && Array.isArray(allMetrics)) {
         const acc: Record<string, {
@@ -215,6 +217,9 @@ export async function GET(req: Request) {
         }> = {};
 
         allMetrics.forEach((m) => {
+          if (m.session_id) {
+            sessionMetricsCount[m.session_id] = (sessionMetricsCount[m.session_id] || 0) + 1;
+          }
           const pid = m.player_id;
           if (!pid) return;
           if (!acc[pid]) acc[pid] = { count: 0, dist: 0, hsr: 0, sprints: 0, maxSpeed: 0, plMin: 0, accel: 0, hmld: 0, metPower: 0, acwr: 0, expDist: 0 };
@@ -247,6 +252,11 @@ export async function GET(req: Request) {
             avgExplosiveDistM:    Number((stat.expDist / c).toFixed(1)),
           };
         });
+
+        sessions = sessions.map((s: any) => ({
+          ...s,
+          metrics_count: sessionMetricsCount[s.id] || 0,
+        }));
       }
     }
 
@@ -299,6 +309,27 @@ export async function POST(req: Request) {
       const opp = matchRecord.match_opponent || "Rival";
       if (!finalNotes.includes(opp)) {
         finalNotes = finalNotes ? `${finalNotes} · Vinculado a Partido vs ${opp}` : `Partido vs ${opp}`;
+      }
+    }
+
+    // Limpiar sesiones vacías huérfanas (sin métricas) en la misma fecha antes de crear la nueva
+    const { data: emptySessions } = await supabase
+      .from("wimu_sessions")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("session_date", targetDate);
+
+    if (emptySessions && emptySessions.length > 0) {
+      for (const es of emptySessions) {
+        const { count } = await supabase
+          .from("wimu_player_session_metrics")
+          .select("id", { count: "exact", head: true })
+          .eq("session_id", es.id);
+        
+        if (count === 0 || count === null) {
+          await supabase.from("session_trimmed_periods").delete().eq("session_id", es.id);
+          await supabase.from("wimu_sessions").delete().eq("id", es.id);
+        }
       }
     }
 
