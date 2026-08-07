@@ -117,7 +117,7 @@ export async function GET(req: Request) {
 
       const { data: rawMetrics } = await supabase
         .from("wimu_player_session_metrics")
-        .select("*, players(id, first_name, last_name, sporting_name, jersey_number, position)")
+        .select("*, players(id, first_name, last_name, sporting_name, jersey_number)")
         .eq("session_id", sessionId);
 
       let metrics: any[] = rawMetrics || [];
@@ -125,7 +125,7 @@ export async function GET(req: Request) {
       if (metrics.length > 0) {
         const { data: playersList } = await supabase
           .from("players")
-          .select("id, first_name, last_name, sporting_name, jersey_number, position, player_team_memberships(jersey_number)")
+          .select("id, first_name, last_name, sporting_name, jersey_number, player_team_memberships(jersey_number)")
           .eq("organization_id", effectiveOrgId);
 
         const pMap = new Map((playersList || []).map((p: any) => {
