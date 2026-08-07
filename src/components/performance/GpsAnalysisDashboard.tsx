@@ -23,6 +23,8 @@ import {
   Check,
   Trophy,
   ChevronDown,
+  ArrowRight,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +48,11 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedPlayerDossier, setSelectedPlayerDossier] = useState<any | null>(null);
+
+  // Layer Toggles for Dossier Pitch
+  const [showHeatmap, setShowHeatmap] = useState(true);
+  const [showSprintVectors, setShowSprintVectors] = useState(true);
+  const [showPeakAccels, setShowPeakAccels] = useState(true);
 
   // Session Edit & Delete State
   const [isEditingSession, setIsEditingSession] = useState(false);
@@ -198,19 +205,19 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       ctx.lineWidth = 1.5;
     }
 
-    // Pitch Outline & Markings
-    ctx.strokeRect(10, 10, width - 20, height - 20);
+    // Pitch Outline & Markings (Optimized Edge Margins: 4px offset!)
+    ctx.strokeRect(4, 4, width - 8, height - 8);
     ctx.beginPath();
-    ctx.moveTo(width / 2, 10);
-    ctx.lineTo(width / 2, height - 10);
+    ctx.moveTo(width / 2, 4);
+    ctx.lineTo(width / 2, height - 4);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(width / 2, height / 2, 35, 0, Math.PI * 2);
+    ctx.arc(width / 2, height / 2, 38, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.strokeRect(10, height / 2 - 50, 45, 100);
-    ctx.strokeRect(width - 55, height / 2 - 50, 45, 100);
+    ctx.strokeRect(4, height / 2 - 55, 48, 110);
+    ctx.strokeRect(width - 52, height / 2 - 55, 48, 110);
 
     // Check Player Participation per Period
     const pStart = selectedPlayerDossier.player_start_min ?? 0;
@@ -243,142 +250,159 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       return;
     }
 
-    // Heatmap Points
-    let heatmapPoints: Array<{ x: number; y: number; value: number }> = selectedPlayerDossier.heatmap_data || [];
+    // Deterministic Heatmap Points for P1, P2, and ALL (Fixes Losilla P2 vs ALL Discrepancy!)
+    const rawHeat: Array<{ x: number; y: number; value: number }> = selectedPlayerDossier.heatmap_data || [];
+    const midIdx = Math.ceil(rawHeat.length / 2);
+
+    const p1Heat = playedP1 ? rawHeat.slice(0, midIdx) : [];
+    const p2Heat = playedP2
+      ? rawHeat.slice(playedP1 ? midIdx : 0).map(pt => ({
+          x: 100 - pt.x,
+          y: 100 - pt.y,
+          value: pt.value,
+        }))
+      : [];
+
+    let activeHeatmapPoints: typeof rawHeat = [];
     if (dossierPeriodTab === "p1") {
-      heatmapPoints = heatmapPoints.slice(0, Math.ceil(heatmapPoints.length / 2));
+      activeHeatmapPoints = p1Heat;
     } else if (dossierPeriodTab === "p2") {
-      heatmapPoints = heatmapPoints.slice(Math.floor(heatmapPoints.length / 2)).map(pt => ({
-        x: 100 - pt.x,
-        y: 100 - pt.y,
-        value: pt.value,
-      }));
+      activeHeatmapPoints = p2Heat;
+    } else {
+      activeHeatmapPoints = [...p1Heat, ...p2Heat];
     }
 
-    // Draw Heatmap with smooth blur radius
-    heatmapPoints.forEach((pt) => {
-      const posX = 10 + (pt.x / 100) * (width - 20);
-      const posY = 10 + (pt.y / 100) * (height - 20);
-      const radius = 26 * (pt.value || 0.5);
+    // ── LAYER 1: Heatmap ──
+    if (showHeatmap) {
+      activeHeatmapPoints.forEach((pt) => {
+        const posX = 4 + (pt.x / 100) * (width - 8);
+        const posY = 4 + (pt.y / 100) * (height - 8);
+        const radius = 28 * (pt.value || 0.5);
 
-      const radGrad = ctx.createRadialGradient(posX, posY, 0, posX, posY, radius);
-      radGrad.addColorStop(0, "rgba(225, 29, 72, 0.45)");
-      radGrad.addColorStop(0.5, "rgba(234, 179, 8, 0.25)");
-      radGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        const radGrad = ctx.createRadialGradient(posX, posY, 0, posX, posY, radius);
+        radGrad.addColorStop(0, "rgba(225, 29, 72, 0.45)");
+        radGrad.addColorStop(0.5, "rgba(234, 179, 8, 0.25)");
+        radGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
 
-      ctx.fillStyle = radGrad;
-      ctx.beginPath();
-      ctx.arc(posX, posY, radius, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // Draw Sprint Vectors (Max 3 top vectors > 25 km/h) with Garmin Continuous Speed Gradient
-    let sprintVectors: any[] = selectedPlayerDossier.sprint_vectors || [];
-    if (dossierPeriodTab === "p1") {
-      sprintVectors = sprintVectors.slice(0, Math.ceil(sprintVectors.length / 2));
-    } else if (dossierPeriodTab === "p2") {
-      sprintVectors = sprintVectors.slice(Math.floor(sprintVectors.length / 2)).map(v => ({
-        ...v,
-        startX: 105 - v.startX,
-        startY: 68 - v.startY,
-        endX: 105 - v.endX,
-        endY: 68 - v.endY,
-      }));
+        ctx.fillStyle = radGrad;
+        ctx.beginPath();
+        ctx.arc(posX, posY, radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
 
-    const topSprints = [...sprintVectors]
-      .sort((a, b) => Number(b.peakSpeedKmh || 0) - Number(a.peakSpeedKmh || 0))
-      .slice(0, 3);
+    // ── LAYER 2: Sprint Vectors (>25 km/h) ──
+    if (showSprintVectors) {
+      let rawVectors: any[] = selectedPlayerDossier.sprint_vectors || [];
+      const vMid = Math.ceil(rawVectors.length / 2);
 
-    topSprints.forEach((v, idx) => {
-      const sx = 10 + (v.startX / 105) * (width - 20);
-      const sy = 10 + (v.startY / 68) * (height - 20);
-      const ex = 10 + (v.endX / 105) * (width - 20);
-      const ey = 10 + (v.endY / 68) * (height - 20);
+      const p1Vecs = playedP1 ? rawVectors.slice(0, vMid) : [];
+      const p2Vecs = playedP2
+        ? rawVectors.slice(playedP1 ? vMid : 0).map(v => ({
+            ...v,
+            startX: 105 - v.startX,
+            startY: 68 - v.startY,
+            endX: 105 - v.endX,
+            endY: 68 - v.endY,
+          }))
+        : [];
 
-      const speed = Number(v.peakSpeedKmh || selectedPlayerDossier.max_speed_kmh || 28.5);
+      let activeVectors: any[] = [];
+      if (dossierPeriodTab === "p1") activeVectors = p1Vecs;
+      else if (dossierPeriodTab === "p2") activeVectors = p2Vecs;
+      else activeVectors = [...p1Vecs, ...p2Vecs];
 
-      // Garmin Continuous Speed Gradient along trajectory: Slow Green -> Yellow -> Orange -> Red Peak
-      const lineGrad = ctx.createLinearGradient(sx, sy, ex, ey);
-      lineGrad.addColorStop(0.0, "#22c55e"); // Green start (12-18 km/h)
-      lineGrad.addColorStop(0.3, "#eab308"); // Yellow (20-25 km/h)
-      lineGrad.addColorStop(0.65, "#f97316"); // Orange (26-30 km/h)
-      lineGrad.addColorStop(1.0, "#ef4444"); // Crimson peak (>31 km/h)
+      const topSprints = [...activeVectors]
+        .sort((a, b) => Number(b.peakSpeedKmh || 0) - Number(a.peakSpeedKmh || 0))
+        .slice(0, 3);
 
-      ctx.strokeStyle = lineGrad;
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
+      topSprints.forEach((v, idx) => {
+        const sx = 4 + (v.startX / 105) * (width - 8);
+        const sy = 4 + (v.startY / 68) * (height - 8);
+        const ex = 4 + (v.endX / 105) * (width - 8);
+        const ey = 4 + (v.endY / 68) * (height - 8);
 
-      // Arrow head at peak speed (Crimson)
-      const angle = Math.atan2(ey - sy, ex - sx);
-      ctx.fillStyle = "#ef4444";
-      ctx.beginPath();
-      ctx.moveTo(ex, ey);
-      ctx.lineTo(ex - 9 * Math.cos(angle - Math.PI / 6), ey - 9 * Math.sin(angle - Math.PI / 6));
-      ctx.lineTo(ex - 9 * Math.cos(angle + Math.PI / 6), ey - 9 * Math.sin(angle + Math.PI / 6));
-      ctx.closePath();
-      ctx.fill();
+        const speed = Number(v.peakSpeedKmh || selectedPlayerDossier.max_speed_kmh || 28.5);
+        const isSuperSprint = speed >= 30;
 
-      // Origin dot (Green start)
-      ctx.fillStyle = "#22c55e";
-      ctx.beginPath();
-      ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
-      ctx.fill();
+        const strokeColor = isSuperSprint ? "#ef4444" : "#f97316";
 
-      // Clean Borderless Floating Speed Label
-      const midX = (sx + ex) / 2;
-      const midY = (sy + ey) / 2;
-      const offsetY = idx % 2 === 0 ? -10 : 12;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
 
-      ctx.save();
-      ctx.font = "bold 10px monospace";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
-      ctx.shadowBlur = 4;
-      ctx.fillStyle = "#f87171";
-      ctx.textAlign = "center";
-      ctx.fillText(`⚡ ${speed.toFixed(1)} km/h`, midX, midY + offsetY);
-      ctx.restore();
-    });
+        // Arrowhead at sprint end direction
+        const angle = Math.atan2(ey - sy, ex - sx);
+        ctx.fillStyle = strokeColor;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex - 9 * Math.cos(angle - Math.PI / 6), ey - 9 * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(ex - 9 * Math.cos(angle + Math.PI / 6), ey - 9 * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
 
-    // ── Draw Top 3 Acceleration Peak Markers (+4.2 m/s²) with Borderless Text ──
-    const peakAccels = [
-      { x: 35, y: 30, val: Number(selectedPlayerDossier.accelerations ? 4.2 : 3.8) },
-      { x: 60, y: 55, val: Number(selectedPlayerDossier.accelerations ? 3.9 : 3.5) },
-      { x: 45, y: 20, val: Number(selectedPlayerDossier.accelerations ? 3.6 : 3.2) },
-    ];
+        // Origin dot
+        ctx.fillStyle = strokeColor;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+        ctx.fill();
 
-    peakAccels.forEach((acc) => {
-      let ax = 10 + (acc.x / 100) * (width - 20);
-      let ay = 10 + (acc.y / 100) * (height - 20);
-      if (dossierPeriodTab === "p2") {
-        ax = width - ax;
-        ay = height - ay;
-      }
+        // Clean Borderless Floating Speed Label
+        const midX = (sx + ex) / 2;
+        const midY = (sy + ey) / 2;
+        const offsetY = idx % 2 === 0 ? -10 : 12;
 
-      ctx.fillStyle = "#c084fc";
-      ctx.beginPath();
-      ctx.arc(ax, ay, 4, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.save();
+        ctx.font = "bold 10px monospace";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = isSuperSprint ? "#f87171" : "#fb923c";
+        ctx.textAlign = "center";
+        ctx.fillText(`⚡ ${speed.toFixed(1)} km/h`, midX, midY + offsetY);
+        ctx.restore();
+      });
+    }
 
-      // Clean BORDERLESS Floating Text (No box background/frame)
-      ctx.save();
-      ctx.font = "bold 9px sans-serif";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
-      ctx.shadowBlur = 4;
-      ctx.fillStyle = "#e9d5ff";
-      ctx.textAlign = "center";
-      ctx.fillText(`💥 +${acc.val.toFixed(1)} m/s²`, ax + 14, ay - 4);
-      ctx.restore();
-    });
-  }, [selectedPlayerDossier, dossierPeriodTab, dossierMapView]);
+    // ── LAYER 3: Peak Accelerations (+4.2 m/s²) ──
+    if (showPeakAccels) {
+      const peakAccels = [
+        { x: 35, y: 30, val: Number(selectedPlayerDossier.accelerations ? 4.2 : 3.8) },
+        { x: 60, y: 55, val: Number(selectedPlayerDossier.accelerations ? 3.9 : 3.5) },
+        { x: 45, y: 20, val: Number(selectedPlayerDossier.accelerations ? 3.6 : 3.2) },
+      ];
 
-  // Render Team Average Positions Pitch Canvas (11 Players)
+      peakAccels.forEach((acc) => {
+        let ax = 4 + (acc.x / 100) * (width - 8);
+        let ay = 4 + (acc.y / 100) * (height - 8);
+        if (dossierPeriodTab === "p2") {
+          ax = width - ax;
+          ay = height - ay;
+        }
+
+        ctx.fillStyle = "#c084fc";
+        ctx.beginPath();
+        ctx.arc(ax, ay, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Clean Borderless Floating Text
+        ctx.save();
+        ctx.font = "bold 9px sans-serif";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.95)";
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = "#e9d5ff";
+        ctx.textAlign = "center";
+        ctx.fillText(`💥 +${acc.val.toFixed(1)} m/s²`, ax + 14, ay - 4);
+        ctx.restore();
+      });
+    }
+  }, [selectedPlayerDossier, dossierPeriodTab, dossierMapView, showHeatmap, showSprintVectors, showPeakAccels]);
+
+  // Render Team Average Positions Pitch Canvas (Filtered by Period & Season Mode, NO TACTICAL LINES!)
   useEffect(() => {
-    const activeM = sessionDetail?.metrics || [];
-    if (!teamCanvasRef.current || activeM.length === 0) return;
+    if (!teamCanvasRef.current) return;
     const canvas = teamCanvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -408,10 +432,65 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     ctx.strokeRect(10, height / 2 - 50, 45, 100);
     ctx.strokeRect(width - 55, height / 2 - 50, 45, 100);
 
-    const playersToDraw = activeM.slice(0, 11);
-    if (playersToDraw.length === 0) return;
+    const isSeasonMode = selectedSessionId === "SEASON_ACCUMULATED";
 
-    const playerPositions: Array<{ name: string; number: string; x: number; y: number; posCategory: string }> = playersToDraw.map((m, idx) => {
+    if (isSeasonMode) {
+      // Season Mode: Render 11 Tactical Position Roles Across Season (No Specific Player Names)
+      const tacticalPositions = [
+        { label: "POR", number: "1", x: 8, y: 50, isGk: true },
+        { label: "LD", number: "2", x: 24, y: 18, isGk: false },
+        { label: "DFC-D", number: "4", x: 26, y: 39, isGk: false },
+        { label: "DFC-I", number: "5", x: 26, y: 61, isGk: false },
+        { label: "LI", number: "3", x: 24, y: 82, isGk: false },
+        { label: "MCD", number: "6", x: 46, y: 50, isGk: false },
+        { label: "MC-D", number: "8", x: 54, y: 30, isGk: false },
+        { label: "MC-I", number: "10", x: 54, y: 70, isGk: false },
+        { label: "ED", number: "7", x: 75, y: 22, isGk: false },
+        { label: "DC", number: "9", x: 82, y: 50, isGk: false },
+        { label: "EI", number: "11", x: 75, y: 78, isGk: false },
+      ];
+
+      tacticalPositions.forEach((p) => {
+        let px = 10 + (p.x / 100) * (width - 20);
+        let py = 10 + (p.y / 100) * (height - 20);
+        if (teamPosPeriodTab === "p2") {
+          px = width - px;
+          py = height - py;
+        }
+
+        ctx.fillStyle = p.isGk ? "#fbbf24" : "#0284c7";
+        ctx.beginPath();
+        ctx.arc(px, py, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.font = "bold 9px monospace";
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.fillText(p.label, px, py + 3);
+      });
+
+      ctx.textAlign = "left";
+      return;
+    }
+
+    // Match Mode: Filter Players Strictly by Participation in Period (P1 vs P2)
+    const activeM = sessionDetail?.metrics || [];
+    if (activeM.length === 0) return;
+
+    const periodPlayers = activeM.filter((m) => {
+      const pStart = m.player_start_min ?? 0;
+      const pEnd = m.player_end_min ?? 90;
+      if (teamPosPeriodTab === "p1") return pStart < 45;
+      if (teamPosPeriodTab === "p2") return pEnd > 45;
+      return true;
+    }).slice(0, 11);
+
+    if (periodPlayers.length === 0) return;
+
+    const playerPositions: Array<{ name: string; number: string; x: number; y: number; posCategory: string }> = periodPlayers.map((m, idx) => {
       const pos = (m.players?.position || "").toLowerCase();
       const pName = m.players ? (m.players.sporting_name || `${m.players.first_name} ${m.players.last_name}`.trim()) : `Jugador ${idx + 1}`;
       const pNum = String(m.players?.jersey_number || m.gps_device_number || idx + 1);
@@ -420,7 +499,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       let posY = 50;
       let posCategory = "MID";
 
-      if (pos.includes("goalkeeper") || pos.includes("por")) {
+      if (pos.includes("goalkeeper") || pos.includes("por") || idx === 0) {
         posX = 8; posY = 50; posCategory = "GK";
       } else if (pos.includes("def") || pos.includes("cbf") || pos.includes("lat") || idx <= 3) {
         posCategory = "DEF";
@@ -447,30 +526,6 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       return { name: pName, number: pNum, x: posX, y: posY, posCategory };
     });
 
-    const defs = playerPositions.filter(p => p.posCategory === "DEF");
-    const mids = playerPositions.filter(p => p.posCategory === "MID");
-    const fwds = playerPositions.filter(p => p.posCategory === "FWD");
-
-    const drawLineGroup = (group: typeof playerPositions, strokeStyle: string) => {
-      if (group.length < 2) return;
-      ctx.strokeStyle = strokeStyle;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      group.forEach((p, i) => {
-        const px = 10 + (p.x / 100) * (width - 20);
-        const py = 10 + (p.y / 100) * (height - 20);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.stroke();
-      ctx.setLineDash([]);
-    };
-
-    drawLineGroup(defs, "rgba(56, 189, 248, 0.45)");
-    drawLineGroup(mids, "rgba(234, 179, 8, 0.45)");
-    drawLineGroup(fwds, "rgba(244, 63, 94, 0.45)");
-
     // Draw Team Centroid (Center of Gravity)
     const avgX = playerPositions.reduce((acc, p) => acc + p.x, 0) / playerPositions.length;
     const avgY = playerPositions.reduce((acc, p) => acc + p.y, 0) / playerPositions.length;
@@ -487,7 +542,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     ctx.fillStyle = "#10b981";
     ctx.fillText("🎯 Centro de Gravedad", cx + 16, cy + 3);
 
-    // Draw Each Player Badge & Floating Name Label
+    // Draw Each Player Badge & Floating Name Label (NO TACTICAL LINES!)
     playerPositions.forEach((p) => {
       const px = 10 + (p.x / 100) * (width - 20);
       const py = 10 + (p.y / 100) * (height - 20);
@@ -518,7 +573,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     });
 
     ctx.textAlign = "left";
-  }, [sessionDetail, teamPosPeriodTab]);
+  }, [sessionDetail, teamPosPeriodTab, selectedSessionId]);
 
   const checkIfFriendly = (s: any) => {
     if (!s) return false;
@@ -1053,7 +1108,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   )}
                 >
                   <span>1ª Parte</span>
-                  <span>➔</span>
+                  <ArrowRight className="size-3.5" />
                 </button>
                 <button
                   type="button"
@@ -1064,12 +1119,17 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   )}
                 >
                   <span>2ª Parte</span>
-                  <span>←</span>
+                  <ArrowLeft className="size-3.5" />
                 </button>
               </div>
 
-              <div className="px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono text-emerald-400 font-bold hidden sm:block">
-                <span>Orientación: Atacando {teamPosPeriodTab === "p2" ? "← (2ª Parte)" : "➔ (1ª Parte)"}</span>
+              <div className="px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono font-bold hidden sm:flex items-center gap-1">
+                <span className="text-slate-400">Orientación: Atacando</span>
+                {teamPosPeriodTab === "p2" ? (
+                  <span className="inline-flex items-center gap-1 text-sky-400"><ArrowLeft className="size-3.5" /> (2ª Parte)</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-emerald-400"><ArrowRight className="size-3.5" /> (1ª Parte)</span>
+                )}
               </div>
             </div>
           </div>
@@ -1290,16 +1350,18 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     <button
                       type="button"
                       onClick={() => setDossierPeriodTab("p1")}
-                      className={cn("px-2.5 py-1 rounded-xl transition-all cursor-pointer", dossierPeriodTab === "p1" ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200")}
+                      className={cn("px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1", dossierPeriodTab === "p1" ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200")}
                     >
-                      1ª Parte ➔
+                      <span>1ª Parte</span>
+                      <ArrowRight className="size-3 text-emerald-400" />
                     </button>
                     <button
                       type="button"
                       onClick={() => setDossierPeriodTab("p2")}
-                      className={cn("px-2.5 py-1 rounded-xl transition-all cursor-pointer", dossierPeriodTab === "p2" ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200")}
+                      className={cn("px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1", dossierPeriodTab === "p2" ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200")}
                     >
-                      2ª Parte ←
+                      <span>2ª Parte</span>
+                      <ArrowLeft className="size-3 text-sky-400" />
                     </button>
                   </div>
 
@@ -1321,24 +1383,72 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   </div>
                 </div>
 
+                {/* Layer Toggle Bar */}
+                <div className="flex items-center justify-between gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800/80 text-[10px] font-bold">
+                  <span className="text-slate-400 font-mono px-1">Capas Visibles:</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowHeatmap(!showHeatmap)}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        showHeatmap
+                          ? "bg-rose-500/20 text-rose-300 border-rose-500/30 font-bold"
+                          : "bg-slate-900 text-slate-500 border-slate-800 line-through opacity-60"
+                      )}
+                    >
+                      🔥 Calor
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSprintVectors(!showSprintVectors)}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        showSprintVectors
+                          ? "bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold"
+                          : "bg-slate-900 text-slate-500 border-slate-800 line-through opacity-60"
+                      )}
+                    >
+                      ⚡ Sprints
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPeakAccels(!showPeakAccels)}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        showPeakAccels
+                          ? "bg-purple-500/20 text-purple-300 border-purple-500/30 font-bold"
+                          : "bg-slate-900 text-slate-500 border-slate-800 line-through opacity-60"
+                      )}
+                    >
+                      💥 Arrancadas
+                    </button>
+                  </div>
+                </div>
+
                 {/* Attack Orientation Label */}
                 <div className="flex items-center justify-between text-xs font-mono px-1">
                   <span className="text-slate-400 flex items-center gap-1.5">
                     <span className="size-2 rounded-full bg-sky-400 animate-pulse" />
                     Orientación:
                   </span>
-                  <span className="font-bold text-sky-300">
-                    Atacando {dossierPeriodTab === "p2" ? "← (2ª Parte)" : "➔ (1ª Parte)"}
+                  <span className="font-bold text-sky-300 flex items-center gap-1">
+                    <span>Atacando</span>
+                    {dossierPeriodTab === "p2" ? (
+                      <span className="inline-flex items-center gap-1 text-sky-400"><ArrowLeft className="size-3.5" /> (2ª Parte)</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-emerald-400"><ArrowRight className="size-3.5" /> (1ª Parte)</span>
+                    )}
                   </span>
                 </div>
 
-                {/* Pitch Canvas */}
-                <div className="bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800/80 flex justify-center relative shadow-inner">
+                {/* Pitch Canvas (Optimized Dimensions to Fill Container) */}
+                <div className="bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800/80 flex justify-center relative shadow-inner">
                   <canvas
                     ref={canvasRef}
-                    width={340}
-                    height={215}
-                    className="rounded-xl border border-slate-800/60 w-full max-w-[340px] h-auto"
+                    width={370}
+                    height={240}
+                    className="rounded-xl border border-slate-800/60 w-full max-w-[370px] h-auto"
                   />
                 </div>
 

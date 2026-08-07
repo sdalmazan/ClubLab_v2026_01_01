@@ -110,13 +110,52 @@ export async function GET(req: Request) {
     }
 
     // ── All sessions (org-scoped) ──────────────────────────────
-    const { data: sessions, error: fetchErr } = await supabase
+    const { data: rawSessions, error: fetchErr } = await supabase
       .from("wimu_sessions")
       .select("*")
       .eq("organization_id", orgId)
       .order("session_date", { ascending: false });
 
     if (fetchErr) throw fetchErr;
+
+    let sessions = rawSessions || [];
+
+    // Cross-reference with training_sessions & matches to get titles & friendly flags
+    const dates = sessions.map((s: any) => s.session_date).filter(Boolean);
+    if (dates.length > 0) {
+      const { data: tSessions } = await supabase
+        .from("training_sessions")
+        .select("session_date, title, session_type, is_friendly")
+        .in("session_date", dates);
+
+      const { data: mMatches } = await supabase
+        .from("matches")
+        .select("date, opponent, is_friendly, match_type")
+        .in("date", dates);
+
+      const tMap = new Map((tSessions || []).map((t: any) => [t.session_date, t]));
+      const mMap = new Map((mMatches || []).map((m: any) => [m.date, m]));
+
+      sessions = sessions.map((s: any) => {
+        const tMatch = tMap.get(s.session_date);
+        const mMatch = mMap.get(s.session_date);
+
+        const linkedTitle = tMatch?.title || mMatch?.opponent ? `vs ${mMatch.opponent}` : null;
+        const isFriendly = Boolean(
+          tMatch?.is_friendly ||
+          mMatch?.is_friendly ||
+          mMatch?.match_type === "FRIENDLY" ||
+          (tMatch?.title && (tMatch.title.toLowerCase().includes("amistoso") || tMatch.title.toLowerCase().includes("sigüenza") || tMatch.title.toLowerCase().includes("siguenza"))) ||
+          (s.notes && (s.notes.toLowerCase().includes("amistoso") || s.notes.toLowerCase().includes("sigüenza") || s.notes.toLowerCase().includes("siguenza")))
+        );
+
+        return {
+          ...s,
+          linked_title: linkedTitle || s.notes,
+          is_friendly: isFriendly,
+        };
+      });
+    }
 
     // ── Season averages (org-scoped only) ──────────────────────
     // Get all session IDs for this org first, then filter metrics
