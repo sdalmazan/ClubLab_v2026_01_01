@@ -114,35 +114,35 @@ export async function GET(req: Request) {
 
       const { data: rawMetrics } = await supabase
         .from("wimu_player_session_metrics")
-        .select("*")
+        .select("*, players(id, first_name, last_name, sporting_name, jersey_number, position)")
         .eq("session_id", sessionId);
 
       let metrics: any[] = rawMetrics || [];
 
       if (metrics.length > 0) {
-        const pIds = metrics.map((m: any) => m.player_id).filter(Boolean);
-        if (pIds.length > 0) {
-          const { data: playersList } = await supabase
-            .from("players")
-            .select("id, first_name, last_name, sporting_name, jersey_number, position, player_team_memberships(jersey_number)")
-            .in("id", pIds);
+        const { data: playersList } = await supabase
+          .from("players")
+          .select("id, first_name, last_name, sporting_name, jersey_number, position, player_team_memberships(jersey_number)")
+          .eq("organization_id", orgId);
 
-          const pMap = new Map((playersList || []).map((p: any) => {
-            const resolvedJersey = p.jersey_number ?? p.player_team_memberships?.[0]?.jersey_number ?? null;
-            return [p.id, { ...p, jersey_number: resolvedJersey }];
-          }));
+        const pMap = new Map((playersList || []).map((p: any) => {
+          const resolvedJersey = p.jersey_number ?? p.player_team_memberships?.[0]?.jersey_number ?? null;
+          return [p.id, { ...p, jersey_number: resolvedJersey }];
+        }));
 
-          metrics = metrics.map((m: any) => ({
+        metrics = metrics.map((m: any) => {
+          const matchedPlayer = m.players || pMap.get(m.player_id) || null;
+          return {
             ...m,
-            players: pMap.get(m.player_id) || null,
-          }));
-        }
+            players: matchedPlayer,
+          };
+        });
       }
 
       return NextResponse.json({
         success: true,
-        session,
-        periods:  periods || [],
+        session: sessionWithFriendly,
+        periods: periods || [],
         metrics,
       });
     }
@@ -532,12 +532,24 @@ export async function PATCH(req: Request) {
 
     const supabase = createAdminClient();
     const body = await req.json();
-    const { session_date, session_type, notes } = body;
+    const { session_date, session_type, notes, is_friendly } = body;
 
     const updates: Record<string, any> = {};
     if (session_date) updates.session_date = session_date;
     if (session_type) updates.session_type = session_type;
     if (notes !== undefined) updates.notes = notes;
+
+    if (is_friendly !== undefined) {
+      let curNotes = notes ?? updates.notes ?? "";
+      if (is_friendly) {
+        if (!curNotes.toLowerCase().includes("amistoso")) {
+          curNotes = `Amistoso ${curNotes}`.trim();
+        }
+      } else {
+        curNotes = curNotes.replace(/amistoso/gi, "").replace(/friendly/gi, "").replace(/pretemporada/gi, "").trim();
+      }
+      updates.notes = curNotes;
+    }
 
     const { data: updated, error: uErr } = await supabase
       .from("wimu_sessions")
@@ -549,7 +561,7 @@ export async function PATCH(req: Request) {
 
     if (uErr) throw uErr;
 
-    return NextResponse.json({ success: true, session: updated });
+    return NextResponse.json({ success: true, session: { ...updated, is_friendly: is_friendly ?? false } });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message || "Error al actualizar sesión." }, { status: 500 });
   }

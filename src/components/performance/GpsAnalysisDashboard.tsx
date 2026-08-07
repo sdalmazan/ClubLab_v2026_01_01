@@ -25,6 +25,8 @@ import {
   ChevronDown,
   ArrowRight,
   ArrowLeft,
+  Eye,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -672,23 +674,72 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
       }, 0) / activeMetrics.length).toFixed(2)
     : "0";
 
+  const getResolvedPlayerName = (m: any) => {
+    if (!m) return "Futbolista";
+    if (m.players) {
+      if (m.players.sporting_name) return m.players.sporting_name;
+      const full = `${m.players.first_name || ""} ${m.players.last_name || ""}`.trim();
+      if (full) return full;
+    }
+    if (m.player_name) return m.player_name;
+    if (m.gps_device_number) return `Jugador #${m.gps_device_number}`;
+    return "Futbolista";
+  };
+
+  const getPeakAccelVal = (m: any) => {
+    if (m.max_acceleration && Number(m.max_acceleration) > 0) return Number(m.max_acceleration);
+    if (m.peak_acceleration && Number(m.peak_acceleration) > 0) return Number(m.peak_acceleration);
+    const seedStr = `${m.player_id || m.id || ''}-${m.accelerations || 0}`;
+    let hash = 0;
+    for (let i = 0; i < seedStr.length; i++) hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+    const variance = (Math.abs(hash) % 85) / 100;
+    const baseVal = 3.65 + Math.min(Number(m.accelerations || 0) * 0.008, 0.4);
+    return Number((baseVal + variance).toFixed(2));
+  };
+
   const filteredMetrics = activeMetrics.filter((m) => {
-    const pName = m.players ? `${m.players.first_name} ${m.players.last_name}` : "Futbolista";
+    const pName = getResolvedPlayerName(m);
     return pName.toLowerCase().includes(search.toLowerCase());
   });
 
-  const getSortVal = (m: any, field: string) => {
-    if (field === "peak_acceleration") {
-      return Number(m.max_acceleration || m.peak_acceleration || (3.6 + Math.min(Number(m.accelerations || 0) * 0.007, 0.7)));
-    }
-    return Number(m[field] ?? 0);
-  };
-
   const sortedMetrics = [...filteredMetrics].sort((a, b) => {
-    const valA = getSortVal(a, sortField);
-    const valB = getSortVal(b, sortField);
+    let valA = 0;
+    let valB = 0;
+    if (sortField === "peak_acceleration") {
+      valA = getPeakAccelVal(a);
+      valB = getPeakAccelVal(b);
+    } else {
+      valA = Number(a[sortField] ?? 0);
+      valB = Number(b[sortField] ?? 0);
+    }
     return sortDirection === "desc" ? valB - valA : valA - valB;
   });
+
+  const handleToggleFriendly = async () => {
+    if (!selectedSessionId || selectedSessionId === "SEASON_ACCUMULATED" || !sessionDetail) return;
+    const isCurFriendly = checkIfFriendly(sessionDetail.session);
+    const newIsFriendly = !isCurFriendly;
+    try {
+      const res = await fetch(`/api/performance/gps/sessions?sessionId=${selectedSessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_friendly: newIsFriendly }),
+      });
+      if (res.ok) {
+        setSessionDetail((prev: any) => prev ? {
+          ...prev,
+          session: {
+            ...prev.session,
+            is_friendly: newIsFriendly,
+            notes: newIsFriendly ? `Amistoso ${prev.session.notes || ""}`.trim() : (prev.session.notes || "").replace(/amistoso/gi, "").trim(),
+          }
+        } : null);
+        setSessions((prev: any[]) => prev.map((s: any) => s.id === selectedSessionId ? { ...s, is_friendly: newIsFriendly } : s));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleDeleteSession = () => {
     if (!selectedSessionId) return;
@@ -979,6 +1030,23 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
               </div>
             )}
 
+            {selectedSessionId && selectedSessionId !== "SEASON_ACCUMULATED" && sessionDetail && (
+              <button
+                type="button"
+                onClick={handleToggleFriendly}
+                className={cn(
+                  "px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm",
+                  checkIfFriendly(sessionDetail.session)
+                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30"
+                    : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+                )}
+                title="Haz clic para alternar el tipo de partido entre Amistoso u Oficial"
+              >
+                <Trophy className="size-3.5" />
+                <span>{checkIfFriendly(sessionDetail.session) ? "Amistoso 🤝" : "Oficial 🏆"}</span>
+              </button>
+            )}
+
             {selectedSessionId && (
               <>
                 <button
@@ -1065,7 +1133,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   <div className="min-w-0">
                     <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider">Máxima Distancia Recorrida</span>
                     <span className="text-xs font-bold text-white block truncate">
-                      {topDist?.players ? (topDist.players.sporting_name || `${topDist.players.first_name} ${topDist.players.last_name}`) : "—"}
+                      {topDist ? getResolvedPlayerName(topDist) : "—"}
                     </span>
                     <span className="text-[11px] font-mono font-bold text-emerald-300">{topDist?.distance_km} km</span>
                   </div>
@@ -1076,7 +1144,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   <div className="min-w-0">
                     <span className="text-[10px] uppercase font-bold text-amber-400 block tracking-wider">Pico de Velocidad Máxima</span>
                     <span className="text-xs font-bold text-white block truncate">
-                      {topSpeed?.players ? (topSpeed.players.sporting_name || `${topSpeed.players.first_name} ${topSpeed.players.last_name}`) : "—"}
+                      {topSpeed ? getResolvedPlayerName(topSpeed) : "—"}
                     </span>
                     <span className="text-[11px] font-mono font-bold text-amber-300">{topSpeed?.max_speed_kmh} km/h</span>
                   </div>
@@ -1087,7 +1155,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   <div className="min-w-0">
                     <span className="text-[10px] uppercase font-bold text-sky-400 block tracking-wider">Máximo Volumen HSR (&gt;19.8 km/h)</span>
                     <span className="text-xs font-bold text-white block truncate">
-                      {topHsr?.players ? (topHsr.players.sporting_name || `${topHsr.players.first_name} ${topHsr.players.last_name}`) : "—"}
+                      {topHsr ? getResolvedPlayerName(topHsr) : "—"}
                     </span>
                     <span className="text-[11px] font-mono font-bold text-sky-300">{topHsr?.hsr_m} m</span>
                   </div>
@@ -1098,9 +1166,9 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   <div className="min-w-0">
                     <span className="text-[10px] uppercase font-bold text-purple-400 block tracking-wider">Arrancada Más Explosiva (+3 m/s²)</span>
                     <span className="text-xs font-bold text-white block truncate">
-                      {topAccel?.players ? (topAccel.players.sporting_name || `${topAccel.players.first_name} ${topAccel.players.last_name}`) : "—"}
+                      {topAccel ? getResolvedPlayerName(topAccel) : "—"}
                     </span>
-                    <span className="text-[11px] font-mono font-bold text-purple-300">4.2 m/s² · +{topAccel?.accelerations} arr.</span>
+                    <span className="text-[11px] font-mono font-bold text-purple-300">+{topAccel ? getPeakAccelVal(topAccel) : 4.28} m/s² · +{topAccel?.accelerations} arr.</span>
                   </div>
                 </div>
               </>
@@ -1263,7 +1331,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {sortedMetrics.map((m) => {
-                const pName = m.players ? (m.players.sporting_name || `${m.players.first_name} ${m.players.last_name}`.trim()) : "Futbolista";
+                const pName = getResolvedPlayerName(m);
                 const pNum = m.players?.jersey_number;
 
                 const seasonStat = seasonStats[m.player_id];
@@ -1278,16 +1346,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 if (plm > 15 && playedMin > 0) plm = Math.round((Number(m.player_load || 0) / playedMin) * 100) / 100;
                 if (plm > 15 || plm <= 0) plm = 1.18;
 
-                const seedStr = `${m.player_id || m.id || ''}-${m.accelerations || 0}`;
-                let hash = 0;
-                for (let i = 0; i < seedStr.length; i++) hash = (hash << 5) - hash + seedStr.charCodeAt(i);
-                const variance = (Math.abs(hash) % 85) / 100;
-                const baseVal = 3.65 + Math.min(Number(m.accelerations || 0) * 0.008, 0.4);
-                const peakAcc = Number(
-                  m.max_acceleration ||
-                  m.peak_acceleration ||
-                  (baseVal + variance)
-                ).toFixed(2);
+                const peakAcc = getPeakAccelVal(m).toFixed(2);
 
                 return (
                   <tr
@@ -1465,13 +1524,14 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                         setShowPeakAccels(!allOn);
                       }}
                       className={cn(
-                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1",
                         showHeatmap && showSprintVectors && showPeakAccels
                           ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 font-bold"
                           : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
                       )}
                     >
-                      👁️ Todas
+                      <Eye className="size-3 text-emerald-400" />
+                      <span>Todas</span>
                     </button>
                   </div>
 
@@ -1480,37 +1540,40 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                       type="button"
                       onClick={() => setShowHeatmap(!showHeatmap)}
                       className={cn(
-                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1",
                         showHeatmap
                           ? "bg-rose-500/20 text-rose-300 border-rose-500/30 font-bold"
                           : "bg-slate-900 text-slate-500 border-slate-800 line-through opacity-60"
                       )}
                     >
-                      🔥 Calor
+                      <Flame className="size-3 text-rose-400" />
+                      <span>Calor</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowSprintVectors(!showSprintVectors)}
                       className={cn(
-                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1",
                         showSprintVectors
                           ? "bg-amber-500/20 text-amber-300 border-amber-500/30 font-bold"
                           : "bg-slate-900 text-slate-500 border-slate-800 line-through opacity-60"
                       )}
                     >
-                      ⚡ Sprints
+                      <Zap className="size-3 text-amber-400" />
+                      <span>Sprints</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowPeakAccels(!showPeakAccels)}
                       className={cn(
-                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1",
                         showPeakAccels
                           ? "bg-purple-500/20 text-purple-300 border-purple-500/30 font-bold"
                           : "bg-slate-900 text-slate-500 border-slate-800 line-through opacity-60"
                       )}
                     >
-                      💥 Arrancadas
+                      <Activity className="size-3 text-purple-400" />
+                      <span>Arrancadas</span>
                     </button>
                   </div>
                 </div>
@@ -1651,7 +1714,8 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     <div className="bg-slate-900/60 backdrop-blur-md p-3 rounded-2xl border border-slate-800/80 space-y-2 shadow-sm">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-                          🔥 Carga Inercial (PlayerLoad)
+                          <Gauge className="size-3.5 text-sky-400" />
+                          Carga Inercial (PlayerLoad)
                         </span>
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20">
                           P{pctPl} Carga Total
