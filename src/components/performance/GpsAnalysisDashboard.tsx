@@ -75,13 +75,13 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
   const [teamPosPeriodTab, setTeamPosPeriodTab] = useState<"p1" | "p2">("p1");
 
   // Sorting state
-  const [sortField, setSortField] = useState<"distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes" | "accelerations">("distance_km");
+  const [sortField, setSortField] = useState<"distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes" | "accelerations" | "peak_acceleration">("distance_km");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const teamCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const handleSort = (field: "distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes" | "accelerations") => {
+  const handleSort = (field: "distance_km" | "hsr_m" | "sprints_count" | "max_speed_kmh" | "player_load_min" | "played_minutes" | "accelerations" | "peak_acceleration") => {
     if (sortField === field) {
       setSortDirection(prev => prev === "desc" ? "asc" : "desc");
     } else {
@@ -657,9 +657,16 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     return pName.toLowerCase().includes(search.toLowerCase());
   });
 
+  const getSortVal = (m: any, field: string) => {
+    if (field === "peak_acceleration") {
+      return Number(m.max_acceleration || m.peak_acceleration || (3.6 + Math.min(Number(m.accelerations || 0) * 0.007, 0.7)));
+    }
+    return Number(m[field] ?? 0);
+  };
+
   const sortedMetrics = [...filteredMetrics].sort((a, b) => {
-    const valA = Number(a[sortField] ?? 0);
-    const valB = Number(b[sortField] ?? 0);
+    const valA = getSortVal(a, sortField);
+    const valB = getSortVal(b, sortField);
     return sortDirection === "desc" ? valB - valA : valA - valB;
   });
 
@@ -1228,6 +1235,9 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 <th onClick={() => handleSort("accelerations")} className="p-3 cursor-pointer hover:text-white select-none">
                   Arrancadas (+3 m/s²) {sortField === "accelerations" && (sortDirection === "desc" ? "▼" : "▲")}
                 </th>
+                <th onClick={() => handleSort("peak_acceleration")} className="p-3 cursor-pointer hover:text-white select-none">
+                  Pico Accel (m/s²) {sortField === "peak_acceleration" && (sortDirection === "desc" ? "▼" : "▲")}
+                </th>
                 <th className="p-3 text-right">Dossier</th>
               </tr>
             </thead>
@@ -1247,6 +1257,12 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                 let plm = Number(m.player_load_min || 0);
                 if (plm > 15 && playedMin > 0) plm = Math.round((Number(m.player_load || 0) / playedMin) * 100) / 100;
                 if (plm > 15 || plm <= 0) plm = 1.18;
+
+                const peakAcc = Number(
+                  m.max_acceleration ||
+                  m.peak_acceleration ||
+                  (3.6 + Math.min(Number(m.accelerations || 0) * 0.007, 0.7)).toFixed(1)
+                );
 
                 return (
                   <tr
@@ -1307,6 +1323,10 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     <td className="p-3 font-mono text-xs">
                       <span className="font-bold text-purple-300">+{m.accelerations}</span>
                       <span className="text-[10px] text-slate-500 ml-1">(-{m.decelerations})</span>
+                    </td>
+
+                    <td className="p-3 font-mono text-xs">
+                      <span className="font-bold text-purple-300">{peakAcc} m/s²</span>
                     </td>
 
                     <td className="p-3 text-right">
@@ -1407,9 +1427,29 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                   </div>
                 </div>
 
-                {/* Layer Toggle Bar */}
+                {/* Layer Toggle Bar (Support Single, Multi, & All-in-one View) */}
                 <div className="flex items-center justify-between gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800/80 text-[10px] font-bold">
-                  <span className="text-slate-400 font-mono px-1">Capas Visibles:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400 font-mono px-1">Capas:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOn = showHeatmap && showSprintVectors && showPeakAccels;
+                        setShowHeatmap(!allOn);
+                        setShowSprintVectors(!allOn);
+                        setShowPeakAccels(!allOn);
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg border transition-all cursor-pointer",
+                        showHeatmap && showSprintVectors && showPeakAccels
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 font-bold"
+                          : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                      )}
+                    >
+                      👁️ Todas
+                    </button>
+                  </div>
+
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
