@@ -1096,6 +1096,28 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
         </div>
       </div>
 
+      {sessions.length === 0 && !isLoading && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-4 shadow-xl">
+          <div className="size-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
+            <Activity className="size-7" />
+          </div>
+          <div>
+            <h3 className="text-base font-black text-white">No hay sesiones GPS registradas</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Pulsa en <strong className="text-emerald-400">+ Importar Datos GPS</strong> en la parte superior para subir las grabaciones (.qul) de tus chalecos WIMU.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenImportModal}
+            className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-lg inline-flex items-center gap-2 cursor-pointer"
+          >
+            <Activity className="size-4" />
+            <span>+ Importar Datos GPS Ahora</span>
+          </button>
+        </div>
+      )}
+
       {/* Highlights Destacados del Partido */}
       {activeMetrics.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
