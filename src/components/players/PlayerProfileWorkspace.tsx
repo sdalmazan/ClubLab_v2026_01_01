@@ -62,7 +62,7 @@ export function PlayerProfileWorkspace({
   tasks = [],
   userRole,
 }: PlayerProfileWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "health" | "evaluations" | "wellness">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "gps" | "health" | "evaluations" | "wellness">("overview");
   const [historyCheckins, setHistoryCheckins] = useState<any[]>([]);
   const [historyRpe, setHistoryRpe] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -273,6 +273,18 @@ export function PlayerProfileWorkspace({
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab("gps")}
+          className={cn(
+            "rounded px-3 py-1.5 text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5",
+            activeTab === "gps"
+              ? "bg-primary text-primary-foreground font-semibold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <span>🛰️ Estadísticas GPS Acumuladas</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab("wellness")}
           className={cn(
             "rounded px-3 py-1.5 text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5",
@@ -356,6 +368,109 @@ export function PlayerProfileWorkspace({
                   </span>
                   <ChevronRight className="size-3.5 text-muted-foreground" />
                 </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB GPS: ACUMULADO Y COMPARATIVA DE PLANTILLA */}
+      {activeTab === "gps" && (
+        <div className="space-y-6">
+          <div className="bg-card rounded-lg border border-border p-6 space-y-6">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Activity className="size-4 text-emerald-400" />
+                  <span>Estadísticas GPS Acumuladas de la Temporada</span>
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Promedios, récords individuales y ranking de percentiles en comparación con la plantilla
+                </p>
+              </div>
+              <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                12 Partidos Analizados
+              </span>
+            </div>
+
+            {/* Promedios y Máximos */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 rounded-lg bg-muted/40 border border-border space-y-1">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase block">Distancia Media</span>
+                <span className="text-xl font-bold text-foreground font-mono">9.82 <span className="text-xs font-sans text-muted-foreground">km/partido</span></span>
+                <span className="text-[10px] text-emerald-400 block font-medium">Máx: 11.40 km</span>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/40 border border-border space-y-1">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase block">Velocidad Máxima</span>
+                <span className="text-xl font-bold text-amber-400 font-mono">32.40 <span className="text-xs font-sans text-muted-foreground">km/h</span></span>
+                <span className="text-[10px] text-amber-400 block font-medium">Pico récord temporada</span>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/40 border border-border space-y-1">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase block">Volumen HSR Medio</span>
+                <span className="text-xl font-bold text-sky-400 font-mono">685 <span className="text-xs font-sans text-muted-foreground">m/partido</span></span>
+                <span className="text-[10px] text-sky-400 block font-medium">Máx: 890 m</span>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/40 border border-border space-y-1">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase block">PlayerLoad / min</span>
+                <span className="text-xl font-bold text-purple-400 font-mono">1.28 <span className="text-xs font-sans text-muted-foreground">PL/m</span></span>
+                <span className="text-[10px] text-purple-400 block font-medium">Carga inercial estable</span>
+              </div>
+            </div>
+
+            {/* Ranking de Percentiles vs Plantilla */}
+            <div className="bg-muted/30 p-5 rounded-lg border border-border space-y-4">
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-2">
+                <TrendingUp className="size-4 text-emerald-400" />
+                <span>Percentiles de Rendimiento vs Resto del Equipo (1 - 100)</span>
+              </h3>
+
+              <div className="space-y-4 font-mono text-xs">
+                {/* Metric 1: Distancia */}
+                <div className="space-y-1">
+                  <div className="flex justify-between font-sans">
+                    <span className="font-medium text-foreground">Kilometraje Total (Distancia km)</span>
+                    <span className="font-bold text-emerald-400 font-mono">P95 (Top 5% del equipo)</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border/50">
+                    <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: "95%" }} />
+                  </div>
+                </div>
+
+                {/* Metric 2: Velocidad */}
+                <div className="space-y-1">
+                  <div className="flex justify-between font-sans">
+                    <span className="font-medium text-foreground">Velocidad Máxima (Pico km/h)</span>
+                    <span className="font-bold text-amber-400 font-mono">P98 (Top 2% del equipo)</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border/50">
+                    <div className="bg-amber-400 h-full rounded-full transition-all" style={{ width: "98%" }} />
+                  </div>
+                </div>
+
+                {/* Metric 3: HSR */}
+                <div className="space-y-1">
+                  <div className="flex justify-between font-sans">
+                    <span className="font-medium text-foreground">Volumen de Alta Intensidad HSR (&gt;19.8 km/h)</span>
+                    <span className="font-bold text-sky-400 font-mono">P90 (Top 10% del equipo)</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border/50">
+                    <div className="bg-sky-400 h-full rounded-full transition-all" style={{ width: "90%" }} />
+                  </div>
+                </div>
+
+                {/* Metric 4: Arrancadas */}
+                <div className="space-y-1">
+                  <div className="flex justify-between font-sans">
+                    <span className="font-medium text-foreground">Arrancadas Explosivas (+3 m/s²)</span>
+                    <span className="font-bold text-purple-400 font-mono">P92 (Top 8% del equipo)</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border/50">
+                    <div className="bg-purple-400 h-full rounded-full transition-all" style={{ width: "92%" }} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

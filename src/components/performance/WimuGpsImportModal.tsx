@@ -767,10 +767,26 @@ export function WimuGpsImportModal({
                   </button>
                 </div>
                 {selectedFiles.length > 0 && (
-                  <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-1">
-                    <FileCheck className="size-3.5 text-slate-300" />
-                    <span>{selectedFiles.length} archivos `.qul` listos para decodificar nativamente.</span>
-                  </p>
+                  <div className="mt-2.5 p-3.5 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl flex items-center justify-between gap-3 animate-fade-in shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                        <FileCheck className="size-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-extrabold text-white">
+                            {selectedFiles.length} Archivos WIMU `.qul` Detectados
+                          </span>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            🟢 Listos para procesar
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-200/80 mt-0.5">
+                          Lectura cinemática nativa a 100 Hz habilitada para la sesión GPS.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 

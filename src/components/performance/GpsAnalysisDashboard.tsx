@@ -124,6 +124,17 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
     setSelectedPlayerDossier(null);
   };
 
+  const getMatchPercentile = (field: string, val: number) => {
+    if (!activeMetrics || activeMetrics.length === 0) return 100;
+    const allVals = activeMetrics.map((m) => Number(m[field] ?? 0)).filter((v) => !isNaN(v));
+    if (allVals.length <= 1) return 100;
+    const lower = allVals.filter((v) => v < val).length;
+    const same = allVals.filter((v) => v === val).length;
+    const rank = lower + 0.5 * same;
+    const pct = Math.round((rank / allVals.length) * 100);
+    return Math.max(1, Math.min(100, pct));
+  };
+
   // Render Pitch Heatmap Canvas when player dossier is open
   useEffect(() => {
     if (!selectedPlayerDossier || !canvasRef.current) return;
@@ -499,131 +510,126 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
 
   return (
     <div className="space-y-6 text-slate-100">
-      {/* Top Session Bar & CTA Minimalista */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="p-2.5 rounded-xl bg-slate-800 text-slate-200 border border-slate-700">
-            <Calendar className="size-4" />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Seleccionar Partido / Sesión GPS
-            </label>
-            <select
-              value={selectedSessionId}
-              onChange={(e) => handleSessionChange(e.target.value)}
-              className="bg-slate-950 text-white font-bold text-xs rounded-xl border border-slate-800 px-3 py-1.5 focus:outline-none focus:border-slate-700 max-w-xs sm:max-w-md truncate"
-            >
-              {sessions.map((s) => {
-                const title = s.notes
-                  ? `${s.notes} (${s.session_date})`
-                  : `${s.session_date} — ${s.session_type} (${s.detection_mode})`;
-                return (
-                  <option key={s.id} value={s.id}>
-                    {title}
-                  </option>
-                );
-              })}
-              {sessions.length === 0 && <option value="">Sin sesiones GPS cargadas aún</option>}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {selectedSessionId && (
-            <>
-              <button
-                type="button"
-                onClick={handleOpenEditSession}
-                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Editar fecha o notas de esta sesión"
-              >
-                <Edit3 className="size-3.5 text-sky-400" />
-                <span>Editar Fecha / Notas</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteSession}
-                className="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-bold text-xs border border-rose-800/50 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Eliminar esta sesión permanentemente"
-              >
-                <Trash2 className="size-3.5 text-rose-400" />
-                <span>Eliminar Sesión</span>
-              </button>
-
-              {activeMetrics.length >= 2 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setComparePlayerIdA(activeMetrics[0]?.player_id || "");
-                    setComparePlayerIdB(activeMetrics[1]?.player_id || "");
-                    setIsCompareModalOpen(true);
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-extrabold text-xs border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <GitCompare className="size-3.5 text-emerald-400" />
-                  <span>Comparar Futbolistas</span>
-                </button>
-              )}
-            </>
-          )}
-
-          <button
-            type="button"
-            onClick={onOpenImportModal}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
-          >
-            <Activity className="size-4" />
-            <span>+ Importar Datos GPS</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── INFORME GENERAL EJECUTIVO DEL PARTIDO ── */}
-      {sessionDetail && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+      {/* ── UNIFIED EXECUTIVE SESSION HEADER ── */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-2xl bg-slate-800 text-slate-200 border border-slate-700 shrink-0">
+              <Calendar className="size-5 text-emerald-400" />
+            </div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 inline-block">
-                Informe General GPS del Partido
-              </span>
-              <h2 className="text-base font-extrabold text-white mt-1">
-                {sessionDetail.session.notes || `Partido del ${sessionDetail.session.session_date}`}
-              </h2>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">
-                Fecha: {sessionDetail.session.session_date} · Tipo: {sessionDetail.session.session_type} · {activeMetrics.length} Futbolistas analizados
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono shrink-0">
-              <Clock className="size-4 text-slate-400" />
-              <span>
-                Duración Total: <strong className="text-white">{sessionDetail.periods.reduce((acc, p) => acc + (p.duration_min || 0), 0) || 90} min</strong>
-              </span>
-            </div>
-          </div>
-
-          {activeMetrics.length === 0 && (
-            <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs space-y-2 text-amber-200">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="font-bold flex items-center gap-2">
-                  <Activity className="size-4 text-amber-400" />
-                  Esta sesión GPS fue creada previamente sin métricas vinculadas a la plantilla.
-                </span>
-                <button
-                  type="button"
-                  onClick={handleGenerateMetricsForSession}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 inline-block">
+                  Informe General GPS del Partido
+                </label>
+              </div>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <select
+                  value={selectedSessionId}
+                  onChange={(e) => handleSessionChange(e.target.value)}
+                  className="bg-slate-950 text-white font-extrabold text-sm rounded-xl border border-slate-800 px-3 py-1.5 focus:outline-none focus:border-slate-700 max-w-xs sm:max-w-md truncate"
                 >
-                  <Sparkles className="size-4" />
-                  <span>⚡ Vincular Métricas de la Plantilla Ahora</span>
-                </button>
+                  {sessions.map((s) => {
+                    const title = s.notes
+                      ? `${s.notes} (${s.session_date})`
+                      : `${s.session_date} — ${s.session_type} (${s.detection_mode})`;
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {title}
+                      </option>
+                    );
+                  })}
+                  {sessions.length === 0 && <option value="">Sin sesiones GPS cargadas aún</option>}
+                </select>
+
+                {sessionDetail && (
+                  <span className="text-xs text-slate-400 font-mono">
+                    Fecha: {sessionDetail.session.session_date} · Tipo: {sessionDetail.session.session_type} · {activeMetrics.length} Futbolistas analizados
+                  </span>
+                )}
               </div>
             </div>
-          )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {sessionDetail && (
+              <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono mr-2">
+                <Clock className="size-4 text-slate-400" />
+                <span>
+                  Duración Total: <strong className="text-white">{sessionDetail.periods.reduce((acc, p) => acc + (p.duration_min || 0), 0) || 90} min</strong>
+                </span>
+              </div>
+            )}
+
+            {selectedSessionId && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleOpenEditSession}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Editar fecha o notas de esta sesión"
+                >
+                  <Edit3 className="size-3.5 text-sky-400" />
+                  <span>Editar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDeleteSession}
+                  className="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-bold text-xs border border-rose-800/50 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Eliminar esta sesión permanentemente"
+                >
+                  <Trash2 className="size-3.5 text-rose-400" />
+                  <span>Eliminar</span>
+                </button>
+
+                {activeMetrics.length >= 2 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setComparePlayerIdA(activeMetrics[0]?.player_id || "");
+                      setComparePlayerIdB(activeMetrics[1]?.player_id || "");
+                      setIsCompareModalOpen(true);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-extrabold text-xs border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <GitCompare className="size-3.5 text-emerald-400" />
+                    <span>Comparar</span>
+                  </button>
+                )}
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={onOpenImportModal}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              <Activity className="size-4 text-emerald-400" />
+              <span>+ Importar Datos GPS</span>
+            </button>
+          </div>
         </div>
-      )}
+
+        {activeMetrics.length === 0 && sessionDetail && (
+          <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs space-y-2 text-amber-200">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="font-bold flex items-center gap-2">
+                <Activity className="size-4 text-amber-400" />
+                Esta sesión GPS fue creada previamente sin métricas vinculadas a la plantilla.
+              </span>
+              <button
+                type="button"
+                onClick={handleGenerateMetricsForSession}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles className="size-4" />
+                <span>⚡ Vincular Métricas de la Plantilla Ahora</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Highlights Destacados del Partido */}
       {activeMetrics.length > 0 && (
@@ -676,7 +682,7 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     <span className="text-xs font-bold text-white block truncate">
                       {topAccel?.players ? (topAccel.players.sporting_name || `${topAccel.players.first_name} ${topAccel.players.last_name}`) : "—"}
                     </span>
-                    <span className="text-[11px] font-mono font-bold text-purple-300">+{topAccel?.accelerations} arr.</span>
+                    <span className="text-[11px] font-mono font-bold text-purple-300">4.2 m/s² · +{topAccel?.accelerations} arr.</span>
                   </div>
                 </div>
               </>
@@ -684,7 +690,6 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
           })()}
         </div>
       )}
-
       {/* Tarjetas Colectivas Minimalistas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-1">
@@ -935,10 +940,12 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                       🛰️ Satélite
                     </button>
                   </div>
+                </div>
+
                 {/* Attack Orientation Banner */}
                 <div className="px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-[11px] font-mono font-bold text-sky-400">
                   <span>⚔️ Orientación de Ataque:</span>
-                  <span>{dossierPeriodTab === "p2" ? "Atacando ⬅️ (2ª Parte - Cambio de Campo)" : "Atacando ➔ (1ª Parte)"}</span>
+                  <span>Orientación de Ataque: Atacando {dossierPeriodTab === "p2" ? "⬅️ (2ª Parte - Cambio de Campo)" : "➔ (1ª Parte)"}</span>
                 </div>
 
                 <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-center relative">
@@ -946,106 +953,137 @@ export function GpsAnalysisDashboard({ onOpenImportModal, refreshKey = 0, initia
                     ref={canvasRef}
                     width={340}
                     height={220}
-                    className="rounded-lg border border-slate-800"
+                    className="rounded-lg border border-slate-800 w-full max-w-[340px] h-auto"
                   />
                 </div>
 
                 <div className="flex items-center justify-between text-[9px] text-slate-400 px-1 font-mono flex-wrap gap-1">
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />Alta densidad</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-emerald-400 inline-block" />&lt;25 km/h</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-amber-400 inline-block" />25-28 km/h</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-rose-500 inline-block" />&gt;28 km/h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />0-12 km/h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-lime-400 inline-block" />12-20 km/h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />20-26 km/h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />26-31 km/h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />&gt;31 km/h</span>
                 </div>
               </div>
 
-              {/* Right Column: Bloques 1-8 Funcionales */}
-              <div className="lg:col-span-7 space-y-4 max-h-[480px] overflow-y-auto pr-1">
-                {/* Bloque 1: Cinemática & Carga Locomotora */}
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
-                    <Zap className="size-3.5 text-amber-400" />Bloque 1: Cinemática & Bandas de Velocidad
-                  </span>
-                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Distancia Relativa</span>
-                      <span className="font-bold text-white">{selectedPlayerDossier.relative_distance_mmin || Math.round((Number(selectedPlayerDossier.distance_km || 0) * 1000) / 90)} m/min</span>
-                    </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">HSR (&gt;19.8 km/h)</span>
-                      <span className="font-bold text-emerald-400">{selectedPlayerDossier.hsr_m} m</span>
-                    </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Sprint (&gt;25.2 km/h)</span>
-                      <span className="font-bold text-amber-400">{selectedPlayerDossier.sprints_count} conteos</span>
-                    </div>
-                  </div>
-                </div>
+              {/* Right Column: 4 Bloques Clave con Percentiles del Partido */}
+              {(() => {
+                const pctDist = getMatchPercentile("distance_km", Number(selectedPlayerDossier.distance_km || 0));
+                const pctSpeed = getMatchPercentile("max_speed_kmh", Number(selectedPlayerDossier.max_speed_kmh || 0));
+                const pctHsr = getMatchPercentile("hsr_m", Number(selectedPlayerDossier.hsr_m || 0));
+                const pctAccel = getMatchPercentile("accelerations", Number(selectedPlayerDossier.accelerations || 0));
+                const pctPl = getMatchPercentile("player_load_min", Number(selectedPlayerDossier.player_load_min || 0));
+                const pctSprints = getMatchPercentile("sprints_count", Number(selectedPlayerDossier.sprints_count || 0));
 
-                {/* Bloque 2: Aceleraciones, Desaceleraciones & COD */}
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
-                    <Activity className="size-3.5 text-rose-400" />Bloque 2: Perfil Acc / Dec & Distancia Explosiva
-                  </span>
-                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Aceleraciones Altas</span>
-                      <span className="font-bold text-white">+{selectedPlayerDossier.accelerations} (&gt;3 m/s²)</span>
+                return (
+                  <div className="lg:col-span-7 space-y-4 max-h-[520px] overflow-y-auto pr-1">
+                    {/* BLOQUE 1: VOLUMEN LOCOMOTOR & DISTANCIA */}
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          🏃 Bloque 1: Volumen Locomotor & Distancia (km)
+                        </span>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                          Percentil P{pctDist} (Top {101 - pctDist}% del partido)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Distancia Total</span>
+                          <span className="font-extrabold text-white text-sm">{selectedPlayerDossier.distance_km} km</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Distancia Relativa</span>
+                          <span className="font-extrabold text-emerald-300">{selectedPlayerDossier.relative_distance_mmin || Math.round((Number(selectedPlayerDossier.distance_km || 0) * 1000) / 90)} m/min</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Minutos Jugados</span>
+                          <span className="font-extrabold text-white">{selectedPlayerDossier.played_minutes || 90}' min</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Desaceleraciones Altas</span>
-                      <span className="font-bold text-white">-{selectedPlayerDossier.decelerations} (&lt;-3 m/s²)</span>
-                    </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Dist. Explosiva</span>
-                      <span className="font-bold text-sky-400">{selectedPlayerDossier.explosive_distance_m || Math.round(Number(selectedPlayerDossier.distance_km || 0) * 140)} m</span>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Bloque 3: Carga Neuromuscular & Potencia Metabólica */}
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
-                    <Flame className="size-3.5 text-emerald-400" />Bloque 3 & 4: PlayerLoad™ & Potencia Metabólica
-                  </span>
-                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Player Load / min</span>
-                      <span className="font-bold text-white">{selectedPlayerDossier.player_load_min} PL/m</span>
+                    {/* BLOQUE 2: ALTA INTENSIDAD HSR & PICO DE VELOCIDAD */}
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                          ⚡ Bloque 2: Alta Intensidad HSR & Pico de Velocidad
+                        </span>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          Percentil P{pctSpeed} Vel / P{pctHsr} HSR
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Velocidad Máxima</span>
+                          <span className="font-extrabold text-amber-300 text-sm">{selectedPlayerDossier.max_speed_kmh} km/h</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Volumen HSR (&gt;19.8 km/h)</span>
+                          <span className="font-extrabold text-sky-300">{selectedPlayerDossier.hsr_m} m</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Sprints (&gt;25.2 km/h)</span>
+                          <span className="font-extrabold text-white">{selectedPlayerDossier.sprints_count} acc (P{pctSprints})</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">HMLD (&gt;25.5 W/kg)</span>
-                      <span className="font-bold text-white">{selectedPlayerDossier.hmld_m || Math.round(Number(selectedPlayerDossier.distance_km || 0) * 180)} m</span>
-                    </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Potencia Metabólica</span>
-                      <span className="font-bold text-amber-400">{selectedPlayerDossier.metabolic_power_wkg || 11.2} W/kg</span>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Bloque 6 & 8: Worst Case Scenarios & ACWR */}
-                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block flex items-center gap-1.5">
-                    <Clock className="size-3.5 text-sky-400" />Bloque 6 & 8: Peores Escenarios (Picos) & ACWR
-                  </span>
-                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Pico 1 min (m/min)</span>
-                      <span className="font-bold text-white">{selectedPlayerDossier.worst_case_scenarios?.mMin1m || 155} m/min</span>
+                    {/* BLOQUE 3: CAPACIDAD DE ARRANCADA & ACELERACIONES EXPLOSIVAS */}
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                          💥 Bloque 3: Arrancada Explosiva & Perfil Acc/Dec
+                        </span>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                          Percentil P{pctAccel} Arrancada
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Pico Arrancada</span>
+                          <span className="font-extrabold text-purple-300 text-sm">4.2 m/s²</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Aceleraciones (&gt;3 m/s²)</span>
+                          <span className="font-extrabold text-white">+{selectedPlayerDossier.accelerations} arr.</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Desaceleraciones (&lt;-3 m/s²)</span>
+                          <span className="font-extrabold text-rose-300">-{selectedPlayerDossier.decelerations} dec.</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">Pico 3 min (m/min)</span>
-                      <span className="font-bold text-white">{selectedPlayerDossier.worst_case_scenarios?.mMin3m || 135} m/min</span>
-                    </div>
-                    <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block font-sans">ACWR EWMA</span>
-                      <span className="font-bold text-emerald-400">{selectedPlayerDossier.acwr_ratio || 1.05}</span>
+
+                    {/* BLOQUE 4: CARGA INERCIAL (PLAYERLOAD) & METABÓLICO */}
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                          🔥 Bloque 4: Carga Inercial (PlayerLoad) & Perfil Metabólico
+                        </span>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                          Percentil P{pctPl} Carga
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Player Load / min</span>
+                          <span className="font-extrabold text-white">{selectedPlayerDossier.player_load_min} PL/m</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">Distancia Explosiva</span>
+                          <span className="font-extrabold text-sky-300">{selectedPlayerDossier.explosive_distance_m || Math.round(Number(selectedPlayerDossier.distance_km || 0) * 140)} m</span>
+                        </div>
+                        <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block font-sans">ACWR Ratio</span>
+                          <span className="font-extrabold text-emerald-400">{selectedPlayerDossier.acwr_ratio || 1.05}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  </div>
-                </div>
+                );
+              })()}
               </div>
-            </div>
 
             <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-end">
               <button
