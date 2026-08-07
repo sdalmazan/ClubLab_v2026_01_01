@@ -458,43 +458,49 @@ export function WimuGpsImportModal({
           }
         }
 
-        // 2. Automatic matching ONLY up to the exact number of parsed .qul files
+        // 2. Automatic matching when no manual mapping is specified
         if (Object.keys(playerAssignments).length === 0 && parsedFiles.length > 0 && effectiveRoster.length > 0) {
-          const usedQulDevs = new Set<number>();
+          const numQuls = parsedFiles.length;
+          const isTwoHalvesMatch = periods.length === 2 && effectiveRoster.length > numQuls;
 
-          // Pass A: Match by exact jerseyNumber === deviceNumber
-          effectiveRoster.forEach((p) => {
-            if (p.jerseyNumber != null) {
-              const qul = parsedFiles.find(f => f.deviceNumber === p.jerseyNumber && !usedQulDevs.has(f.deviceNumber || 0));
-              if (qul) {
-                const devN = qul.deviceNumber || p.jerseyNumber;
-                usedQulDevs.add(devN);
-                playerAssignments[p.id] = {
-                  devNum: devN,
-                  activeStart: 0,
-                  activeEnd: Math.round(totalSessionDuration),
-                  playedMin: Math.round(totalSessionDuration),
-                };
-              }
-            }
-          });
+          if (isTwoHalvesMatch) {
+            // Half 1: first batch of players
+            const half1Players = effectiveRoster.slice(0, numQuls);
+            const p1 = periods[0];
+            half1Players.forEach((p, idx) => {
+              const qul = parsedFiles[idx % numQuls];
+              playerAssignments[p.id] = {
+                devNum: qul.deviceNumber || (idx + 1),
+                activeStart: Math.round(p.start_min || 0),
+                activeEnd: Math.round(p.end_min || 45),
+                playedMin: Math.round(p.duration_min || 45),
+              };
+            });
 
-          // Pass B: Assign any remaining parsedFiles to unassigned squad players (STRICTLY up to parsedFiles.length)
-          parsedFiles.forEach((qul) => {
-            const devN = qul.deviceNumber || 0;
-            if (!usedQulDevs.has(devN)) {
-              const unassignedPlayer = effectiveRoster.find(p => !playerAssignments[p.id]);
-              if (unassignedPlayer) {
-                usedQulDevs.add(devN);
-                playerAssignments[unassignedPlayer.id] = {
-                  devNum: devN || (unassignedPlayer.jerseyNumber || 1),
-                  activeStart: 0,
-                  activeEnd: Math.round(totalSessionDuration),
-                  playedMin: Math.round(totalSessionDuration),
-                };
-              }
-            }
-          });
+            // Half 2: second batch of players
+            const half2Players = effectiveRoster.slice(numQuls, numQuls * 2);
+            const p2 = periods[1];
+            half2Players.forEach((p, idx) => {
+              const qul = parsedFiles[idx % numQuls];
+              playerAssignments[p.id] = {
+                devNum: qul.deviceNumber || (idx + 1),
+                activeStart: Math.round(p2.start_min || 45),
+                activeEnd: Math.round(p2.end_min || 90),
+                playedMin: Math.round(p2.duration_min || 45),
+              };
+            });
+          } else {
+            // Full match: assign parsedFiles up to roster count
+            effectiveRoster.slice(0, numQuls).forEach((p, idx) => {
+              const qul = parsedFiles[idx];
+              playerAssignments[p.id] = {
+                devNum: qul.deviceNumber || (p.jerseyNumber || idx + 1),
+                activeStart: 0,
+                activeEnd: Math.round(totalSessionDuration),
+                playedMin: Math.round(totalSessionDuration),
+              };
+            });
+          }
         }
 
 
