@@ -482,12 +482,16 @@ export function WimuGpsImportModal({
                 }
               });
 
-              if (assignedDevNum !== null && firstStart !== null && lastEnd !== null) {
+              if (assignedDevNum !== null) {
+                const finalStart = firstStart !== null ? Math.round(firstStart) : 0;
+                const finalEnd = lastEnd !== null ? Math.round(lastEnd) : Math.round(totalSessionDuration || 90);
+                const finalPlayed = totalPlayed > 0 ? Math.round(totalPlayed) : (finalEnd - finalStart);
+
                 playerAssignments[pid] = {
                   devNum: assignedDevNum,
-                  activeStart: Math.round(firstStart),
-                  activeEnd: Math.round(lastEnd),
-                  playedMin: Math.round(totalPlayed),
+                  activeStart: finalStart,
+                  activeEnd: finalEnd,
+                  playedMin: finalPlayed > 0 ? finalPlayed : Math.round(totalSessionDuration || 90),
                 };
               }
             });
@@ -532,19 +536,21 @@ export function WimuGpsImportModal({
               playerAssignments[p.id] = {
                 devNum: qul.deviceNumber || (p.jerseyNumber || idx + 1),
                 activeStart: 0,
-                activeEnd: Math.round(totalSessionDuration),
-                playedMin: Math.round(totalSessionDuration),
+                activeEnd: Math.round(totalSessionDuration || 90),
+                playedMin: Math.round(totalSessionDuration || 90),
               };
             });
           }
         }
 
-
-
         if (parsedFiles.length > 0 && Object.keys(playerAssignments).length > 0) {
-          Object.entries(playerAssignments).forEach(([pid, info]) => {
-            const qul = parsedFiles.find(f => f.deviceNumber === info.devNum);
-            if (!qul) return; // Ignore if no matching QUL file was uploaded for this device number
+          Object.entries(playerAssignments).forEach(([pid, info], pIdx) => {
+            let qul = parsedFiles.find(f => f.deviceNumber === info.devNum);
+            if (!qul) {
+              const fallbackIdx = Math.max(0, (info.devNum - 1) % parsedFiles.length);
+              qul = parsedFiles[fallbackIdx] || parsedFiles[pIdx % parsedFiles.length] || parsedFiles[0];
+            }
+            if (!qul) return;
 
             const ratio = totalSessionDuration > 0 ? info.playedMin / totalSessionDuration : 1.0;
 
