@@ -63,10 +63,48 @@ export async function GET(req: Request) {
         .from("wimu_sessions")
         .select("*")
         .eq("id", sessionId)
-        .eq("organization_id", orgId) // ensure org isolation
+        .eq("organization_id", orgId)
         .single();
 
       if (sErr) throw sErr;
+
+      let isFriendly = false;
+      let linkedTitle = session.notes || null;
+
+      if (session.session_date) {
+        const { data: tMatch } = await supabase
+          .from("training_sessions")
+          .select("title, session_type, is_friendly")
+          .eq("session_date", session.session_date)
+          .maybeSingle();
+
+        const { data: mMatch } = await supabase
+          .from("matches")
+          .select("opponent, is_friendly, match_type")
+          .eq("date", session.session_date)
+          .maybeSingle();
+
+        if (tMatch?.title) linkedTitle = tMatch.title;
+        else if (mMatch?.opponent) linkedTitle = `vs ${mMatch.opponent}`;
+
+        const normText = ((session.notes || "") + " " + (linkedTitle || "")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+        isFriendly = Boolean(
+          tMatch?.is_friendly ||
+          mMatch?.is_friendly ||
+          mMatch?.match_type === "FRIENDLY" ||
+          normText.includes("amistoso") ||
+          normText.includes("siguenza") ||
+          normText.includes("pretemporada") ||
+          normText.includes("ensayo")
+        );
+      }
+
+      const sessionWithFriendly = {
+        ...session,
+        linked_title: linkedTitle,
+        is_friendly: isFriendly,
+      };
 
       const { data: periods } = await supabase
         .from("session_trimmed_periods")
@@ -86,7 +124,7 @@ export async function GET(req: Request) {
         if (pIds.length > 0) {
           const { data: playersList } = await supabase
             .from("players")
-            .select("id, first_name, last_name, sporting_name, jersey_number, player_team_memberships(jersey_number)")
+            .select("id, first_name, last_name, sporting_name, jersey_number, position, player_team_memberships(jersey_number)")
             .in("id", pIds);
 
           const pMap = new Map((playersList || []).map((p: any) => {
