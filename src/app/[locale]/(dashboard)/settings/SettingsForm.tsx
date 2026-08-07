@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { User, Key, Building2, UserCog, CheckCircle2, AlertTriangle, ChevronDown } from "lucide-react";
@@ -161,11 +161,17 @@ export function SettingsForm({
   organizationSettings = {},
 }: SettingsFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
   const [fullName, setFullName] = useState(initialName);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'planning' | 'roles' | 'methodology' | 'video_pack' | 'performance'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'planning' | 'roles' | 'methodology' | 'video_pack' | 'performance'>(
+    tabParam === 'performance' || tabParam === 'branding' || tabParam === 'planning' || tabParam === 'roles' || tabParam === 'methodology' || tabParam === 'video_pack'
+      ? (tabParam as any)
+      : 'profile'
+  );
   const [inactiveDaysThreshold, setInactiveDaysThreshold] = useState(21);
   const [overuseWeeklyThreshold, setOveruseWeeklyThreshold] = useState(4);
 

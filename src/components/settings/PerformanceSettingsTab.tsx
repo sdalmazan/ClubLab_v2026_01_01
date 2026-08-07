@@ -17,6 +17,8 @@ import {
   AlertCircle,
   Activity,
   HeartPulse,
+  MapPin,
+  Compass,
 } from "lucide-react";
 
 interface PhysicalTestItem {
@@ -439,55 +441,6 @@ export function PerformanceSettingsTab() {
                   </select>
                 </div>
 
-                <div className="pt-2 border-t border-white/5 space-y-2">
-                  <label className="block font-semibold text-slate-200">
-                    Geometría del Campo de Juego (Esquinas GPS Opuestas P1 y P2)
-                  </label>
-                  <p className="text-[11px] text-slate-400">
-                    Introduce las coordenadas GPS de dos esquinas opuestas de tu terreno de juego habitual para la normalización espacial cartesiana (0,0) y rotación por PCA.
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div>
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P1 (Lat, Lon)</label>
-                      <div className="flex gap-1 mt-0.5">
-                        <input
-                          type="text"
-                          value={pitchP1Lat}
-                          onChange={(e) => setPitchP1Lat(e.target.value)}
-                          placeholder="Latitud P1"
-                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
-                        />
-                        <input
-                          type="text"
-                          value={pitchP1Lon}
-                          onChange={(e) => setPitchP1Lon(e.target.value)}
-                          placeholder="Longitud P1"
-                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase">Esquina P2 Opuesta (Lat, Lon)</label>
-                      <div className="flex gap-1 mt-0.5">
-                        <input
-                          type="text"
-                          value={pitchP2Lat}
-                          onChange={(e) => setPitchP2Lat(e.target.value)}
-                          placeholder="Latitud P2"
-                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
-                        />
-                        <input
-                          type="text"
-                          value={pitchP2Lon}
-                          onChange={(e) => setPitchP2Lon(e.target.value)}
-                          placeholder="Longitud P2"
-                          className="w-full rounded-lg bg-slate-950 border border-white/10 px-2 py-1 text-slate-200 text-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             ) : (
@@ -495,6 +448,69 @@ export function PerformanceSettingsTab() {
                 La recopilación de datos GPS está desactivada. La carga externa se calculará mediante minutos de juego y RPE.
               </p>
             )}
+          </div>
+
+          {/* Terreno de Juego del Club - Geometría & Esquinas GPS */}
+          <div className="rounded-2xl border border-emerald-500/30 bg-slate-900/80 p-5 space-y-3 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-emerald-400" />
+                Estadio del Club (Coordenadas GPS de Esquinas P1 y P2)
+              </h3>
+              <span className="text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                Campo Principal
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Configura las coordenadas GPS de dos esquinas opuestas del campo de tu club. Serán utilizadas por el Motor de Procesamiento Espacial para fijar el origen cartesiano (0,0), rotar el eje longitudinal por PCA y normalizar mapas de calor.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="rounded-xl border border-white/10 bg-slate-950 p-3 space-y-1.5">
+                <label className="block text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                  📍 Esquina P1 (Latitud, Longitud)
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input
+                    type="text"
+                    value={pitchP1Lat}
+                    onChange={(e) => setPitchP1Lat(e.target.value)}
+                    placeholder="40.453521"
+                    className="w-full rounded-lg bg-slate-900 border border-white/10 px-2.5 py-1.5 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={pitchP1Lon}
+                    onChange={(e) => setPitchP1Lon(e.target.value)}
+                    placeholder="-3.688972"
+                    className="w-full rounded-lg bg-slate-900 border border-white/10 px-2.5 py-1.5 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-slate-950 p-3 space-y-1.5">
+                <label className="block text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                  📍 Esquina P2 Opuesta (Latitud, Longitud)
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input
+                    type="text"
+                    value={pitchP2Lat}
+                    onChange={(e) => setPitchP2Lat(e.target.value)}
+                    placeholder="40.452587"
+                    className="w-full rounded-lg bg-slate-900 border border-white/10 px-2.5 py-1.5 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={pitchP2Lon}
+                    onChange={(e) => setPitchP2Lon(e.target.value)}
+                    placeholder="-3.687717"
+                    className="w-full rounded-lg bg-slate-900 border border-white/10 px-2.5 py-1.5 text-white text-xs font-mono focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
