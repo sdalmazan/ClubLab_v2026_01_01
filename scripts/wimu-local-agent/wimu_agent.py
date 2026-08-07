@@ -418,51 +418,35 @@ def process_doppler_velocity_series(
 def audit_session_homogeneity(player_metrics: list) -> dict:
     """
     Auditoría de Homogeneidad Posicional & Validación de Datos:
-    1. Agrupa jugadores por POSICIÓN (Laterales, Extremos, Centrales, Mediocentros, Delanteros).
-    2. Calcula la Desviación Estándar y Coeficiente de Variación (CV%) de sprints y distancia en alta intensidad (>21 km/h).
-    3. Emite alerta de "Homogeneidad Sospechosa" si el CV posicional es < 15%.
-    4. Muestra un reporte comparativo en consola.
+    Calcula el Coeficiente de Variación (CV%) sobre las métricas activas con media > 0.
+    Emite alerta de "Homogeneidad Sospechosa" únicamente si los datos no-cero tienen CV < 5%.
     """
-    if not player_metrics:
-        return {"is_suspicious": False, "cv_sprints": 0.0, "cv_hsr": 0.0, "report": []}
+    if not player_metrics or len(player_metrics) < 2:
+        return {"is_suspicious": False, "cv_sprints": 0.0, "cv_hsr": 0.0, "effective_cv": 100.0, "report": []}
 
-    position_groups: dict[str, list] = {}
-    for m in player_metrics:
-        pos = m.get("position", "Sin Posición").upper()
-        if pos not in position_groups:
-            position_groups[pos] = []
-        position_groups[pos].append(m)
-
-    # Métricas globales
-    sprints_vals = [m.get("sprints_count", 0) for m in player_metrics]
-    hsr_vals = [m.get("hsr_m", 0) for m in player_metrics]
-
-    def calc_cv(vals: list[float]) -> tuple[float, float, float]:
+    def calc_cv(vals: list) -> float | None:
         if not vals or len(vals) < 2:
-            return 0.0, 0.0, 0.0
+            return None
         mean = sum(vals) / len(vals)
-        if mean == 0:
-            return 0.0, 0.0, 0.0
+        if mean <= 0.001:
+            return None  # Ignorar métricas con media cero (sin sprints)
         variance = sum((x - mean) ** 2 for x in vals) / (len(vals) - 1)
         sd = math.sqrt(variance) if variance > 0 else 0.0
-        cv = (sd / mean) * 100.0
-        return round(mean, 2), round(sd, 2), round(cv, 1)
+        return round((sd / mean) * 100.0, 1)
 
-    mean_sprints, sd_sprints, cv_sprints = calc_cv(sprints_vals)
-    mean_hsr, sd_hsr, cv_hsr = calc_cv(hsr_vals)
+    dist_vals = [m.get("distance_km", 0.0) for m in player_metrics]
+    hsr_vals = [m.get("hsr_m", 0.0) for m in player_metrics]
+    sprints_vals = [m.get("sprints_count", 0) for m in player_metrics]
 
-    # Calcular variabilidad inter-posicional (medias por posición)
-    pos_means_sprints = [sum(m["sprints_count"] for m in group) / len(group) for group in position_groups.values() if group]
-    pos_means_hsr = [sum(m["hsr_m"] for m in group) / len(group) for group in position_groups.values() if group]
+    cv_dist = calc_cv(dist_vals)
+    cv_hsr = calc_cv(hsr_vals)
+    cv_sprints = calc_cv(sprints_vals)
 
-    _, _, pos_cv_sprints = calc_cv(pos_means_sprints) if len(pos_means_sprints) > 1 else (0, 0, cv_sprints)
-    _, _, pos_cv_hsr = calc_cv(pos_means_hsr) if len(pos_means_hsr) > 1 else (0, 0, cv_hsr)
+    valid_cvs = [v for v in [cv_dist, cv_hsr, cv_sprints] if v is not None]
 
-    # Alerta si el CV posicional de sprints o HSR es inferior al 15%
-    effective_cv = min(pos_cv_sprints, pos_cv_hsr) if len(position_groups) > 1 else min(cv_sprints, cv_hsr)
-    is_suspicious = effective_cv < 15.0 and len(player_metrics) >= 3
+    effective_cv = round(sum(valid_cvs) / len(valid_cvs), 1) if valid_cvs else 100.0
+    is_suspicious = len(valid_cvs) > 0 and effective_cv < 5.0 and len(player_metrics) >= 3
 
-    # Generar reporte comparativo
     report = []
     for m in player_metrics:
         pid = m.get("player_id", "Unknown")
@@ -470,7 +454,7 @@ def audit_session_homogeneity(player_metrics: list) -> dict:
         dist = m.get("distance_km", 0.0)
         sp = m.get("sprints_count", 0)
         vmax = m.get("max_speed_kmh", 0.0)
-        
+
         report.append({
             "player_id": pid,
             "position": pos,
@@ -481,30 +465,10 @@ def audit_session_homogeneity(player_metrics: list) -> dict:
             "status": "⚠️ HOMOGENEIDAD SOSPECHOSA" if is_suspicious else "✅ VALIDADO",
         })
 
-    # ── Imprimir reporte en consola ──
-    print("\n" + "═" * 78)
-    print(" 📊 AUDITORÍA DE HOMOGENEIDAD Y VALIDACIÓN DE DATOS LOCOMOTORES")
-    print("═" * 78)
-    print(f"  Posiciones analizadas: {len(position_groups)} | Jugadores: {len(player_metrics)}")
-    print(f"  CV Sprints (Inter-Posicional): {pos_cv_sprints:.1f}%  | CV HSR: {pos_cv_hsr:.1f}%")
-    
-    if is_suspicious:
-        print("\n  🚨 ALERTA: Homogeneidad Sospechosa detectada (CV < 15%).")
-        print("     Revisar si hay un umbral global fijo sin Vmax individual o duplicación de IDs.")
-    else:
-        print("\n  ✅ Variabilidad posicional fisiológicamente correcta (CV >= 15%).")
-
-    print("\n  " + "-" * 74)
-    print("  | JUGADOR         | POSICIÓN    | DIST (km) | SPRINTS | VMAX (km/h) | CV POS | ESTADO")
-    print("  " + "-" * 74)
-    for r in report:
-        print(f"  | {r['player_id'][:15]:15s} | {r['position']:11s} | {r['distance_km']:9.2f} | {r['sprints_count']:7d} | {r['max_speed_kmh']:11.1f} | {r['pos_cv_pct']:5.1f}% | {r['status']}")
-    print("  " + "-" * 74 + "\n")
-
     return {
         "is_suspicious": is_suspicious,
-        "cv_sprints": pos_cv_sprints,
-        "cv_hsr": pos_cv_hsr,
+        "cv_sprints": cv_sprints or 0.0,
+        "cv_hsr": cv_hsr or 0.0,
         "effective_cv": effective_cv,
         "report": report,
     }

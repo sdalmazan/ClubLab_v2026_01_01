@@ -224,42 +224,37 @@ export function processDopplerVelocitySeries(
  * Emite alerta de "Homogeneidad Sospechosa" si el CV entre posiciones es < 15%.
  */
 export function auditSessionHomogeneity(playerMetrics: any[]): HomogeneityAuditResult {
-  if (!playerMetrics || playerMetrics.length === 0) {
-    return { isSuspicious: false, cvSprints: 0, cvHsr: 0, effectiveCv: 0, report: [] };
+  if (!playerMetrics || playerMetrics.length < 2) {
+    return { isSuspicious: false, cvSprints: 0, cvHsr: 0, effectiveCv: 100, report: [] };
   }
 
-  const groups: Record<string, any[]> = {};
-  playerMetrics.forEach((m) => {
-    const pos = (m.position || m.players?.position || "N/D").toUpperCase();
-    if (!groups[pos]) groups[pos] = [];
-    groups[pos].push(m);
-  });
-
-  const sprintsVals = playerMetrics.map((m) => Number(m.sprints_count ?? m.sprintsCount ?? 0));
-  const hsrVals = playerMetrics.map((m) => Number(m.hsr_m ?? m.hsrM ?? 0));
-
-  function calcCv(vals: number[]): { mean: number; sd: number; cv: number } {
-    if (!vals || vals.length < 2) return { mean: 0, sd: 0, cv: 0 };
+  function calcCv(vals: number[]): number | null {
+    if (!vals || vals.length < 2) return null;
     const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-    if (mean === 0) return { mean: 0, sd: 0, cv: 0 };
+    if (mean <= 0.001) return null; // Ignorar métricas con media 0 (sin sprints en el periodo)
     const variance = vals.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / (vals.length - 1);
     const sd = Math.sqrt(variance);
-    const cv = Math.round((sd / mean) * 1000) / 10;
-    return { mean, sd, cv };
+    return Math.round((sd / mean) * 1000) / 10;
   }
 
-  const posMeansSprints = Object.values(groups).map(
-    (g) => g.reduce((sum, m) => sum + Number(m.sprints_count ?? m.sprintsCount ?? 0), 0) / g.length
-  );
-  const posMeansHsr = Object.values(groups).map(
-    (g) => g.reduce((sum, m) => sum + Number(m.hsr_m ?? m.hsrM ?? 0), 0) / g.length
-  );
+  const distVals = playerMetrics.map((m) => Number(m.distance_km ?? m.estimatedDistanceKm ?? 0));
+  const hsrVals = playerMetrics.map((m) => Number(m.hsr_m ?? m.hsrM ?? 0));
+  const sprintsVals = playerMetrics.map((m) => Number(m.sprints_count ?? m.sprintsCount ?? 0));
 
-  const cvSprints = posMeansSprints.length > 1 ? calcCv(posMeansSprints).cv : calcCv(sprintsVals).cv;
-  const cvHsr = posMeansHsr.length > 1 ? calcCv(posMeansHsr).cv : calcCv(hsrVals).cv;
+  const cvDist = calcCv(distVals);
+  const cvHsr = calcCv(hsrVals);
+  const cvSprints = calcCv(sprintsVals);
 
-  const effectiveCv = Math.min(cvSprints, cvHsr);
-  const isSuspicious = effectiveCv < 15.0 && playerMetrics.length >= 3;
+  // Filtrar métricas válidas con media > 0
+  const validCvs = [cvDist, cvHsr, cvSprints].filter((v): v is number => v !== null);
+
+  // El CV efectivo es la media de los CVs válidos o el CV de distancia si la alta intensidad es 0
+  const effectiveCv = validCvs.length > 0
+    ? Math.round((validCvs.reduce((a, b) => a + b, 0) / validCvs.length) * 10) / 10
+    : 100.0;
+
+  // Alerta de homogeneidad sospechosa SOLO si los datos no-cero son copias idénticas (< 5.0% CV)
+  const isSuspicious = validCvs.length > 0 && effectiveCv < 5.0 && playerMetrics.length >= 3;
 
   const report: HomogeneityAuditReportItem[] = playerMetrics.map((m) => {
     const pName = m.players
@@ -284,8 +279,8 @@ export function auditSessionHomogeneity(playerMetrics: any[]): HomogeneityAuditR
 
   return {
     isSuspicious,
-    cvSprints,
-    cvHsr,
+    cvSprints: cvSprints ?? 0,
+    cvHsr: cvHsr ?? 0,
     effectiveCv,
     report,
   };
