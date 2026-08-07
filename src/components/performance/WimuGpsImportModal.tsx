@@ -552,7 +552,8 @@ export function WimuGpsImportModal({
             }
             if (!qul) return;
 
-            const ratio = totalSessionDuration > 0 ? info.playedMin / totalSessionDuration : 1.0;
+            const fileDuration = qul.durationMin && qul.durationMin > 0 ? qul.durationMin : (totalSessionDuration > 0 ? totalSessionDuration : 90);
+            const ratio = Math.min(1.0, Math.max(0.0, info.playedMin / fileDuration));
 
             const distKm = Math.round(qul.estimatedDistanceKm * ratio * 100) / 100;
             const hsrM = Math.round(qul.estimatedHsrM * ratio);
@@ -567,6 +568,7 @@ export function WimuGpsImportModal({
               player_start_min:       info.activeStart,
               player_end_min:         info.activeEnd,
               played_minutes:         info.playedMin,
+              _file_duration:        fileDuration,
               _raw_distance_km:      qul.estimatedDistanceKm,
               _raw_hsr_m:            qul.estimatedHsrM,
               _raw_sprints_count:    qul.estimatedSprints,
@@ -649,7 +651,8 @@ export function WimuGpsImportModal({
         const currentEnd = field === "player_end_min" ? (value === "" ? defaultDuration : Number(value)) : (m.player_end_min ?? defaultDuration);
 
         const activePlayedMin = Math.max(0, currentEnd - currentStart);
-        const ratio = defaultDuration > 0 ? activePlayedMin / defaultDuration : 1.0;
+        const fullFileDuration = m._file_duration || defaultDuration || 90;
+        const ratio = Math.min(1.0, Math.max(0.0, activePlayedMin / fullFileDuration));
 
         const baseDistKm = m._raw_distance_km ?? m.distance_km ?? 0;
         const baseHsrM = m._raw_hsr_m ?? m.hsr_m ?? 0;

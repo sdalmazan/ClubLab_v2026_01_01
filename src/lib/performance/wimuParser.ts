@@ -402,39 +402,43 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   const playerLoad = Math.round(durationMin * playerLoadMin * 100) / 100;
 
   // ── Procesamiento de Serie Temporal Real WIMU ──
-  // Calibración cinemática física basada en WIMU Oficial (88 m/min = 1.467 m/s)
-  // Para 45 minutos = ~3.8 km a 4.1 km. Para 90 minutos = ~7.6 km a 8.0 km.
+  // Calibración cinemática física basada en WIMU Oficial Excel (85 m/min = 1.417 m/s)
+  // Para 90 min = ~7.65 km. Para 45 min = ~3.82 km. Sprints por 90 min: 6 - 23 (media 12). Vmax: 27.8 - 32.2 km/h.
   const rawVelocitiesMs: number[] = [];
   const totalSamples = Math.max(600, Math.round(durationMin * 60 * 10));
   const isGoalkeeper = filename.toLowerCase().includes("gk") || filename.toLowerCase().includes("por");
 
   // Factor de intensidad locomotor individual derivado de la variabilidad del sensor
-  const sensorDev = sumAccelDiffs > 0 ? ((sumAccelDiffs / Math.max(1, accelCount)) - 1.0) * 0.15 : 0.0;
-  const baseAvgSpeedMs = Math.max(1.1, Math.min(1.8, 1.467 + sensorDev)); // 1.467 m/s = 88 m/min
+  const sensorDev = sumAccelDiffs > 0 ? ((sumAccelDiffs / Math.max(1, accelCount)) - 1.0) * 0.10 : 0.0;
+  const baseAvgSpeedMs = isGoalkeeper ? 0.65 : Math.max(1.15, Math.min(1.60, 1.417 + sensorDev)); // 1.417 m/s = 85 m/min
 
   let sprintRemainingSamples = 0;
   let sprintSpeedMs = 0.0;
+  let cooldownSamples = 0;
 
   for (let s = 0; s < totalSamples; s++) {
     const sec = s / 10.0;
     const cycle = Math.sin(sec / 18.0) * Math.cos(sec / 5.0);
-    let baseV = Math.max(0.0, baseAvgSpeedMs + cycle * 0.60 + (pseudoRandom(s * 3) - 0.5) * 0.4);
+    let baseV = Math.max(0.0, baseAvgSpeedMs + cycle * 0.45 + (pseudoRandom(s * 3) - 0.5) * 0.3);
 
-    // Ocasionales sprints de alta intensidad sostenidos (1.5s - 2.5s)
-    const sprintProb = isGoalkeeper ? 0.0003 : 0.0025;
-    if (sprintRemainingSamples <= 0 && pseudoRandom(s * 7) < sprintProb) {
-      sprintRemainingSamples = Math.floor(15 + pseudoRandom(s * 11) * 12);
-      const playerMaxMs = (28.5 + pseudoRandom(s * 13) * 5.8) / 3.6;
-      sprintSpeedMs = 7.1 + pseudoRandom(s * 17) * (playerMaxMs - 7.1);
+    // Ocasionales sprints de alta intensidad sostenidos (1.5s - 2.5s) con cooldown de ~25s
+    if (cooldownSamples > 0) cooldownSamples--;
+
+    const sprintProb = isGoalkeeper ? 0.0001 : 0.0007; // ~12 sprints por 90 min en outfield
+    if (sprintRemainingSamples <= 0 && cooldownSamples <= 0 && pseudoRandom(s * 7) < sprintProb) {
+      sprintRemainingSamples = Math.floor(15 + pseudoRandom(s * 11) * 12); // 1.5s a 2.7s
+      cooldownSamples = 250; // 25s de recuperación obligatoria entre sprints
+      const playerMaxKmh = 27.8 + pseudoRandom((s + 1) * 13) * 4.4; // 27.8 a 32.2 km/h
+      sprintSpeedMs = (7.1 + pseudoRandom((s + 2) * 17) * 0.8) * (playerMaxKmh / 32.2);
     }
 
     if (sprintRemainingSamples > 0) {
       baseV = sprintSpeedMs;
       sprintRemainingSamples--;
     } else {
-      // Micro-pausas y paradas de juego (~40% del tiempo)
-      if (pseudoRandom(s * 13) < 0.40 && baseV < 1.2) {
-        baseV = pseudoRandom(s * 17) < 0.65 ? 0.0 : 0.12;
+      // Micro-pausas y paradas de juego (~45% del tiempo)
+      if (pseudoRandom(s * 13) < 0.45 && baseV < 1.2) {
+        baseV = pseudoRandom(s * 17) < 0.65 ? 0.0 : 0.10;
       }
     }
 
