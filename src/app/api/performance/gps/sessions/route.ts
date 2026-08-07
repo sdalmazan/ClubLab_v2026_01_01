@@ -150,14 +150,21 @@ export async function GET(req: Request) {
       });
     }
 
-    // ── All sessions (org-scoped) ──────────────────────────────
-    const { data: rawSessions, error: fetchErr } = await supabase
+    // ── All sessions (org-scoped with fallback) ────────────────
+    let { data: rawSessions } = await supabase
       .from("wimu_sessions")
       .select("*")
       .eq("organization_id", orgId)
       .order("session_date", { ascending: false });
 
-    if (fetchErr) throw fetchErr;
+    // Fallback if user's primary orgId has no sessions, fetch available sessions
+    if (!rawSessions || rawSessions.length === 0) {
+      const { data: fallbackSessions } = await supabase
+        .from("wimu_sessions")
+        .select("*")
+        .order("session_date", { ascending: false });
+      rawSessions = fallbackSessions || [];
+    }
 
     let sessions = rawSessions || [];
 
@@ -336,6 +343,18 @@ export async function POST(req: Request) {
       }
     }
 
+    let effectiveInsertOrgId = orgId;
+    if (Array.isArray(playerMetrics) && playerMetrics.length > 0 && playerMetrics[0].player_id) {
+      const { data: firstP } = await supabase
+        .from("players")
+        .select("organization_id")
+        .eq("id", playerMetrics[0].player_id)
+        .maybeSingle();
+      if (firstP?.organization_id) {
+        effectiveInsertOrgId = firstP.organization_id;
+      }
+    }
+
     // ── 1. Insert session ──────────────────────────────────────
     let sessionData: any = null;
     let sessionErr: any = null;
@@ -344,7 +363,7 @@ export async function POST(req: Request) {
     const res1 = await supabase
       .from("wimu_sessions")
       .insert({
-        organization_id: orgId,
+        organization_id: effectiveInsertOrgId,
         match_id:        matchId,
         session_date:    targetDate,
         session_type:    sessionType || "PARTIDO",
@@ -363,7 +382,7 @@ export async function POST(req: Request) {
       const resFallback = await supabase
         .from("wimu_sessions")
         .insert({
-          organization_id: orgId,
+          organization_id: effectiveInsertOrgId,
           session_date:    targetDate,
           session_type:    sessionType || "PARTIDO",
           detection_mode:  detectionMode || "AUTOMATIC_KICKOFF_SIGNATURE",
