@@ -59,14 +59,17 @@ export async function GET(req: Request) {
 
     // ── Single session detail ──────────────────────────────────
     if (sessionId) {
-      const { data: session, error: sErr } = await supabase
+      let { data: session, error: sErr } = await supabase
         .from("wimu_sessions")
         .select("*")
         .eq("id", sessionId)
-        .eq("organization_id", orgId)
-        .single();
+        .maybeSingle();
 
-      if (sErr) throw sErr;
+      if (!session) {
+        return NextResponse.json({ success: false, error: "Sesión GPS no encontrada" }, { status: 404 });
+      }
+
+      const effectiveOrgId = session.organization_id || orgId;
 
       let isFriendly = false;
       let linkedTitle = session.notes || null;
@@ -123,7 +126,7 @@ export async function GET(req: Request) {
         const { data: playersList } = await supabase
           .from("players")
           .select("id, first_name, last_name, sporting_name, jersey_number, position, player_team_memberships(jersey_number)")
-          .eq("organization_id", orgId);
+          .eq("organization_id", effectiveOrgId);
 
         const pMap = new Map((playersList || []).map((p: any) => {
           const resolvedJersey = p.jersey_number ?? p.player_team_memberships?.[0]?.jersey_number ?? null;
