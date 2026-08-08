@@ -40,18 +40,28 @@ export async function POST(request: Request) {
       );
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
-
-    // Find session_id if matchId was provided and has an associated session_id
+    // Find session_id and date if matchId or sessionId was provided
     let resolvedSessionId = sessionId || null;
-    if (!resolvedSessionId && matchId) {
+    let targetDate = new Date().toISOString().split("T")[0];
+
+    if (matchId) {
       const { data: matchRow } = await supabase
         .from("matches")
-        .select("session_id")
+        .select("session_id, date")
         .eq("id", matchId)
         .maybeSingle();
-      if (matchRow?.session_id) {
-        resolvedSessionId = matchRow.session_id;
+      if (matchRow) {
+        if (matchRow.session_id) resolvedSessionId = matchRow.session_id;
+        if (matchRow.date) targetDate = matchRow.date;
+      }
+    } else if (resolvedSessionId) {
+      const { data: sessionRow } = await supabase
+        .from("training_sessions")
+        .select("date")
+        .eq("id", resolvedSessionId)
+        .maybeSingle();
+      if (sessionRow?.date) {
+        targetDate = sessionRow.date;
       }
     }
 
@@ -59,13 +69,16 @@ export async function POST(request: Request) {
     const rpePayload: any = {
       organization_id: organizationId,
       player_id: playerId,
-      date: todayStr,
+      date: targetDate,
       rpe: rpe ?? 7,
       post_feeling: postFeeling || "good",
       notes: notes || (matchId ? `Check-out Partido (Match ID: ${matchId})` : null),
     };
     if (resolvedSessionId) {
       rpePayload.session_id = resolvedSessionId;
+    }
+    if (matchId) {
+      rpePayload.match_id = matchId;
     }
 
     const { error: upsertErr } = await supabase
