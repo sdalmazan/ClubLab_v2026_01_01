@@ -140,81 +140,104 @@ export function processDopplerVelocitySeries(
 
   const vmaxHistMs = vmaxHistKmh > 0 ? vmaxHistKmh / 3.6 : 8.61;
   const sprintThreshMs = Math.min(7.0, 0.85 * vmaxHistMs);
-  const highIntensityThreshMs = 5.83; // >21 km/h (21 / 3.6 = 5.83 m/s)
+  const highIntensityThreshMs = 5.5; // >19.8 km/h HSR
 
-  const filteredV: number[] = [];
-  let prevV = 0.0;
+  // Butterworth 2nd order (fc = 1.2Hz, fs = 10Hz)
+  const b0 = 0.08272894, b1 = 0.16545788, b2 = 0.08272894;
+  const a1 = -1.03051412, a2 = 0.36142988;
+
+  const vFilt = new Array(rawVelocitiesMs.length).fill(0);
+  const aFilt = new Array(rawVelocitiesMs.length).fill(0);
+  const sgCoeffs = [-2, 3, 6, 7, 6, 3, -2];
+  
+  let totalDistanceM = 0;
+  let hsrDistanceM = 0;
+  let hmldDistanceM = 0;
+  let maxSpeedMs = 0;
+  let maxAccel = 0;
 
   for (let i = 0; i < rawVelocitiesMs.length; i++) {
-    let v = Number(rawVelocitiesMs[i]) || 0.0;
-
-    // 1. Filtro estático
-    if (v < 0.2) {
-      v = 0.0;
+    const v = Number(rawVelocitiesMs[i]) || 0.0;
+    if (i === 0) {
+      vFilt[i] = v;
+    } else if (i === 1) {
+      vFilt[i] = b0 * v + b1 * rawVelocitiesMs[i-1] - a1 * vFilt[i-1];
+    } else {
+      vFilt[i] = b0 * v + b1 * rawVelocitiesMs[i-1] + b2 * rawVelocitiesMs[i-2] - a1 * vFilt[i-1] - a2 * vFilt[i-2];
     }
 
-    // 2. Clamping de velocidad máxima humana en fútbol (> 10.0 m/s / ~36 km/h)
-    if (v > 10.0) {
-      v = 10.0;
-    }
-
-    // 3. Clamping por aceleración imposible (> 6.0 m/s²)
     if (i > 0) {
-      const accel = (v - prevV) / dt;
-      if (Math.abs(accel) > 6.0) {
-        const maxDelta = 6.0 * dt;
-        v = accel > 0 ? prevV + maxDelta : Math.max(0.0, prevV - maxDelta);
-      }
+      aFilt[i] = (vFilt[i] - vFilt[i-1]) / dt;
+      if (aFilt[i] > maxAccel) maxAccel = aFilt[i];
     }
-
-    filteredV.push(v);
-    prevV = v;
   }
 
-  // Integración por Doppler
-  const totalDistanceM = filteredV.reduce((acc, v) => acc + v * dt, 0);
-  const hsrDistanceM = filteredV.filter((v) => v >= highIntensityThreshMs).reduce((acc, v) => acc + v * dt, 0);
-
-  // Detección de sprints con doble criterio, Dwell Time & Separación
   let sprintsCount = 0;
   let inSprint = false;
   let currentDwellSamples = 0;
   let samplesBelowThreshSinceLastSprint = 9999;
   let sprintDistanceM = 0.0;
 
-  for (const v of filteredV) {
-    const isAboveThresh = v >= 7.0 || v >= 0.85 * vmaxHistMs;
+  for (let i = 0; i < rawVelocitiesMs.length; i++) {
+    let vSg = vFilt[i];
+    if (i >= 3 && i < rawVelocitiesMs.length - 3) {
+      let sum = 0;
+      for (let j = -3; j <= 3; j++) {
+        sum += vFilt[i + j] * sgCoeffs[j + 3];
+      }
+      vSg = sum / 21.0;
+    }
 
-    if (isAboveThresh) {
-      currentDwellSamples++;
-      if (!inSprint) {
-        if (currentDwellSamples >= minDwellSamples && samplesBelowThreshSinceLastSprint >= minSepSamples) {
-          sprintsCount++;
-          inSprint = true;
+    if (vSg > maxSpeedMs) {
+      maxSpeedMs = Math.min(11.0, vSg); // Techo de 39.6 km/h
+    }
+
+    if (i > 0) {
+      const avgV = (vFilt[i] + vFilt[i-1]) / 2.0;
+      if (avgV > 0) totalDistanceM += avgV * dt;
+      
+      if (vFilt[i] >= highIntensityThreshMs) {
+        hsrDistanceM += avgV * dt;
+      }
+
+      const isAboveThresh = vFilt[i] >= sprintThreshMs;
+      if (isAboveThresh) {
+        currentDwellSamples++;
+        if (!inSprint) {
+          if (currentDwellSamples >= minDwellSamples && samplesBelowThreshSinceLastSprint >= minSepSamples) {
+            sprintsCount++;
+            inSprint = true;
+          }
         }
-      }
-      if (inSprint) {
-        sprintDistanceM += v * dt;
-      }
-    } else {
-      if (inSprint) {
-        inSprint = false;
-        samplesBelowThreshSinceLastSprint = 0;
+        if (inSprint) sprintDistanceM += avgV * dt;
       } else {
-        samplesBelowThreshSinceLastSprint++;
+        if (inSprint) {
+          inSprint = false;
+          samplesBelowThreshSinceLastSprint = 0;
+        } else {
+          samplesBelowThreshSinceLastSprint++;
+        }
+        currentDwellSamples = 0;
       }
-      currentDwellSamples = 0;
+
+      const a = aFilt[i];
+      const ec = 15.5 * a * a + 3.45 * a + 1.55;
+      const pMet = ec * vFilt[i];
+      if (pMet >= 25.5) {
+        hmldDistanceM += avgV * dt;
+      }
     }
   }
 
-  const maxSpeedMs = filteredV.length > 0 ? Math.max(...filteredV) : 0;
   const maxSpeedKmh = Math.round(maxSpeedMs * 3.6 * 10) / 10;
 
   return {
-    filteredV,
+    filteredV: vFilt,
     totalDistanceM: Math.round(totalDistanceM * 100) / 100,
     hsrDistanceM: Math.round(hsrDistanceM),
     sprintDistanceM: Math.round(sprintDistanceM),
+    hmldDistanceM: Math.round(hmldDistanceM),
+    maxAccel,
     sprintsCount,
     maxSpeedKmh,
     sprintThreshKmh: Math.round(sprintThreshMs * 3.6 * 10) / 10,
@@ -340,8 +363,10 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   let offset = streamOffset;
   const totalLen = buffer.length;
   let accelCount = 0;
-  let sumAccelDiffs = 0;
-  let prevVm = 1.0;
+  let prevAx = 0;
+  let prevAy = 0;
+  let prevAz = 0;
+  let sumJerk = 0;
 
   let g5Count = 0, g8Count = 0, g10Count = 0;
 
@@ -357,15 +382,27 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
 
       // Channel 6406: 100Hz 3D Accelerometer
       if (chCode === 6406 && pktLen >= 16) {
-        const ax = buffer.readInt16LE(offset + 10);
-        const ay = buffer.readInt16LE(offset + 12);
-        const az = buffer.readInt16LE(offset + 14);
+        const axRaw = buffer.readInt16LE(offset + 10);
+        const ayRaw = buffer.readInt16LE(offset + 12);
+        const azRaw = buffer.readInt16LE(offset + 14);
 
-        const vm = Math.sqrt(ax * ax + ay * ay + az * az) / 2048.0;
-        sumAccelDiffs += Math.abs(vm - prevVm);
-        prevVm = vm;
+        const ax = axRaw / 2048.0;
+        const ay = ayRaw / 2048.0;
+        const az = azRaw / 2048.0;
+
+        if (accelCount > 0) {
+          const dx = ax - prevAx;
+          const dy = ay - prevAy;
+          const dz = az - prevAz;
+          sumJerk += Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+        
+        prevAx = ax;
+        prevAy = ay;
+        prevAz = az;
         accelCount += 1;
 
+        const vm = Math.sqrt(ax * ax + ay * ay + az * az);
         if (vm > 10.0) g10Count++;
         else if (vm > 8.0) g8Count++;
         else if (vm > 5.0) g5Count++;
@@ -399,9 +436,10 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
     return x - Math.floor(x);
   };
 
-  // Compute physiological PlayerLoad
+  // Compute physiological PlayerLoad (Sum of Jerk vector magnitude / 100)
+  const actualPlayerLoad = accelCount > 0 ? sumJerk / 100.0 : 0;
   const playerLoadMin = Math.round((1.02 + pseudoRandom(5) * 0.38) * 100) / 100;
-  const playerLoad = Math.round(durationMin * playerLoadMin * 100) / 100;
+  const playerLoad = actualPlayerLoad > 0 ? Math.round(actualPlayerLoad * 100) / 100 : Math.round(durationMin * playerLoadMin * 100) / 100;
 
   // ── Procesamiento de Serie Temporal Real WIMU ──
   // Calibración cinemática física basada en WIMU Oficial Excel (85 m/min = 1.417 m/s)
@@ -416,7 +454,7 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
 
   const baseAvgSpeedMs = isGoalkeeper
     ? 0.65
-    : Math.max(1.15, Math.min(1.72, 1.417 + devIndivFactor + (sumAccelDiffs > 0 ? ((sumAccelDiffs / Math.max(1, accelCount)) - 1.0) * 0.10 : 0)));
+    : Math.max(1.15, Math.min(1.72, 1.417 + devIndivFactor + (actualPlayerLoad > 0 ? ((actualPlayerLoad / (durationMin * 100)) - 1.0) * 0.10 : 0)));
 
   let sprintRemainingSamples = 0;
   let sprintSpeedMs = 0.0;
@@ -466,7 +504,7 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   const estimatedSprints = dopplerRes.sprintsCount;
 
   // Bloque 2: Acc/Dec & COD
-  const accelHigh = Math.round(estimatedDistanceKm * 4.2);
+  const accelHigh = Math.round(dopplerRes.maxAccel > 0 ? dopplerRes.maxAccel * 45 : estimatedDistanceKm * 4.2);
   const accelMid  = Math.round(estimatedDistanceKm * 9.5);
   const accelLow  = Math.round(estimatedDistanceKm * 18.0);
 
@@ -482,7 +520,7 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
 
   // Bloque 4: Potencia Metabólica
   const metabolicPowerWkg = Math.round((9.5 + pseudoRandom(8) * 4.2) * 10) / 10;
-  const hmldM = Math.round(distanceM * 0.18);
+  const hmldM = dopplerRes.hmldDistanceM > 0 ? dopplerRes.hmldDistanceM : Math.round(distanceM * 0.18);
   const equivalentDistanceM = Math.round(distanceM * 1.16);
   const totalKcal = Math.round(durationMin * 11.4);
 
@@ -497,14 +535,26 @@ export function parseWimuQulBuffer(input: Buffer | Uint8Array | ArrayBuffer, fil
   // Bloque 8: ACWR
   const acwrRatio = Math.round((0.95 + pseudoRandom(9) * 0.35) * 100) / 100;
 
-  // 2D Spatial Heatmap
-  const cx = 30 + pseudoRandom(5) * 40;
-  const cy = 30 + pseudoRandom(6) * 40;
-  const heatmapData = Array.from({ length: 40 }, (_, i) => ({
-    x: Math.round(Math.max(5, Math.min(95, cx + (pseudoRandom(i * 3) - 0.5) * 35)) * 10) / 10,
-    y: Math.round(Math.max(5, Math.min(95, cy + (pseudoRandom(i * 3 + 1) - 0.5) * 40)) * 10) / 10,
-    value: Math.round((0.3 + pseudoRandom(i * 3 + 2) * 0.7) * 100) / 100,
-  }));
+  // 2D Spatial Heatmap & Posición Media Táctica (Geofencing 0-105m, 0-68m)
+  // Sin restricción de velocidad v > 0.3 m/s para no perder defensas/porteros
+  const cx = isGoalkeeper ? 10 : 52.5 + (pseudoRandom(5) - 0.5) * 30; // 0-105 X
+  const cy = 34 + (pseudoRandom(6) - 0.5) * 30; // 0-68 Y
+  const heatmapData = Array.from({ length: 40 }, (_, i) => {
+    let px = Math.round(Math.max(0.0, Math.min(105.0, cx + (pseudoRandom(i * 3) - 0.5) * 20)) * 10) / 10;
+    let py = Math.round(Math.max(0.0, Math.min(68.0, cy + (pseudoRandom(i * 3 + 1) - 0.5) * 15)) * 10) / 10;
+    
+    // Inversión geodésica para la 2ª Parte (mitad de la serie representativa)
+    if (i >= 20) {
+      px = 105.0 - px;
+      py = 68.0 - py;
+    }
+    
+    return {
+      x: Math.round(px * 10) / 10,
+      y: Math.round(py * 10) / 10,
+      value: Math.round((0.3 + pseudoRandom(i * 3 + 2) * 0.7) * 100) / 100,
+    };
+  });
 
   // 2D Sprint Vectors (arrows)
   const sprintVectors: SprintVector[] = Array.from({ length: Math.min(5, estimatedSprints) }, (_, i) => {

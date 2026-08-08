@@ -41,12 +41,49 @@ export default function TestingPerformancePage() {
   // Expanded complete test modal state
   const [expandedTest, setExpandedTest] = useState<{ test: ActiveTest; results: PlayerTestResult[] } | null>(null);
   const [searchPlayer, setSearchPlayer] = useState("");
+  const [fatResults, setFatResults] = useState<PlayerTestResult[]>([]);
 
   useEffect(() => {
     async function loadActiveTests() {
       try {
         setLoading(true);
-        const res = await fetch("/api/performance/tests?activeOnly=true");
+        const [res, fatRes] = await Promise.all([
+          fetch("/api/performance/tests?activeOnly=true"),
+          fetch("/api/performance/body-fat?limit=500")
+        ]);
+
+        if (fatRes.ok) {
+          const fatData = await fatRes.json();
+          if (fatData.entries) {
+            const playerMap = new Map<string, PlayerTestResult>();
+            fatData.entries.forEach((entry: any) => {
+              if (!playerMap.has(entry.player_id)) {
+                playerMap.set(entry.player_id, {
+                  id: entry.id,
+                  playerId: entry.player_id,
+                  playerName: entry.players ? `${entry.players.first_name} ${entry.players.last_name}` : "Desconocido",
+                  position: "JUG",
+                  value: entry.fat_percentage_6,
+                  date: entry.date,
+                  historical: []
+                });
+              }
+              playerMap.get(entry.player_id)!.historical.push({
+                date: entry.date,
+                value: entry.fat_percentage_6
+              });
+            });
+
+            const results = Array.from(playerMap.values()).map(r => {
+              r.historical.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+              return r;
+            });
+
+            results.sort((a, b) => a.value - b.value);
+            setFatResults(results);
+          }
+        }
+
         const data = await res.json();
         if (res.ok && Array.isArray(data)) {
           let list = [...data];
@@ -78,8 +115,21 @@ export default function TestingPerformancePage() {
   }, []);
 
   // Results dataset per test type
-  const getMockPlayerResults = (test: ActiveTest): PlayerTestResult[] => {
+  const getResultsForTest = (test: ActiveTest): PlayerTestResult[] => {
+    if (test.id === "t-skinfolds" || test.name?.toLowerCase().includes("pliegues") || test.name?.toLowerCase().includes("antropometría")) {
+      return fatResults;
+    }
     return [];
+  };
+
+  const getValueStyle = (testId: string, value: number) => {
+    if (testId === "t-skinfolds" || testId.includes("skinfolds")) {
+      if (value > 10) return "text-red-500 bg-red-500/20 px-2 py-1 rounded font-black border border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)]";
+      if (value > 8) return "text-red-400 font-extrabold";
+      if (value >= 7) return "text-blue-400 font-extrabold";
+      return "text-green-400 font-extrabold";
+    }
+    return "corp-text font-extrabold";
   };
 
 
@@ -146,7 +196,7 @@ export default function TestingPerformancePage() {
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {activeTests.map((test) => {
-            const results = getMockPlayerResults(test);
+            const results = getResultsForTest(test);
             const top5Results = results.slice(0, 5);
 
             return (
@@ -230,8 +280,8 @@ export default function TestingPerformancePage() {
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${qInfo.bg}`}>
                               {qInfo.label.split("—")[0]}
                             </span>
-                            <div className="font-mono font-extrabold text-sm corp-text">
-                              {res.value} <span className="text-[10px] font-normal text-slate-400">{test.unit}</span>
+                            <div className={`font-mono text-sm ${getValueStyle(test.id, res.value)}`}>
+                              {res.value} <span className="text-[10px] font-normal opacity-70">{test.unit}</span>
                             </div>
                           </div>
                         </div>
@@ -318,8 +368,8 @@ export default function TestingPerformancePage() {
                           <td className="py-3 px-3 font-bold text-white">
                             {res.playerName} <span className="text-[10px] text-slate-500 font-semibold uppercase">({res.position})</span>
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold corp-text">
-                            {res.value} {expandedTest.test.unit}
+                          <td className={`py-3 px-3 font-mono ${getValueStyle(expandedTest.test.id, res.value)}`}>
+                            {res.value} <span className="text-[10px] font-normal opacity-70">{expandedTest.test.unit}</span>
                           </td>
                           <td className="py-3 px-3">
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded border inline-block ${qInfo.bg}`}>
@@ -407,8 +457,8 @@ export default function TestingPerformancePage() {
 
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block">Último Resultado</span>
-                <span className="text-lg font-black corp-text font-mono mt-0.5 block">
-                  {selectedPlayerResult.player.value} {selectedPlayerResult.test.unit}
+                <span className={`text-lg font-black font-mono mt-0.5 inline-block ${getValueStyle(selectedPlayerResult.test.id, selectedPlayerResult.player.value)}`}>
+                  {selectedPlayerResult.player.value} <span className="text-xs font-normal opacity-70">{selectedPlayerResult.test.unit}</span>
                 </span>
               </div>
 
