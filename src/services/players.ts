@@ -226,7 +226,8 @@ export async function getSquadPlayers(
   const { data: todayRpe } = await supabase
     .from("rpe_entries")
     .select("*")
-    .eq("date", todayStr);
+    .gte("created_at", `${todayStr}T00:00:00Z`)
+    .lte("created_at", `${todayStr}T23:59:59Z`);
 
   const wellnessMap = new Map<string, any>();
   (todayWellness ?? []).forEach((w: any) => wellnessMap.set(w.player_id, w));

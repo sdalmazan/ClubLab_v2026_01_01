@@ -76,7 +76,7 @@ export function PlayerProfileWorkspace({
         const supabase = createClient();
         const [checkinsRes, rpeRes] = await Promise.all([
           supabase.from("player_wellness_checkins").select("*").eq("player_id", player.id).order("date", { ascending: false }).limit(30),
-          supabase.from("rpe_entries").select("*").eq("player_id", player.id).order("date", { ascending: false }).limit(30),
+          supabase.from("rpe_entries").select("*").eq("player_id", player.id).order("created_at", { ascending: false }).limit(30),
         ]);
 
         if (checkinsRes.data) setHistoryCheckins(checkinsRes.data);

@@ -198,7 +198,7 @@ export default async function DashboardPage({
     const { data: rpeEntries } = await supabase
       .from("rpe_entries")
       .select("*")
-      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(100);
 
     const sessionDates = new Set((data || []).map((s: any) => s.date));
@@ -220,7 +220,7 @@ export default async function DashboardPage({
     dbSessions = combined.map((s: any) => ({
       ...s,
       wellness_checkins: (wellnessCheckins || []).filter((w: any) => w.session_id === s.id || w.date === s.date),
-      rpe_entries: (rpeEntries || []).filter((r: any) => r.session_id === s.id || (s.match_id && r.match_id === s.match_id) || r.date === s.date),
+      rpe_entries: (rpeEntries || []).filter((r: any) => r.session_id === s.id || r.created_at?.startsWith(s.date)),
     }));
   }
 

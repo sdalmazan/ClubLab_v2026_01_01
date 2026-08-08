@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       .from("rpe_entries")
       .select("*, training_sessions(title)")
       .eq("player_id", playerId)
-      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(60);
 
     // Query session attendance for attendance/weight/RPE fallback
@@ -75,10 +75,12 @@ export async function GET(request: Request) {
 
     // 2. Process RPE entries
     (rpe || []).forEach((r) => {
-      if (!historyMap.has(r.date)) {
-        historyMap.set(r.date, { date: r.date });
+      const rDate = r.created_at ? r.created_at.split("T")[0] : null;
+      if (!rDate) return;
+      if (!historyMap.has(rDate)) {
+        historyMap.set(rDate, { date: rDate });
       }
-      const item = historyMap.get(r.date);
+      const item = historyMap.get(rDate);
       item.checkout = {
         rpe: r.rpe,
         session_title: (r.training_sessions as any)?.title || "Sesión",
